@@ -8,15 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     crosswordSolver.init();
 });
 
-/**
- * The CrosswordSolver class encapsulates all logic for:
- * - Managing the crossword grid (generating, rendering, toggling)
- * - Handling word loading, lookup, and caching
- * - Predefined puzzles
- * - Solving algorithms (AC-3, backtracking, etc.)
- * - Mode toggles (number, letter, drag)
- * - Dynamic Word Lookup
- */
 class CrosswordSolver {
     constructor() {
         // --------------------- Configuration & Flags ---------------------
@@ -77,8 +68,9 @@ class CrosswordSolver {
             this.createEventListeners();
             this.loadWords()
                 .then(() => {
-                    this.generateGrid(10, 10); // Auto-generate 10x10 grid at startup
-                    this.createWordLookupSection();
+                    // Auto-generate a 10x10 grid when the page loads
+                    this.generateGrid(10, 10);
+                    // NOTE: We are NOT creating a duplicate Word Lookup section here
                 })
                 .catch((error) => {
                     this.handleError("Initialization failed during word loading.", error);
@@ -174,6 +166,13 @@ class CrosswordSolver {
             // Solve Crossword Button
             this.bindButton('#solve-crossword-button', this.solveCrossword);
 
+            // Word Lookup Input
+            // If the ID is present in HTML, we'll attach the dynamic search.
+            const wordSearchInput = document.getElementById('word-search-input');
+            if (wordSearchInput) {
+                wordSearchInput.addEventListener('input', this.handleSearchInput);
+            }
+
         } catch (error) {
             this.handleError("Error setting up event listeners:", error);
         }
@@ -187,7 +186,9 @@ class CrosswordSolver {
     bindButton(selector, callback) {
         const button = document.querySelector(selector);
         if (!button) {
-            throw new Error(`Button with selector "${selector}" not found in DOM.`);
+            // Not all buttons are mandatory, so just log a debug message
+            this.debugLog(`Button with selector "${selector}" not found in DOM. Possibly intentional.`);
+            return;
         }
         button.addEventListener('click', callback);
     }
@@ -402,14 +403,9 @@ class CrosswordSolver {
             const row = parseInt(cell.dataset.row, 10);
             const col = parseInt(cell.dataset.col, 10);
 
-            if (this.grid[row][col] === "#") {
-                // Cell is blacked out
-                alert("This cell is blacked out and cannot be modified.");
-                return;
-            }
-
             // Mode-based behaviors
             if (this.isNumberEntryMode) {
+                // Toggle numbers
                 if (/\d/.test(this.grid[row][col])) {
                     this.removeNumberFromCell(row, col);
                 } else {
@@ -419,6 +415,7 @@ class CrosswordSolver {
             }
 
             if (this.isLetterEntryMode) {
+                // Letter input
                 const letter = prompt("Enter a single letter (A-Z):");
                 if (letter && /^[A-Za-z]$/.test(letter)) {
                     const upperLetter = letter.toUpperCase();
@@ -431,22 +428,20 @@ class CrosswordSolver {
             }
 
             if (this.isDragMode) {
-                // Drag mode is active; clicks won't toggle cells
+                // Drag mode is active, so single-click does nothing
                 return;
             }
 
-            // Default Mode: Toggle black/white indefinitely
+            // Default Mode: Indefinite toggling from white <--> black
             if (this.grid[row][col] !== "#") {
-                if (cell.style.backgroundColor !== 'rgb(0, 0, 0)') {
-                    // Toggle to black
-                    this.updateCell(row, col, '', '#000', '#000');
-                    this.grid[row][col] = "#";
-                    this.updateNumbersAfterRemoval(row, col);
-                } else {
-                    // Toggle to white
-                    this.updateCell(row, col, '', '#444', '#fff');
-                    this.grid[row][col] = " ";
-                }
+                // Toggle to black
+                this.updateCell(row, col, '', '#000', '#000');
+                this.grid[row][col] = "#";
+                this.updateNumbersAfterRemoval(row, col);
+            } else {
+                // Toggle back to white
+                this.updateCell(row, col, '', '#444', '#fff');
+                this.grid[row][col] = " ";
             }
         } catch (error) {
             this.handleError("Error handling cell click:", error);
@@ -531,7 +526,7 @@ class CrosswordSolver {
             if (!modeLabel || !button) throw new Error("Drag Mode elements not found in DOM.");
 
             if (this.isDragMode) {
-                // Deactivate
+                // Deactivate drag mode
                 this.isDragMode = false;
                 modeLabel.textContent = "Mode: Default";
                 this.updateStatus("Drag Mode Deactivated.");
@@ -545,8 +540,9 @@ class CrosswordSolver {
                     cell.removeEventListener('mousemove', this.onDragBound);
                     cell.removeEventListener('mouseup', this.stopDragBound);
                 }
+
             } else {
-                // Activate
+                // Activate drag mode
                 if (this.isNumberEntryMode) this.startNumberEntryMode(); // Toggle off number
                 if (this.isLetterEntryMode) this.startLetterEntryMode(); // Toggle off letter
 
@@ -728,14 +724,13 @@ class CrosswordSolver {
         const cell = this.cells[`${row},${col}`];
         if (!cell) return;
 
-        // If we are toggling to black and it's not already black
         if (this.toggleToBlack && this.grid[row][col] !== "#") {
+            // Toggle to black
             this.updateCell(row, col, "", '#000', '#000');
             this.grid[row][col] = "#";
             this.updateNumbersAfterRemoval(row, col);
-
-        // Else toggle to white
         } else if (!this.toggleToBlack && this.grid[row][col] === "#") {
+            // Toggle to white
             this.updateCell(row, col, "", '#444', '#fff');
             this.grid[row][col] = " ";
         }
@@ -910,7 +905,11 @@ class CrosswordSolver {
             this.grid[r][c] !== "#"
         ) {
             positions.push([r, c]);
-            direction === "across" ? c++ : r++;
+            if (direction === "across") {
+                c++;
+            } else {
+                r++;
+            }
         }
         return positions;
     }
@@ -1226,6 +1225,17 @@ class CrosswordSolver {
         this.debugLog("Domains randomized.");
     }
 
+    /**
+     * Fisher-Yates shuffle for randomizing arrays.
+     */
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
     // ----------------------------------------------------------------
     //                      Display & Status
     // ----------------------------------------------------------------
@@ -1380,80 +1390,8 @@ class CrosswordSolver {
     }
 
     // ----------------------------------------------------------------
-    //                      Word Lookup Section
+    //                     Word Lookup Handlers
     // ----------------------------------------------------------------
-
-    /**
-     * Dynamically creates the Word Lookup section and attaches it to the DOM.
-     */
-    createWordLookupSection() {
-        try {
-            const settingsSection = document.querySelector('.settings-section');
-            if (!settingsSection) {
-                throw new Error("Settings section not found in DOM.");
-            }
-
-            // Create Word Lookup Container
-            const wordLookupSection = document.createElement('section');
-            wordLookupSection.className = 'word-lookup-section';
-            wordLookupSection.style.marginTop = '20px';
-
-            // Title
-            const header = document.createElement('h2');
-            header.textContent = "Word Lookup";
-            wordLookupSection.appendChild(header);
-
-            // Search Container
-            const searchContainer = document.createElement('div');
-            searchContainer.className = 'search-container';
-            searchContainer.style.position = 'relative';
-
-            // Search Input
-            const searchInput = document.createElement('input');
-            searchInput.type = 'text';
-            searchInput.id = 'word-search-input';
-            searchInput.placeholder = 'Search for a word...';
-            searchInput.style.width = '100%';
-            searchInput.style.padding = '8px';
-            searchInput.style.border = '1px solid #ccc';
-            searchInput.style.borderRadius = '4px';
-            searchInput.setAttribute('aria-label', 'Word Search Input');
-            searchInput.addEventListener('input', this.handleSearchInput);
-            searchContainer.appendChild(searchInput);
-
-            // Dropdown for results
-            const dropdown = document.createElement('div');
-            dropdown.id = 'search-dropdown';
-            dropdown.style.position = 'absolute';
-            dropdown.style.top = '100%';
-            dropdown.style.left = '0';
-            dropdown.style.right = '0';
-            dropdown.style.backgroundColor = '#fff';
-            dropdown.style.border = '1px solid #ccc';
-            dropdown.style.borderTop = 'none';
-            dropdown.style.maxHeight = '200px';
-            dropdown.style.overflowY = 'auto';
-            dropdown.style.zIndex = '1000';
-            dropdown.style.display = 'none';
-
-            searchContainer.appendChild(dropdown);
-
-            // Matches Count
-            const matchesCount = document.createElement('div');
-            matchesCount.id = 'matches-count';
-            matchesCount.style.marginTop = '5px';
-            matchesCount.style.fontSize = '0.9em';
-            matchesCount.style.color = '#555';
-            searchContainer.appendChild(matchesCount);
-
-            // Assemble everything
-            wordLookupSection.appendChild(searchContainer);
-            settingsSection.appendChild(wordLookupSection);
-
-        } catch (error) {
-            this.handleError("Error creating Word Lookup section:", error);
-        }
-    }
 
     /**
      * Handler for dynamic search input. Filters the loaded words and displays up to 10 matches.
