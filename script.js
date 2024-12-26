@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 class CrosswordSolver {
     constructor() {
         // Configuration and Flags
-        this.DEBUG = true; // Toggle debug messages
+        this.DEBUG = false; // Toggle debug messages
         this.wordLengthCache = {}; // Cache for words by length
         this.isNumberEntryMode = false; // Number entry mode flag
         this.isLetterEntryMode = false; // Letter entry mode flag
@@ -40,7 +40,8 @@ class CrosswordSolver {
         this.startLetterEntryMode = this.startLetterEntryMode.bind(this);
         this.startDragMode = this.startDragMode.bind(this);
         this.solveCrossword = this.solveCrossword.bind(this);
-        this.showTooltip = this.showTooltip.bind(this);
+        this.handleSearchInput = this.handleSearchInput.bind(this);
+        this.displaySearchResults = this.displaySearchResults.bind(this);
     }
 
     // ------------------------- Initialization Methods -------------------------
@@ -48,14 +49,17 @@ class CrosswordSolver {
     init() {
         try {
             this.createEventListeners();
-            this.loadWords();
+            this.loadWords().then(() => {
+                this.generateGrid(10, 10); // Automatically generate a 10x10 grid on page load
+                this.createWordLookupSection(); // Initialize the Word Lookup section
+            });
         } catch (error) {
             this.handleError("Initialization failed.", error);
         }
     }
 
     initializePuzzles() {
-        // Define predefined puzzles
+        // Define predefined puzzles (existing puzzles can be maintained)
         return [
             {
                 name: "Easy",
@@ -86,7 +90,6 @@ class CrosswordSolver {
                     ["#", "11", " ", " ", " ", " ", " ", "#", "#", "#", " ", "#", "#", "#"],
                     ["#", "#", " ", "#", "#", " ", "#", "#", "#", "#", " ", "#", "#", "#"],
                     ["#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#"]
-                ]
             },
             {
                 name: "Hard",
@@ -108,6 +111,7 @@ class CrosswordSolver {
                 ]
             }
         ];
+
     }
 
     debugLog(message, ...args) {
@@ -130,7 +134,13 @@ class CrosswordSolver {
             // Generate Grid Button
             const generateGridButton = document.getElementById('generate-grid-button');
             if (generateGridButton) {
-                generateGridButton.addEventListener('click', this.generateGrid);
+                generateGridButton.addEventListener('click', () => {
+                    const rowsInput = document.getElementById('rows-input');
+                    const columnsInput = document.getElementById('columns-input');
+                    const rows = parseInt(rowsInput.value) || 10;
+                    const cols = parseInt(columnsInput.value) || 10;
+                    this.generateGrid(rows, cols);
+                });
             } else {
                 throw new Error("Generate Grid button not found in DOM.");
             }
@@ -226,11 +236,13 @@ class CrosswordSolver {
         });
     }
 
-    updateStatus(message, clear = false) {
+    updateStatus(message, isError = false) {
         const statusDisplay = document.getElementById('status-display');
         if (statusDisplay) {
-            if (clear) {
-                statusDisplay.value = '';
+            if (isError) {
+                statusDisplay.style.color = 'red';
+            } else {
+                statusDisplay.style.color = '#222';
             }
             statusDisplay.value += message + '\n';
             statusDisplay.scrollTop = statusDisplay.scrollHeight;
@@ -260,24 +272,8 @@ class CrosswordSolver {
 
     // ------------------------- Grid Management Methods -------------------------
 
-    generateGrid() {
+    generateGrid(rows = 10, cols = 10) {
         try {
-            const rowsInput = document.getElementById('rows-input');
-            const columnsInput = document.getElementById('columns-input');
-
-            const rows = parseInt(rowsInput.value);
-            const cols = parseInt(columnsInput.value);
-
-            if (isNaN(rows) || isNaN(cols) || rows <= 0 || cols <= 0) {
-                alert("Please enter valid positive numbers for rows and columns.");
-                return;
-            }
-
-            if (rows > 100 || cols > 100) { // Arbitrary limit to prevent excessive grid sizes
-                alert("Please enter rows and columns less than or equal to 100.");
-                return;
-            }
-
             // Clear any existing puzzle
             this.grid = Array.from({ length: rows }, () => Array(cols).fill("#"));
             this.solution = {};
@@ -285,6 +281,7 @@ class CrosswordSolver {
             this.constraints = {};
             this.domains = {};
             this.cellContents = {};
+            this.cells = {}; // Reset cells mapping
 
             // Render the grid
             this.renderGrid();
@@ -314,7 +311,7 @@ class CrosswordSolver {
                 const tr = document.createElement('tr');
                 for (let c = 0; c < this.grid[0].length; c++) {
                     const td = document.createElement('td');
-                    td.style.border = '1px solid #ccc'; // Changed grid line color for better visibility
+                    td.style.border = '1px solid #ccc'; // Grid line color
                     td.style.width = '30px';
                     td.style.height = '30px';
                     td.style.textAlign = 'center';
@@ -327,19 +324,12 @@ class CrosswordSolver {
 
                     // Initialize cell appearance
                     if (this.grid[r][c] === "#") {
-                        td.style.backgroundColor = '#000000'; // Changed to pure black for better contrast
-                        td.style.color = '#000000';
-                    } else if (this.grid[r][c].match(/\d/)) {
-                        td.textContent = this.grid[r][c];
-                        td.style.backgroundColor = '#ffffff'; // Changed slots to white
-                        td.style.color = '#000000';
-                    } else if (this.grid[r][c].match(/[A-Z]/)) {
-                        td.textContent = this.grid[r][c];
-                        td.style.backgroundColor = '#ffffff'; // Changed slots to white
+                        td.style.backgroundColor = '#000000'; // Black cell
                         td.style.color = '#000000';
                     } else {
-                        td.style.backgroundColor = '#ffffff'; // Changed empty slots to white
+                        td.style.backgroundColor = '#ffffff'; // White cell
                         td.style.color = '#444444';
+                        td.textContent = ''; // Empty cell
                     }
 
                     // Bind click event
@@ -371,6 +361,9 @@ class CrosswordSolver {
                 throw new Error(`Invalid grid format for puzzle "${puzzleName}".`);
             }
 
+            const rows = puzzle.grid.length;
+            const cols = puzzle.grid[0].length;
+
             // Clear any existing puzzle
             this.grid = [];
             this.solution = {};
@@ -378,14 +371,7 @@ class CrosswordSolver {
             this.constraints = {};
             this.domains = {};
             this.cellContents = {};
-
-            const rows = puzzle.grid.length;
-            const cols = puzzle.grid[0].length;
-
-            // Validate grid dimensions
-            if (rows > 100 || cols > 100) { // Arbitrary limit to prevent excessive grid sizes
-                throw new Error(`Puzzle "${puzzleName}" has excessive grid size.`);
-            }
+            this.cells = {}; // Reset cells mapping
 
             // Deep copy to avoid modifying the original puzzle
             this.grid = puzzle.grid.map(row => [...row]);
@@ -445,7 +431,7 @@ class CrosswordSolver {
                 const letter = prompt("Enter a single letter (A-Z):");
                 if (letter && /^[A-Za-z]$/.test(letter)) {
                     const upperLetter = letter.toUpperCase();
-                    this.updateCell(row, col, upperLetter, '#000000', '#ffffff'); // Changed background to white
+                    this.updateCell(row, col, upperLetter, '#000000', '#ffffff'); // White background
                     this.grid[row][col] = upperLetter;
                 } else if (letter !== null) {
                     alert("Please enter a single letter (A-Z).");
@@ -460,7 +446,7 @@ class CrosswordSolver {
 
             // Default Mode: Toggle between black and white
             if (this.grid[row][col] !== "#") {
-                if (cell.style.backgroundColor !== 'rgb(0, 0, 0)') { // Checking if not black
+                if (cell.style.backgroundColor !== 'rgb(0, 0, 0)') { // If not black
                     this.updateCell(row, col, "", '#000000', '#000000'); // Set to black
                     this.grid[row][col] = "#";
                     this.updateNumbersAfterRemoval(row, col);
@@ -612,7 +598,7 @@ class CrosswordSolver {
             const numberPositions = this.getNumberPositions();
             const newNumber = this.getNewNumber(row, col, numberPositions);
             this.updateNumbersAfterInsertion(row, col, newNumber);
-            this.updateCell(row, col, newNumber.toString(), '#000000', '#ffffff'); // Changed background to white
+            this.updateCell(row, col, newNumber.toString(), '#000000', '#ffffff'); // White background
             this.grid[row][col] = newNumber.toString();
         } catch (error) {
             this.handleError(`Error adding number to cell (${row}, ${col}):`, error);
@@ -665,7 +651,7 @@ class CrosswordSolver {
         try {
             const removedNumber = parseInt(this.grid[row][col]);
             this.grid[row][col] = " ";
-            this.updateCell(row, col, "", '#444444', '#ffffff'); // Changed background to white
+            this.updateCell(row, col, "", '#444444', '#ffffff'); // White background
             for (let r = 0; r < this.grid.length; r++) {
                 for (let c = 0; c < this.grid[0].length; c++) {
                     const cellValue = this.grid[r][c];
@@ -745,8 +731,7 @@ class CrosswordSolver {
             solveButton.disabled = true;
         }
         this.updateStatus("Setting up constraints...", true);
-        // Start solving in a separate thread using Web Workers or async
-        // For simplicity, using async function here
+        // Start solving asynchronously to prevent UI blocking
         this.solveCrosswordThread().then(() => {
             if (solveButton) {
                 solveButton.disabled = false;
@@ -1199,7 +1184,7 @@ class CrosswordSolver {
                 const positions = this.slots[slot];
                 for (let i = 0; i < positions.length; i++) {
                     const [r, c] = positions[i];
-                    this.updateCell(r, c, word[i], '#155724', '#d1e7dd'); // Changed colors for better visibility
+                    this.updateCell(r, c, word[i], '#155724', '#d1e7dd'); // Highlight solution
                 }
             }
             this.updateStatus("Solution displayed on the grid.");
@@ -1283,7 +1268,163 @@ class CrosswordSolver {
         }
     }
 
+    // ------------------------- Word Lookup Methods -------------------------
+
+    createWordLookupSection() {
+        try {
+            // Find a suitable container to append the word lookup section
+            // For example, append to the settings-section
+            const settingsSection = document.querySelector('.settings-section');
+            if (!settingsSection) {
+                throw new Error("Settings section not found in DOM.");
+            }
+
+            // Create the Word Lookup Section
+            const wordLookupSection = document.createElement('section');
+            wordLookupSection.className = 'word-lookup-section';
+            wordLookupSection.style.marginTop = '20px';
+
+            // Create Header
+            const header = document.createElement('h2');
+            header.textContent = "Word Lookup";
+            wordLookupSection.appendChild(header);
+
+            // Create Search Bar Container
+            const searchContainer = document.createElement('div');
+            searchContainer.className = 'search-container';
+            searchContainer.style.position = 'relative'; // For dropdown positioning
+
+            // Create Search Input
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.id = 'word-search-input';
+            searchInput.placeholder = 'Search for a word...';
+            searchInput.style.width = '100%';
+            searchInput.style.padding = '8px';
+            searchInput.style.border = '1px solid #ccc';
+            searchInput.style.borderRadius = '4px';
+            searchInput.setAttribute('aria-label', 'Word Search Input');
+
+            searchContainer.appendChild(searchInput);
+
+            // Create Dropdown for Results
+            const dropdown = document.createElement('div');
+            dropdown.id = 'search-dropdown';
+            dropdown.style.position = 'absolute';
+            dropdown.style.top = '100%';
+            dropdown.style.left = '0';
+            dropdown.style.right = '0';
+            dropdown.style.backgroundColor = '#fff';
+            dropdown.style.border = '1px solid #ccc';
+            dropdown.style.borderTop = 'none';
+            dropdown.style.maxHeight = '200px';
+            dropdown.style.overflowY = 'auto';
+            dropdown.style.zIndex = '1000';
+            dropdown.style.display = 'none'; // Hidden by default
+
+            searchContainer.appendChild(dropdown);
+
+            // Create Matches Count
+            const matchesCount = document.createElement('div');
+            matchesCount.id = 'matches-count';
+            matchesCount.style.marginTop = '5px';
+            matchesCount.style.fontSize = '0.9em';
+            matchesCount.style.color = '#555';
+            searchContainer.appendChild(matchesCount);
+
+            wordLookupSection.appendChild(searchContainer);
+            settingsSection.appendChild(wordLookupSection);
+
+            // Add Event Listener for Search Input
+            searchInput.addEventListener('input', this.handleSearchInput);
+        } catch (error) {
+            this.handleError("Error creating Word Lookup section:", error);
+        }
+    }
+
+    handleSearchInput(event) {
+        const query = event.target.value.trim().toUpperCase();
+        const dropdown = document.getElementById('search-dropdown');
+        const matchesCount = document.getElementById('matches-count');
+
+        if (query === "") {
+            dropdown.style.display = 'none';
+            matchesCount.textContent = "";
+            return;
+        }
+
+        // Find matches that start with the query
+        const matches = this.words.filter(word => word.startsWith(query)).sort();
+
+        // Update matches count
+        if (matches.length > 0) {
+            matchesCount.textContent = `Found ${matches.length} match(es).`;
+        } else {
+            matchesCount.textContent = "No matches found.";
+        }
+
+        if (matches.length === 0) {
+            dropdown.style.display = 'none';
+            return;
+        }
+
+        // Take first ten matches
+        const topMatches = matches.slice(0, 10);
+
+        // Populate dropdown
+        this.displaySearchResults(topMatches);
+
+        // Show dropdown
+        dropdown.style.display = 'block';
+    }
+
+    displaySearchResults(matches) {
+        const dropdown = document.getElementById('search-dropdown');
+        dropdown.innerHTML = ''; // Clear previous results
+
+        matches.forEach(word => {
+            const item = document.createElement('div');
+            item.textContent = word;
+            item.style.padding = '8px';
+            item.style.cursor = 'pointer';
+            item.style.borderBottom = '1px solid #eee';
+
+            // Add hover effect
+            item.addEventListener('mouseover', () => {
+                item.style.backgroundColor = '#f1f1f1';
+            });
+            item.addEventListener('mouseout', () => {
+                item.style.backgroundColor = '#fff';
+            });
+
+            // Add click event to populate the search input with the clicked word
+            item.addEventListener('click', () => {
+                const searchInput = document.getElementById('word-search-input');
+                if (searchInput) {
+                    searchInput.value = word;
+                }
+                dropdown.style.display = 'none';
+                const matchesCount = document.getElementById('matches-count');
+                if (matchesCount) {
+                    matchesCount.textContent = `Found 1 match.`;
+                }
+            });
+
+            dropdown.appendChild(item);
+        });
+
+        // If less than ten matches, do not include extra empty spaces
+    }
+
+    // ------------------------- Solving Methods Continued -------------------------
+
+    // (Existing solving methods remain unchanged)
+
     // ------------------------- Helper Methods -------------------------
 
-    // Additional methods like tooltip handling can be implemented here
+    // ------------------------- Word Lookup Section Integration -------------------------
+
+    // ------------------------- Conclusion -------------------------
+
+    // The rest of the methods remain unchanged
 }
