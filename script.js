@@ -1423,7 +1423,6 @@ class CrosswordSolver {
     }
 
     // ------------------------- Solving Methods Continued -------------------------
-
     // (All solving-related methods are already included above)
 
     // ------------------------- Solution Display Methods Continued -------------------------
@@ -1436,6 +1435,5 @@ class CrosswordSolver {
     // (Already integrated above)
 
     // ------------------------- Conclusion -------------------------
-
-    // The rest of the methods remain unchanged
+    // The class is properly closed with the following brace
 }
