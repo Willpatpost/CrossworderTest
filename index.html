@@ -2,12 +2,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Custom Crossword Generator</title>
     <!-- Link to the CSS file -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div class="main-container">
@@ -21,12 +21,44 @@
             <h2>Settings</h2>
             <div class="settings-controls">
                 <label for="rows-input">Rows:</label>
-                <input type="number" id="rows-input" name="rows-input" min="5" max="20" value="10">
-                
+                <input
+                    type="number"
+                    id="rows-input"
+                    name="rows-input"
+                    min="5"
+                    max="20"
+                    value="10"
+                />
+
                 <label for="columns-input">Columns:</label>
-                <input type="number" id="columns-input" name="columns-input" min="5" max="20" value="10">
-                
-                <button id="generate-grid-button" class="btn primary-btn">Generate Grid</button>
+                <input
+                    type="number"
+                    id="columns-input"
+                    name="columns-input"
+                    min="5"
+                    max="20"
+                    value="10"
+                />
+
+                <button id="generate-grid-button" class="btn primary-btn">
+                    Generate Grid
+                </button>
+            </div>
+        </section>
+
+        <!-- Word Lookup Section
+             (Dynamically enhanced by script.js for real-time search) -->
+        <section class="word-lookup-section">
+            <h2>Word Lookup</h2>
+            <div class="search-container">
+                <input
+                    type="text"
+                    id="word-search-input"
+                    placeholder="Search for a word..."
+                    aria-label="Word Search Input"
+                />
+                <div id="search-dropdown"></div>
+                <div id="matches-count"></div>
             </div>
         </section>
 
@@ -34,9 +66,15 @@
         <section class="predefined-puzzles-section">
             <h2>Predefined Puzzles</h2>
             <div class="predefined-puzzles-controls">
-                <button id="load-easy-button" class="btn secondary-btn">Load Easy Puzzle</button>
-                <button id="load-medium-button" class="btn secondary-btn">Load Medium Puzzle</button>
-                <button id="load-hard-button" class="btn secondary-btn">Load Hard Puzzle</button>
+                <button id="load-easy-button" class="btn secondary-btn">
+                    Load Easy Puzzle
+                </button>
+                <button id="load-medium-button" class="btn secondary-btn">
+                    Load Medium Puzzle
+                </button>
+                <button id="load-hard-button" class="btn secondary-btn">
+                    Load Hard Puzzle
+                </button>
             </div>
         </section>
 
@@ -44,9 +82,15 @@
         <section class="mode-controls-section">
             <h2>Mode Controls</h2>
             <div class="mode-controls">
-                <button id="number-entry-button" class="btn mode-btn">Number Entry Mode</button>
-                <button id="letter-entry-button" class="btn mode-btn">Letter Entry Mode</button>
-                <button id="drag-mode-button" class="btn mode-btn">Drag Mode</button>
+                <button id="number-entry-button" class="btn mode-btn">
+                    Number Entry Mode
+                </button>
+                <button id="letter-entry-button" class="btn mode-btn">
+                    Letter Entry Mode
+                </button>
+                <button id="drag-mode-button" class="btn mode-btn">
+                    Drag Mode
+                </button>
             </div>
             <div id="mode-label" class="mode-label">Mode: Default</div>
         </section>
@@ -61,7 +105,7 @@
 
             <!-- Grid Container -->
             <div class="grid-container" id="grid-container">
-                <!-- Crossword grid will be dynamically generated here -->
+                <!-- The crossword grid is dynamically generated here by script.js -->
             </div>
 
             <!-- Word Lists -->
@@ -79,7 +123,9 @@
 
         <!-- Controls Section -->
         <section class="controls-section">
-            <button id="solve-crossword-button" class="btn solve-btn">Solve Crossword</button>
+            <button id="solve-crossword-button" class="btn solve-btn">
+                Solve Crossword
+            </button>
         </section>
 
         <!-- Footer -->
