@@ -31,6 +31,13 @@ class CrosswordSolver {
         // Predefined Puzzles
         this.predefinedPuzzles = this.initializePuzzles();
 
+        // Drag Mode Variables
+        this.isDragging = false;
+        this.toggleToBlack = true;
+        this.startDragBound = null;
+        this.onDragBound = null;
+        this.stopDragBound = null;
+
         // Bind methods
         this.loadWords = this.loadWords.bind(this);
         this.generateGrid = this.generateGrid.bind(this);
@@ -59,7 +66,7 @@ class CrosswordSolver {
     }
 
     initializePuzzles() {
-        // Define predefined puzzles (existing puzzles can be maintained)
+        // Define predefined puzzles
         return [
             {
                 name: "Easy",
@@ -111,7 +118,6 @@ class CrosswordSolver {
                 ]
             }
         ];
-
     }
 
     debugLog(message, ...args) {
@@ -1418,11 +1424,16 @@ class CrosswordSolver {
 
     // ------------------------- Solving Methods Continued -------------------------
 
-    // (Existing solving methods remain unchanged)
+    // (All solving-related methods are already included above)
 
-    // ------------------------- Helper Methods -------------------------
+    // ------------------------- Solution Display Methods Continued -------------------------
+    // (Already included above)
+
+    // ------------------------- Additional Helper Methods -------------------------
+    // If you have any additional helper methods, include them here
 
     // ------------------------- Word Lookup Section Integration -------------------------
+    // (Already integrated above)
 
     // ------------------------- Conclusion -------------------------
 
