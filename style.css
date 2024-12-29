@@ -184,7 +184,7 @@ header h1 {
     overflow-y: auto;
 }
 
-/* Word Lists */
+/* Word Lists Container */
 .word-lists-container {
     display: flex;
     flex-direction: column;
@@ -199,11 +199,12 @@ header h1 {
     margin-bottom: 10px;
 }
 
-.word-list textarea {
+/* New style for our clickable word list display (replaces textarea) */
+.word-list-display {
     width: 100%;
-    height: 150px;
+    min-height: 150px;
+    max-height: 150px; /* or more if you want a taller box */
     padding: 10px;
-    resize: none;
     border: 1px solid #ccc;
     border-radius: 4px;
     background-color: #f8f9fa;
