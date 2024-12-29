@@ -2,10 +2,6 @@
 
 import { predefinedPuzzles } from './puzzles.js';
 
-/**
- * CrosswordSolver encapsulates the entire crossword-building, editing,
- * and solving logic.
- */
 export class CrosswordSolver {
     constructor() {
         // --------------------- Configuration & Flags ---------------------
@@ -17,21 +13,20 @@ export class CrosswordSolver {
         this.isDragging = false;        // Internal drag-state flag
 
         // --------------------- Data Structures ---------------------
-        this.grid = [];            // The crossword grid
-        this.words = [];           // Word list
-        this.wordLengthCache = {}; // Cache for words by length
-        this.letterFrequencies = {};// Letter frequency map
-        this.slots = {};           // Slots with positions
-        this.constraints = {};     // Constraints between slots
-        this.solution = {};        // Final solution mapping slots to words
-        this.domains = {};         // Possible words for each slot
-        this.cellContents = {};    // Pre-filled letters in the grid
-        this.cells = {};           // GUI cell mapping
-        this.performanceData = {}; // Store performance metrics
-        this.recursiveCalls = 0;   // Count recursive calls for backtracking
+        this.grid = [];            
+        this.words = [];           
+        this.wordLengthCache = {}; 
+        this.letterFrequencies = {};
+        this.slots = {};           
+        this.constraints = {};     
+        this.solution = {};        
+        this.domains = {};         
+        this.cellContents = {};    
+        this.cells = {};           
+        this.performanceData = {}; 
+        this.recursiveCalls = 0;   
 
         // --------------------- Predefined Puzzles ---------------------
-        // Instead of defining them directly, we import from puzzles.js
         this.predefinedPuzzles = predefinedPuzzles;
 
         // --------------------- Drag Mode Variables ---------------------
@@ -39,6 +34,9 @@ export class CrosswordSolver {
         this.startDragBound = null;
         this.onDragBound = null;
         this.stopDragBound = null;
+
+        // --------------------- WordNet Dictionary ---------------------
+        this.dictionary = null; // set via setDictionary() after loading
 
         // --------------------- Method Binding ---------------------
         this.loadWords = this.loadWords.bind(this);
@@ -52,24 +50,135 @@ export class CrosswordSolver {
         this.solveCrossword = this.solveCrossword.bind(this);
         this.handleSearchInput = this.handleSearchInput.bind(this);
         this.displaySearchResults = this.displaySearchResults.bind(this);
+        this.showDefinitionPopup = this.showDefinitionPopup.bind(this);
+        this.autoNumberGrid = this.autoNumberGrid.bind(this);
+    }
+
+    // ----------------------------------------------------------------
+    //                  Dictionary & Definition Popup
+    // ----------------------------------------------------------------
+
+    setDictionary(dictionaryObj) {
+        this.dictionary = dictionaryObj;
+        this.debugLog("Dictionary set. Example 'run':", this.dictionary['run']);
+    }
+
+    showDefinitionPopup(rawWord) {
+        if (!rawWord) return;
+        if (!this.dictionary) {
+            alert("No dictionary loaded. Cannot show definitions.");
+            return;
+        }
+
+        const word = rawWord.toLowerCase();
+        const senses = this.dictionary[word];
+
+        if (!senses || senses.length === 0) {
+            this.createPopup(`
+              <h2>${rawWord}</h2>
+              <p><em>No definition found.</em></p>
+              <small>Source: WordNet</small>
+            `);
+            return;
+        }
+
+        let innerHTML = `<h2>${rawWord}</h2>`;
+
+        // Group senses by part-of-speech
+        const sensesByPos = {};
+        for (const sense of senses) {
+            const posKey = sense.pos || 'unknown';
+            if (!sensesByPos[posKey]) {
+                sensesByPos[posKey] = [];
+            }
+            sensesByPos[posKey].push(sense.definitions);
+        }
+
+        // Output each POS + its definitions
+        Object.keys(sensesByPos).forEach(posKey => {
+            const definitionsForPos = sensesByPos[posKey];
+            const flattenedDefs = definitionsForPos.flat();
+
+            innerHTML += `<h4>(${posKey})</h4>`;
+            flattenedDefs.forEach((def, idx) => {
+                innerHTML += `<p>${idx + 1}. ${def}</p>`;
+            });
+        });
+
+        innerHTML += `<small>Source: WordNet</small>`;
+
+        this.createPopup(innerHTML);
+    }
+
+    createPopup(contentHTML) {
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        overlay.style.zIndex = '9998';
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+            }
+        });
+
+        const popup = document.createElement('div');
+        popup.style.position = 'fixed';
+        popup.style.top = '50%';
+        popup.style.left = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
+        popup.style.width = '600px';
+        popup.style.maxHeight = '70vh';
+        popup.style.backgroundColor = '#fff';
+        popup.style.borderRadius = '4px';
+        popup.style.padding = '20px';
+        popup.style.overflowY = 'auto';
+        popup.style.zIndex = '9999';
+
+        const header = document.createElement('div');
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'center';
+
+        const titleBar = document.createElement('span');
+        titleBar.textContent = 'Definition Lookup';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'X';
+        closeBtn.style.marginLeft = '10px';
+        closeBtn.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
+
+        header.appendChild(titleBar);
+        header.appendChild(closeBtn);
+
+        const contentDiv = document.createElement('div');
+        contentDiv.innerHTML = contentHTML;
+
+        popup.appendChild(header);
+        popup.appendChild(contentDiv);
+        overlay.appendChild(popup);
+
+        document.body.appendChild(overlay);
     }
 
     // ----------------------------------------------------------------
     //                          Initialization
     // ----------------------------------------------------------------
 
-    /**
-     * Lifecycle method called after DOM content is loaded.
-     * Sets up event listeners, loads words, and creates an initial 10x10 grid.
-     */
     init() {
         try {
             this.createEventListeners();
+
+            // Still load Words.txt for legacy usage
             this.loadWords()
                 .then(() => {
-                    // Auto-generate a 10x10 grid when the page loads
+                    // Default 10x10
                     this.generateGrid(10, 10);
-                    // NOTE: We are NOT creating a duplicate Word Lookup section here
                 })
                 .catch((error) => {
                     this.handleError("Initialization failed during word loading.", error);
@@ -79,12 +188,8 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Binds all DOM event listeners needed for puzzle generation, mode toggling, etc.
-     */
     createEventListeners() {
         try {
-            // Generate Grid Button
             this.bindButton('#generate-grid-button', () => {
                 const rowsInput = document.getElementById('rows-input');
                 const columnsInput = document.getElementById('columns-input');
@@ -93,41 +198,33 @@ export class CrosswordSolver {
                 this.generateGrid(rows, cols);
             });
 
-            // Load Predefined Puzzle Buttons
             this.bindButton('#load-easy-button', () => this.loadPredefinedPuzzle("Easy"));
             this.bindButton('#load-medium-button', () => this.loadPredefinedPuzzle("Medium"));
             this.bindButton('#load-hard-button', () => this.loadPredefinedPuzzle("Hard"));
 
-            // Mode Buttons
             this.bindButton('#number-entry-button', this.startNumberEntryMode);
             this.bindButton('#letter-entry-button', this.startLetterEntryMode);
             this.bindButton('#drag-mode-button', this.startDragMode);
 
-            // Solve Crossword Button
             this.bindButton('#solve-crossword-button', this.solveCrossword);
 
-            // Word Lookup Input
-            // If the ID is present in HTML, we'll attach the dynamic search.
             const wordSearchInput = document.getElementById('word-search-input');
             if (wordSearchInput) {
                 wordSearchInput.addEventListener('input', this.handleSearchInput);
             }
+
+            // (Optional) If you add an "Auto-Number" button in HTML, do:
+            // this.bindButton('#auto-number-button', this.autoNumberGrid);
 
         } catch (error) {
             this.handleError("Error setting up event listeners:", error);
         }
     }
 
-    /**
-     * Utility function to reduce repetitive button-binding code.
-     * @param {string} selector - CSS selector for the button
-     * @param {Function} callback - Event handler function
-     */
     bindButton(selector, callback) {
         const button = document.querySelector(selector);
         if (!button) {
-            // Not all buttons are mandatory, so just log a debug message
-            this.debugLog(`Button with selector "${selector}" not found in DOM. Possibly intentional.`);
+            this.debugLog(`Button with selector "${selector}" not found.`);
             return;
         }
         button.addEventListener('click', callback);
@@ -137,10 +234,6 @@ export class CrosswordSolver {
     //                          Word Loading
     // ----------------------------------------------------------------
 
-    /**
-     * Loads words from a text file (Data/Words.txt).
-     * Caches them by length and calculates letter frequencies.
-     */
     async loadWords() {
         try {
             const response = await fetch('Data/Words.txt');
@@ -149,9 +242,9 @@ export class CrosswordSolver {
             }
             const text = await response.text();
             const rawWords = text
-              .split(/\r?\n/)
-              .map(w => w.trim().toUpperCase())
-              .filter(Boolean);
+                .split(/\r?\n/)
+                .map(w => w.trim().toUpperCase())
+                .filter(Boolean);
 
             if (!rawWords.every(word => /^[A-Z]+$/.test(word))) {
                 throw new Error("File contains invalid words. Ensure all entries are purely alphabetic.");
@@ -164,7 +257,6 @@ export class CrosswordSolver {
             this.updateStatus(`Words loaded successfully: ${this.words.length}`);
 
         } catch (error) {
-            // Fallback word list if something goes wrong
             this.words = ["LASER", "SAILS", "SHEET", "STEER", "HEEL", "HIKE", "KEEL", "KNOT"];
             alert("Warning: Words.txt not found or invalid. Using fallback word list.");
             this.debugLog("Words.txt not found or invalid. Using fallback word list.");
@@ -174,9 +266,6 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Caches words by their lengths for faster domain lookups.
-     */
     cacheWordsByLength() {
         this.wordLengthCache = {};
         for (const word of this.words) {
@@ -189,10 +278,6 @@ export class CrosswordSolver {
         this.debugLog("Word length cache created.");
     }
 
-    /**
-     * Calculates frequency of each letter across the entire word list,
-     * helping with heuristics (like least-constraining-value ordering).
-     */
     calculateLetterFrequencies() {
         this.letterFrequencies = {};
         for (const word of this.words) {
@@ -206,32 +291,81 @@ export class CrosswordSolver {
     }
 
     // ----------------------------------------------------------------
+    //                       Auto-Numbering
+    // ----------------------------------------------------------------
+
+    autoNumberGrid() {
+        try {
+            // Remove existing numbers
+            for (let r = 0; r < this.grid.length; r++) {
+                for (let c = 0; c < this.grid[0].length; c++) {
+                    if (/\d+/.test(this.grid[r][c])) {
+                        this.grid[r][c] = ' ';
+                    }
+                }
+            }
+
+            let currentNumber = 1;
+            for (let r = 0; r < this.grid.length; r++) {
+                for (let c = 0; c < this.grid[0].length; c++) {
+                    if (this.isStartOfAcrossSlot(r, c)) {
+                        this.grid[r][c] = currentNumber.toString();
+                        currentNumber++;
+                    }
+                    if (this.isStartOfDownSlot(r, c)) {
+                        if (!/\d+/.test(this.grid[r][c])) {
+                            this.grid[r][c] = currentNumber.toString();
+                            currentNumber++;
+                        }
+                    }
+                }
+            }
+
+            this.renderGrid();
+            this.updateStatus("Auto-numbered all slots.");
+
+        } catch (error) {
+            this.handleError("Error auto-numbering grid:", error);
+        }
+    }
+
+    isStartOfAcrossSlot(r, c) {
+        if (!this.grid[r] || !this.grid[r][c]) return false;
+        if (this.grid[r][c] === '#') return false;
+        if (c === 0 || this.grid[r][c - 1] === '#') {
+            if (c + 1 < this.grid[0].length && this.grid[r][c + 1] !== '#') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    isStartOfDownSlot(r, c) {
+        if (!this.grid[r] || !this.grid[r][c]) return false;
+        if (this.grid[r][c] === '#') return false;
+        if (r === 0 || this.grid[r - 1][c] === '#') {
+            if (r + 1 < this.grid.length && this.grid[r + 1][c] !== '#') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ----------------------------------------------------------------
     //                       Grid Management
     // ----------------------------------------------------------------
 
-    /**
-     * Generates a fresh grid of specified rows and columns, filling it with '#' (black cells).
-     * @param {number} rows - Number of rows in the grid
-     * @param {number} cols - Number of columns in the grid
-     */
     generateGrid(rows = 10, cols = 10) {
         try {
-            // Clear any existing puzzle data
             this.grid = Array.from({ length: rows }, () => Array(cols).fill("#"));
             this.resetDataStructures();
-
-            // Render the new grid
             this.renderGrid();
             this.updateStatus(`Grid generated with rows: ${rows}, columns: ${cols}`, true);
-
         } catch (error) {
             this.handleError("Error generating grid:", error);
         }
     }
 
-    /**
-     * Clears or resets puzzle-related data structures.
-     */
     resetDataStructures() {
         this.solution = {};
         this.slots = {};
@@ -241,16 +375,13 @@ export class CrosswordSolver {
         this.cells = {};
     }
 
-    /**
-     * Creates an HTML table representing the crossword grid and attaches click listeners.
-     */
     renderGrid() {
         try {
             const gridContainer = document.getElementById('grid-container');
             if (!gridContainer) {
                 throw new Error("Grid container not found in DOM.");
             }
-            gridContainer.innerHTML = ''; // Clear existing grid
+            gridContainer.innerHTML = '';
 
             const table = document.createElement('table');
             table.style.borderCollapse = 'collapse';
@@ -276,6 +407,9 @@ export class CrosswordSolver {
                     } else {
                         td.style.backgroundColor = '#fff';
                         td.style.color = '#444';
+                        if (/\d/.test(this.grid[r][c])) {
+                            td.textContent = this.grid[r][c];
+                        }
                     }
 
                     td.addEventListener('click', this.cellClicked);
@@ -292,17 +426,12 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Loads one of the predefined puzzles (Easy, Medium, Hard).
-     * @param {string} puzzleName - Name of the puzzle to load
-     */
     loadPredefinedPuzzle(puzzleName) {
         try {
             const puzzle = this.predefinedPuzzles.find(p => p.name === puzzleName);
             if (!puzzle) {
                 throw new Error(`Puzzle "${puzzleName}" not found.`);
             }
-            // Validate puzzle grid
             if (!Array.isArray(puzzle.grid) || puzzle.grid.length === 0 || !Array.isArray(puzzle.grid[0])) {
                 throw new Error(`Invalid grid format for puzzle "${puzzleName}".`);
             }
@@ -310,15 +439,15 @@ export class CrosswordSolver {
             const rows = puzzle.grid.length;
             const cols = puzzle.grid[0].length;
 
-            // Clear any existing puzzle data
             this.grid = [];
             this.resetDataStructures();
 
-            // Deep copy puzzle grid
+            // Deep copy
             this.grid = puzzle.grid.map(row => [...row]);
 
             this.renderGrid();
-            // Populate pre-filled letters / numbers in cellContents
+
+            // Populate pre-filled letters / numbers
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     const cellValue = this.grid[r][c];
@@ -326,10 +455,11 @@ export class CrosswordSolver {
                     if (/[A-Z]/.test(cellValue)) {
                         this.cellContents[key] = cellValue;
                     } else if (cellValue !== "#" && cellValue.trim() !== "") {
-                        this.cellContents[key] = null; // Numbered cells with no letters
+                        this.cellContents[key] = null;
                     }
                 }
             }
+
             this.updateStatus(`Loaded predefined puzzle: ${puzzleName}`, true);
 
         } catch (error) {
@@ -337,18 +467,13 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Handles clicks on grid cells, toggling their state based on the current mode.
-     */
     cellClicked(event) {
         try {
             const cell = event.target;
             const row = parseInt(cell.dataset.row, 10);
             const col = parseInt(cell.dataset.col, 10);
 
-            // Mode-based behaviors
             if (this.isNumberEntryMode) {
-                // Toggle numbers
                 if (/\d/.test(this.grid[row][col])) {
                     this.removeNumberFromCell(row, col);
                 } else {
@@ -358,7 +483,6 @@ export class CrosswordSolver {
             }
 
             if (this.isLetterEntryMode) {
-                // Letter input
                 const letter = prompt("Enter a single letter (A-Z):");
                 if (letter && /^[A-Za-z]$/.test(letter)) {
                     const upperLetter = letter.toUpperCase();
@@ -371,18 +495,15 @@ export class CrosswordSolver {
             }
 
             if (this.isDragMode) {
-                // Drag mode is active, so single-click does nothing
                 return;
             }
 
-            // Default Mode: Indefinite toggling from white <--> black
+            // Default mode: toggle black/white
             if (this.grid[row][col] !== "#") {
-                // Toggle to black
                 this.updateCell(row, col, '', '#000', '#000');
                 this.grid[row][col] = "#";
                 this.updateNumbersAfterRemoval(row, col);
             } else {
-                // Toggle back to white
                 this.updateCell(row, col, '', '#444', '#fff');
                 this.grid[row][col] = " ";
             }
@@ -395,26 +516,21 @@ export class CrosswordSolver {
     //                         Mode Toggles
     // ----------------------------------------------------------------
 
-    /**
-     * Activates or deactivates Number Entry mode.
-     */
     startNumberEntryMode() {
         try {
             const modeLabel = document.getElementById('mode-label');
             const button = document.getElementById('number-entry-button');
-            if (!modeLabel || !button) throw new Error("Number Entry mode elements not found in DOM.");
+            if (!modeLabel || !button) throw new Error("Number Entry mode elements not found.");
 
             if (this.isNumberEntryMode) {
-                // Deactivate
                 this.isNumberEntryMode = false;
                 modeLabel.textContent = "Mode: Default";
                 this.updateStatus("Number Entry Mode Deactivated.");
                 button.textContent = "Number Entry Mode";
                 button.style.backgroundColor = "#0069d9";
             } else {
-                // Activate
-                if (this.isLetterEntryMode) this.startLetterEntryMode(); // Toggle off letter
-                if (this.isDragMode) this.startDragMode();               // Toggle off drag
+                if (this.isLetterEntryMode) this.startLetterEntryMode();
+                if (this.isDragMode) this.startDragMode();
 
                 this.isNumberEntryMode = true;
                 modeLabel.textContent = "Mode: Number Entry";
@@ -427,26 +543,21 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Activates or deactivates Letter Entry mode.
-     */
     startLetterEntryMode() {
         try {
             const modeLabel = document.getElementById('mode-label');
             const button = document.getElementById('letter-entry-button');
-            if (!modeLabel || !button) throw new Error("Letter Entry mode elements not found in DOM.");
+            if (!modeLabel || !button) throw new Error("Letter Entry mode elements not found.");
 
             if (this.isLetterEntryMode) {
-                // Deactivate
                 this.isLetterEntryMode = false;
                 modeLabel.textContent = "Mode: Default";
                 this.updateStatus("Letter Entry Mode Deactivated.");
                 button.textContent = "Letter Entry Mode";
                 button.style.backgroundColor = "#0069d9";
             } else {
-                // Activate
-                if (this.isNumberEntryMode) this.startNumberEntryMode(); // Toggle off number
-                if (this.isDragMode) this.startDragMode();               // Toggle off drag
+                if (this.isNumberEntryMode) this.startNumberEntryMode();
+                if (this.isDragMode) this.startDragMode();
 
                 this.isLetterEntryMode = true;
                 modeLabel.textContent = "Mode: Letter Entry";
@@ -459,35 +570,29 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Activates or deactivates Drag mode, allowing users to drag across cells to toggle them.
-     */
     startDragMode() {
         try {
             const modeLabel = document.getElementById('mode-label');
             const button = document.getElementById('drag-mode-button');
-            if (!modeLabel || !button) throw new Error("Drag Mode elements not found in DOM.");
+            if (!modeLabel || !button) throw new Error("Drag Mode elements not found.");
 
             if (this.isDragMode) {
-                // Deactivate drag mode
                 this.isDragMode = false;
                 modeLabel.textContent = "Mode: Default";
                 this.updateStatus("Drag Mode Deactivated.");
                 button.textContent = "Drag Mode";
                 button.style.backgroundColor = "#0069d9";
 
-                // Remove drag event listeners
+                // Remove event listeners
                 for (const key in this.cells) {
                     const cell = this.cells[key];
                     cell.removeEventListener('mousedown', this.startDragBound);
                     cell.removeEventListener('mousemove', this.onDragBound);
                     cell.removeEventListener('mouseup', this.stopDragBound);
                 }
-
             } else {
-                // Activate drag mode
-                if (this.isNumberEntryMode) this.startNumberEntryMode(); // Toggle off number
-                if (this.isLetterEntryMode) this.startLetterEntryMode(); // Toggle off letter
+                if (this.isNumberEntryMode) this.startNumberEntryMode();
+                if (this.isLetterEntryMode) this.startLetterEntryMode();
 
                 this.isDragMode = true;
                 modeLabel.textContent = "Mode: Drag";
@@ -495,12 +600,10 @@ export class CrosswordSolver {
                 button.textContent = "Exit Drag Mode";
                 button.style.backgroundColor = "#dc3545";
 
-                // Bind drag methods once
                 this.startDragBound = this.startDrag.bind(this);
                 this.onDragBound = this.onDrag.bind(this);
                 this.stopDragBound = this.stopDrag.bind(this);
 
-                // Add drag event listeners
                 for (const key in this.cells) {
                     const cell = this.cells[key];
                     cell.addEventListener('mousedown', this.startDragBound);
@@ -517,11 +620,6 @@ export class CrosswordSolver {
     //                        Number Management
     // ----------------------------------------------------------------
 
-    /**
-     * Adds the next available number to a clicked cell.
-     * @param {number} row - The row index of the cell
-     * @param {number} col - The column index of the cell
-     */
     addNumberToCell(row, col) {
         try {
             const numberPositions = this.getNumberPositions();
@@ -534,9 +632,6 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Returns an array of all numbered cell positions in ascending order of their assigned numbers.
-     */
     getNumberPositions() {
         const numberPositions = [];
         for (let r = 0; r < this.grid.length; r++) {
@@ -550,9 +645,6 @@ export class CrosswordSolver {
         return numberPositions;
     }
 
-    /**
-     * Computes the new cell number by determining where the clicked cell fits among existing numbered cells.
-     */
     getNewNumber(row, col, numberPositions) {
         let position = 0;
         for (let i = 0; i < numberPositions.length; i++) {
@@ -565,9 +657,6 @@ export class CrosswordSolver {
         return position + 1;
     }
 
-    /**
-     * Updates the grid when a new number is inserted, incrementing subsequent numbers as needed.
-     */
     updateNumbersAfterInsertion(row, col, newNumber) {
         for (let r = 0; r < this.grid.length; r++) {
             for (let c = 0; c < this.grid[0].length; c++) {
@@ -584,9 +673,6 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Removes the number from a cell and decrements subsequent cell numbers accordingly.
-     */
     removeNumberFromCell(row, col) {
         try {
             const removed = parseInt(this.grid[row][col], 10);
@@ -611,9 +697,6 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Checks if a cell is a numbered cell. If it is, removes that number.
-     */
     updateNumbersAfterRemoval(row, col) {
         if (/\d/.test(this.grid[row][col])) {
             this.removeNumberFromCell(row, col);
@@ -624,9 +707,6 @@ export class CrosswordSolver {
     //                          Drag Logic
     // ----------------------------------------------------------------
 
-    /**
-     * Handles the mouse-down event in drag mode.
-     */
     startDrag(event) {
         if (!this.isDragMode) return;
         this.isDragging = true;
@@ -635,14 +715,10 @@ export class CrosswordSolver {
         const row = parseInt(cell.dataset.row, 10);
         const col = parseInt(cell.dataset.col, 10);
 
-        // If cell is not black, we'll be toggling to black, else toggling to white
         this.toggleToBlack = this.grid[row][col] !== "#";
         this.toggleCell(row, col);
     }
 
-    /**
-     * Handles the mouse-move event in drag mode, toggling cells as the mouse moves.
-     */
     onDrag(event) {
         if (!this.isDragging || !this.isDragMode) return;
         const cell = document.elementFromPoint(event.clientX, event.clientY);
@@ -653,27 +729,19 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Handles the mouse-up event in drag mode, stopping the drag operation.
-     */
     stopDrag() {
         this.isDragging = false;
     }
 
-    /**
-     * Toggles a cell to black or white based on the current drag operation.
-     */
     toggleCell(row, col) {
         const cell = this.cells[`${row},${col}`];
         if (!cell) return;
 
         if (this.toggleToBlack && this.grid[row][col] !== "#") {
-            // Toggle to black
             this.updateCell(row, col, "", '#000', '#000');
             this.grid[row][col] = "#";
             this.updateNumbersAfterRemoval(row, col);
         } else if (!this.toggleToBlack && this.grid[row][col] === "#") {
-            // Toggle to white
             this.updateCell(row, col, "", '#444', '#fff');
             this.grid[row][col] = " ";
         }
@@ -683,10 +751,13 @@ export class CrosswordSolver {
     //                       Solving Methods
     // ----------------------------------------------------------------
 
-    /**
-     * Initiates the solving process, preventing multiple solves in parallel.
-     */
     solveCrossword() {
+        // **Clear status box** before new solve
+        const statusDisplay = document.getElementById('status-display');
+        if (statusDisplay) {
+            statusDisplay.value = ''; // Clear it
+        }
+
         if (this.isSolving) {
             alert("A puzzle is already being solved. Please wait.");
             return;
@@ -696,9 +767,10 @@ export class CrosswordSolver {
         const solveButton = document.getElementById('solve-crossword-button');
         if (solveButton) solveButton.disabled = true;
 
-        this.updateStatus("Setting up constraints...", true);
+        // Start fresh
+        this.updateStatus("Solving...", true);
 
-        // Solve in async to avoid blocking the UI
+        // Solve asynchronously
         this.solveCrosswordThread()
             .finally(() => {
                 if (solveButton) solveButton.disabled = false;
@@ -706,13 +778,10 @@ export class CrosswordSolver {
             });
     }
 
-    /**
-     * Main solving thread using AC-3 followed by backtracking.
-     */
     async solveCrosswordThread() {
         const startTime = performance.now();
         try {
-            if (!this.validateGrid()) return; // Grid is invalid
+            if (!this.validateGrid()) return;
 
             this.generateSlots();
             if (Object.keys(this.slots).length === 0) {
@@ -735,7 +804,6 @@ export class CrosswordSolver {
 
             this.displayDomainSizes();
 
-            // Backtracking
             this.recursiveCalls = 0;
             const backStart = performance.now();
             const result = this.backtrackingSolve();
@@ -758,35 +826,27 @@ export class CrosswordSolver {
                 alert("No possible solution found for the current puzzle.");
             }
         } catch (error) {
-            this.handleError(`Error during solveCrosswordThread:`, error);
+            this.handleError("Error during solveCrosswordThread:", error);
         }
     }
 
-    /**
-     * Checks if the grid is valid (non-empty, rectangular) and has potential slots.
-     */
     validateGrid() {
         if (this.grid.length === 0) {
             alert("The grid is empty. Please generate or load a grid.");
             this.updateStatus("Error: The grid is empty.");
             return false;
         }
-
         const cols = this.grid[0].length;
         for (let r = 1; r < this.grid.length; r++) {
             if (this.grid[r].length !== cols) {
-                alert("The grid is not rectangular. Please ensure all rows have the same number of columns.");
+                alert("The grid is not rectangular.");
                 this.updateStatus("Error: The grid is not rectangular.");
                 return false;
             }
         }
-
         return true;
     }
 
-    /**
-     * Generates slot information (across/down) and sets up constraints/domains.
-     */
     generateSlots() {
         this.slots = {};
         this.domains = {};
@@ -795,7 +855,6 @@ export class CrosswordSolver {
         const rows = this.grid.length;
         const cols = this.grid[0].length;
 
-        // Fill cellContents from letters/numbers
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const val = this.grid[r][c];
@@ -809,11 +868,9 @@ export class CrosswordSolver {
             }
         }
 
-        // Identify all slots
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 if (/\d/.test(this.grid[r][c])) {
-                    // Check across slot
                     if (c === 0 || this.grid[r][c - 1] === "#") {
                         const positions = this.getSlotPositions(r, c, "across");
                         if (positions.length >= 2) {
@@ -821,7 +878,6 @@ export class CrosswordSolver {
                             this.slots[slotName] = positions;
                         }
                     }
-                    // Check down slot
                     if (r === 0 || this.grid[r - 1][c] === "#") {
                         const positions = this.getSlotPositions(r, c, "down");
                         if (positions.length >= 2) {
@@ -837,9 +893,6 @@ export class CrosswordSolver {
         this.setupDomains();
     }
 
-    /**
-     * Returns slot positions for an across or down sequence starting at a specific cell.
-     */
     getSlotPositions(r, c, direction) {
         const positions = [];
         while (
@@ -857,14 +910,10 @@ export class CrosswordSolver {
         return positions;
     }
 
-    /**
-     * Builds a constraints map of overlapping slots.
-     */
     generateConstraints() {
         this.constraints = {};
         const positionMap = {};
 
-        // Collect all slot positions
         for (const slot in this.slots) {
             const positions = this.slots[slot];
             positions.forEach((pos, idx) => {
@@ -876,7 +925,6 @@ export class CrosswordSolver {
             });
         }
 
-        // If two slots share a position, they overlap
         for (const key in positionMap) {
             const overlaps = positionMap[key];
             if (overlaps.length > 1) {
@@ -900,15 +948,11 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Initializes domains for each slot based on word length and any prefilled letters.
-     */
     setupDomains() {
         for (const slot in this.slots) {
             const positions = this.slots[slot];
             const length = positions.length;
 
-            // Build a regex pattern matching pre-filled letters
             const pattern = positions.map(([r, c]) => {
                 const key = `${r},${c}`;
                 return this.cellContents[key] || '.';
@@ -922,12 +966,8 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * AC-3 (Arc Consistency) algorithm to prune incompatible domains before backtracking.
-     */
     ac3() {
         const queue = new Set();
-        // Initialize queue with all constraint pairs
         for (const slotA in this.constraints) {
             for (const slotB in this.constraints[slotA]) {
                 queue.add(`${slotA},${slotB}`);
@@ -940,7 +980,7 @@ export class CrosswordSolver {
 
             if (this.revise(var1, var2)) {
                 if (this.domains[var1].length === 0) {
-                    return false; // Domain wiped out, no solution
+                    return false;
                 }
                 for (const neighbor in this.constraints[var1]) {
                     if (neighbor !== var2) {
@@ -952,9 +992,6 @@ export class CrosswordSolver {
         return true;
     }
 
-    /**
-     * Revises the domain of var1 if it has values incompatible with var2's domain.
-     */
     revise(var1, var2) {
         let revised = false;
         const overlaps = this.constraints[var1][var2];
@@ -971,11 +1008,7 @@ export class CrosswordSolver {
         return revised;
     }
 
-    /**
-     * Backtracking search with MRV, Degree Heuristic, and forward checking.
-     */
     backtrackingSolve(assignment = {}, cache = {}) {
-        // All slots assigned
         if (Object.keys(assignment).length === Object.keys(this.slots).length) {
             this.solution = { ...assignment };
             return true;
@@ -987,7 +1020,6 @@ export class CrosswordSolver {
             return cache[assignmentKey];
         }
 
-        // Select slot with MRV / Degree
         const varToAssign = this.selectUnassignedVariable(assignment);
         if (!varToAssign) {
             cache[assignmentKey] = false;
@@ -996,7 +1028,6 @@ export class CrosswordSolver {
 
         const orderedValues = this.orderDomainValues(varToAssign);
 
-        // Try each candidate value
         for (const value of orderedValues) {
             if (this.isConsistent(varToAssign, value, assignment)) {
                 assignment[varToAssign] = value;
@@ -1016,14 +1047,10 @@ export class CrosswordSolver {
         return false;
     }
 
-    /**
-     * Chooses an unassigned slot using Minimum Remaining Values (MRV) and Degree Heuristic.
-     */
     selectUnassignedVariable(assignment) {
         const unassigned = Object.keys(this.domains).filter(s => !(s in assignment));
         if (unassigned.length === 0) return null;
 
-        // MRV
         let minSize = Infinity;
         let candidates = [];
         for (const slot of unassigned) {
@@ -1036,7 +1063,6 @@ export class CrosswordSolver {
             }
         }
 
-        // Degree Heuristic
         let maxDegree = -1;
         let finalCandidates = [];
         for (const slot of candidates) {
@@ -1049,13 +1075,9 @@ export class CrosswordSolver {
             }
         }
 
-        // Random tie-break
         return finalCandidates[Math.floor(Math.random() * finalCandidates.length)];
     }
 
-    /**
-     * Orders the domain values using a least-constraining heuristic based on letter frequencies.
-     */
     orderDomainValues(slot) {
         const domain = [...this.domains[slot]];
         const getFrequencyScore = (word) =>
@@ -1063,7 +1085,6 @@ export class CrosswordSolver {
 
         domain.sort((a, b) => getFrequencyScore(a) - getFrequencyScore(b));
 
-        // Optional random shuffle for tie-breaks
         for (let i = domain.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [domain[i], domain[j]] = [domain[j], domain[i]];
@@ -1071,9 +1092,6 @@ export class CrosswordSolver {
         return domain;
     }
 
-    /**
-     * Checks if a candidate word is consistent with the pre-filled letters and with the assigned neighbors.
-     */
     isConsistent(slot, word, assignment) {
         if (!this.wordMatchesPreFilledLetters(slot, word)) {
             return false;
@@ -1085,7 +1103,6 @@ export class CrosswordSolver {
                     return false;
                 }
             } else {
-                // Check if at least one neighbor domain word is consistent
                 const viable = this.domains[neighbor].filter(
                     w => this.wordsMatch(slot, word, neighbor, w)
                 );
@@ -1097,9 +1114,6 @@ export class CrosswordSolver {
         return true;
     }
 
-    /**
-     * Applies forward checking to prune neighbor domains based on the chosen word.
-     */
     forwardCheck(slot, value, assignment) {
         const inferences = {};
         const neighbors = this.constraints[slot] || {};
@@ -1119,9 +1133,6 @@ export class CrosswordSolver {
         return inferences;
     }
 
-    /**
-     * Restores any pruned domains after a failed assignment.
-     */
     restoreDomains(inferences) {
         if (!inferences) return;
         for (const v in inferences) {
@@ -1129,9 +1140,6 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Checks whether a candidate word matches pre-filled letters for a given slot.
-     */
     wordMatchesPreFilledLetters(slot, word) {
         const positions = this.slots[slot];
         for (let i = 0; i < positions.length; i++) {
@@ -1145,9 +1153,6 @@ export class CrosswordSolver {
         return true;
     }
 
-    /**
-     * Checks overlap consistency between two words in overlapping slots.
-     */
     wordsMatch(var1, word1, var2, word2) {
         const overlaps = this.constraints[var1][var2];
         for (const [idx1, idx2] of overlaps) {
@@ -1158,9 +1163,6 @@ export class CrosswordSolver {
         return true;
     }
 
-    /**
-     * Randomly shuffles the domains for an initial "random" approach to solving.
-     */
     randomizeDomains() {
         for (const slot in this.domains) {
             this.domains[slot] = this.shuffleArray(this.domains[slot]);
@@ -1168,9 +1170,6 @@ export class CrosswordSolver {
         this.debugLog("Domains randomized.");
     }
 
-    /**
-     * Fisher-Yates shuffle for randomizing arrays.
-     */
     shuffleArray(array) {
         for (let i = array.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -1183,9 +1182,6 @@ export class CrosswordSolver {
     //                      Display & Status
     // ----------------------------------------------------------------
 
-    /**
-     * Updates the content, foreground, and background of a particular cell.
-     */
     updateCell(row, col, value = null, fg = null, bg = null) {
         const cell = this.cells[`${row},${col}`];
         if (cell) {
@@ -1195,9 +1191,6 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Displays a message to the status display area. If isError is true, text is styled in red.
-     */
     updateStatus(message, isError = false) {
         const statusDisplay = document.getElementById('status-display');
         if (!statusDisplay) return;
@@ -1213,31 +1206,22 @@ export class CrosswordSolver {
         this.debugLog(message);
     }
 
-    /**
-     * Logs debug messages to the console when DEBUG mode is on.
-     */
     debugLog(message, ...args) {
         if (this.DEBUG) {
             console.log(`[DEBUG] ${message}`, ...args);
         }
     }
 
-    /**
-     * Handles errors, logging to console and updating the status display.
-     */
     handleError(userMessage, error) {
-        console.error(`${userMessage}`, error);
+        console.error(userMessage, error);
         this.updateStatus(`${userMessage} ${error.message}`, true);
-        alert(`${userMessage} Please check the console for more details.`);
+        alert(`${userMessage} See console for details.`);
     }
 
     // ----------------------------------------------------------------
     //                    Displaying the Solution
     // ----------------------------------------------------------------
 
-    /**
-     * Renders the solved crossword on the grid with a highlight.
-     */
     displaySolution() {
         try {
             for (const slot in this.solution) {
@@ -1256,7 +1240,11 @@ export class CrosswordSolver {
     }
 
     /**
-     * Displays the across and down words in their respective text areas.
+     * Replaces the previous <textarea> approach with a clickable list
+     * of words for both Across and Down. 
+     * 
+     * NOTE: Make sure your HTML uses <div id="across-display"></div>
+     * and <div id="down-display"></div> or some container that can hold HTML.
      */
     displayWordList() {
         try {
@@ -1272,11 +1260,11 @@ export class CrosswordSolver {
                 const word = this.solution[slot];
                 if (word) {
                     const slotNum = slot.match(/\d+/)[0];
-                    const entry = `${slotNum}: ${word}`;
+                    const entryText = `${slotNum}: ${word}`;
                     if (slot.endsWith("ACROSS")) {
-                        acrossWords.push(entry);
+                        acrossWords.push(entryText);
                     } else if (slot.endsWith("DOWN")) {
-                        downWords.push(entry);
+                        downWords.push(entryText);
                     }
                 }
             }
@@ -1285,20 +1273,51 @@ export class CrosswordSolver {
             const downDisplay = document.getElementById('down-display');
 
             if (!acrossDisplay || !downDisplay) {
-                throw new Error("Word list display elements not found in DOM.");
+                throw new Error("Word list display elements not found. Make sure you replaced <textarea> with a container!");
             }
 
-            acrossDisplay.value = acrossWords.join('\n');
-            downDisplay.value = downWords.join('\n');
+            // Clear them
+            acrossDisplay.innerHTML = '';
+            downDisplay.innerHTML = '';
+
+            // Populate clickable entries
+            acrossWords.forEach(entry => {
+                const div = document.createElement('div');
+                div.style.cursor = 'pointer';
+                div.style.marginBottom = '5px';
+                div.textContent = entry;
+                div.addEventListener('click', () => {
+                    // The actual word is after the colon and space
+                    // e.g. "12: HELLO" -> "HELLO"
+                    const parts = entry.split(':');
+                    if (parts.length === 2) {
+                        const word = parts[1].trim();
+                        this.showDefinitionPopup(word);
+                    }
+                });
+                acrossDisplay.appendChild(div);
+            });
+
+            downWords.forEach(entry => {
+                const div = document.createElement('div');
+                div.style.cursor = 'pointer';
+                div.style.marginBottom = '5px';
+                div.textContent = entry;
+                div.addEventListener('click', () => {
+                    const parts = entry.split(':');
+                    if (parts.length === 2) {
+                        const word = parts[1].trim();
+                        this.showDefinitionPopup(word);
+                    }
+                });
+                downDisplay.appendChild(div);
+            });
 
         } catch (error) {
             this.handleError("Error displaying word lists:", error);
         }
     }
 
-    /**
-     * Logs performance metrics like time taken and number of recursive calls.
-     */
     logPerformanceMetrics() {
         try {
             for (const method in this.performanceData) {
@@ -1312,9 +1331,6 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Shows the size of each domain after AC-3 and before backtracking.
-     */
     displayDomainSizes() {
         try {
             this.updateStatus("Domain Sizes After Setup:");
@@ -1336,9 +1352,6 @@ export class CrosswordSolver {
     //                     Word Lookup Handlers
     // ----------------------------------------------------------------
 
-    /**
-     * Handler for dynamic search input. Filters the loaded words and displays up to 10 matches.
-     */
     handleSearchInput(event) {
         const query = event.target.value.trim().toUpperCase();
         const dropdown = document.getElementById('search-dropdown');
@@ -1351,10 +1364,16 @@ export class CrosswordSolver {
             return;
         }
 
-        // Filter words matching the query
-        const matches = this.words.filter(word => word.startsWith(query)).sort();
+        // Filter words in this.words (legacy approach)
+        // or we can also check dictionary keys for matches
+        const sourceWords = this.words.map(w => w.toUpperCase());
+        const allDictionaryWords = this.dictionary ? Object.keys(this.dictionary).map(k => k.toUpperCase()) : [];
+        // Combine them, removing duplicates
+        const combinedSet = new Set([...sourceWords, ...allDictionaryWords]);
+        const combinedWords = Array.from(combinedSet);
 
-        // Update matches count
+        const matches = combinedWords.filter(word => word.startsWith(query)).sort();
+
         matchesCount.textContent = matches.length > 0
             ? `Found ${matches.length} match(es).`
             : "No matches found.";
@@ -1364,17 +1383,12 @@ export class CrosswordSolver {
             return;
         }
 
-        // Take first 10 matches
         const topMatches = matches.slice(0, 10);
 
-        // Populate dropdown
         this.displaySearchResults(topMatches);
         dropdown.style.display = 'block';
     }
 
-    /**
-     * Renders the top matches in the dropdown. Each item is clickable.
-     */
     displaySearchResults(matches) {
         const dropdown = document.getElementById('search-dropdown');
         const matchesCount = document.getElementById('matches-count');
@@ -1390,7 +1404,7 @@ export class CrosswordSolver {
             item.style.borderBottom = '1px solid #eee';
 
             item.addEventListener('mouseover', () => item.style.backgroundColor = '#f1f1f1');
-            item.addEventListener('mouseout',  () => item.style.backgroundColor = '#fff');
+            item.addEventListener('mouseout', () => item.style.backgroundColor = '#fff');
             item.addEventListener('click', () => {
                 const searchInput = document.getElementById('word-search-input');
                 if (searchInput) {
@@ -1400,6 +1414,8 @@ export class CrosswordSolver {
                 if (matchesCount) {
                     matchesCount.textContent = "Found 1 match.";
                 }
+                // Show popup for this clicked word
+                this.showDefinitionPopup(word);
             });
 
             dropdown.appendChild(item);
