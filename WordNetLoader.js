@@ -1,15 +1,13 @@
 // WordNetLoader.js
 
 /**
- * WordNetLoader is responsible for loading and parsing all WordNet JSON files.
- * It creates a comprehensive dictionary mapping words to their parts of speech and definitions.
+ * WordNetLoader is responsible for loading and parsing WordNet JSON files in a purely
+ * browser-based environment (e.g., GitHub Pages).
+ *
+ * Instead of using 'fs' from Node.js, we use 'fetch' to retrieve each JSON file.
  */
 
-import fs from 'fs';
-import path from 'path';
-import yaml from 'js-yaml'; // If JSON files need YAML parsing, otherwise remove.
-
-const WORDNET_FOLDER = path.join('Data', 'WordNet');
+const WORDNET_FOLDER = 'Data/WordNet'; // relative path if your JSON files are in Data/WordNet/
 const SYNSET_FILES = [
   'adj.all.json',
   'adj.pert.json',
@@ -88,68 +86,56 @@ const ENTRY_FILES = [
 ];
 
 /**
- * Asynchronously reads and parses a JSON file.
- * @param {string} filePath - Path to the JSON file.
- * @returns {Promise<Object>} - Parsed JSON object.
+ * Loads a single JSON file from Data/WordNet via fetch, returning the parsed object.
+ * @param {string} filename - e.g. 'adj.all.json'
+ * @returns {Promise<Object>}
  */
-async function readJSONFile(filePath) {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, 'utf8', (err, data) => {
-      if (err) {
-        console.error(`Error reading file ${filePath}:`, err);
-        return reject(err);
-      }
-      try {
-        const jsonData = JSON.parse(data);
-        resolve(jsonData);
-      } catch (parseErr) {
-        console.error(`Error parsing JSON from file ${filePath}:`, parseErr);
-        reject(parseErr);
-      }
-    });
-  });
+async function fetchJSONFile(filename) {
+  const url = `${WORDNET_FOLDER}/${filename}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
 }
 
 /**
- * Loads all synset files and creates a synset mapping.
- * @returns {Promise<Object>} - Mapping from synset ID to { pos, definitions }.
+ * Loads all synset files and creates a mapping from synset IDs to { pos, definitions }.
+ * @returns {Promise<Object>} - e.g. { "00001740-a": { pos: "a", definitions: [ ... ] }, ... }
  */
 async function loadSynsetMappings() {
   const synsetMappings = {};
 
-  for (const synsetFile of SYNSET_FILES) {
-    const filePath = path.join(WORDNET_FOLDER, synsetFile);
-    try {
-      const synsetData = await readJSONFile(filePath);
-      
-      for (const synsetId in synsetData) {
-        const synset = synsetData[synsetId];
-        const pos = synset.partOfSpeech || inferPOSFromFilename(synsetFile);
-        const definitions = synset.definition || [];
+  // Fetch all synset files in parallel
+  const filePromises = SYNSET_FILES.map(f => fetchJSONFile(f));
+  const fileDataArray = await Promise.all(filePromises);
 
-        if (!synsetMappings[synsetId]) {
-          synsetMappings[synsetId] = {
-            pos,
-            definitions: []
-          };
-        }
+  // Each fileData is an object keyed by synsetId
+  for (let i = 0; i < fileDataArray.length; i++) {
+    const synsetData = fileDataArray[i];
+    const filename = SYNSET_FILES[i];
 
-        synsetMappings[synsetId].definitions.push(...definitions);
+    for (const synsetId in synsetData) {
+      const synset = synsetData[synsetId];
+      const pos = synset.partOfSpeech || inferPOSFromFilename(filename);
+      const definitions = synset.definition || [];
+
+      if (!synsetMappings[synsetId]) {
+        synsetMappings[synsetId] = {
+          pos,
+          definitions: []
+        };
       }
-
-      console.log(`Loaded synset data from ${synsetFile}`);
-    } catch (error) {
-      console.error(`Failed to load synset file ${synsetFile}:`, error);
+      synsetMappings[synsetId].definitions.push(...definitions);
     }
+    console.log(`Loaded synset data from ${filename}`);
   }
 
   return synsetMappings;
 }
 
 /**
- * Infers part of speech from the synset filename.
- * @param {string} filename - Synset filename.
- * @returns {string} - Part of speech ('a', 'n', 'v', 'r').
+ * Guesses part of speech from filename, if not explicitly set in the JSON.
  */
 function inferPOSFromFilename(filename) {
   if (filename.startsWith('adj')) return 'a';
@@ -160,73 +146,61 @@ function inferPOSFromFilename(filename) {
 }
 
 /**
- * Loads all entry files and maps words to their synsets and parts of speech.
- * @returns {Promise<Object>} - Mapping from word to array of { pos, synsetIds }.
+ * Loads all 'entry' files and maps words to their synsets and parts of speech.
+ * @returns {Promise<Object>} - e.g. { "apple": [ { pos: "n", synsetIds: [ ... ] } ], ... }
  */
 async function loadWordEntries() {
   const wordEntries = {};
 
-  for (const entryFile of ENTRY_FILES) {
-    const filePath = path.join(WORDNET_FOLDER, entryFile);
-    try {
-      const entriesData = await readJSONFile(filePath);
+  const filePromises = ENTRY_FILES.map(f => fetchJSONFile(f));
+  const fileDataArray = await Promise.all(filePromises);
 
-      for (const word in entriesData) {
-        const posData = entriesData[word];
-        
-        for (const pos in posData) {
-          const senses = posData[pos].sense || [];
-          const synsetIds = senses.map(sense => sense.synset).filter(Boolean);
+  for (let i = 0; i < fileDataArray.length; i++) {
+    const entriesData = fileDataArray[i];
+    const filename = ENTRY_FILES[i];
 
-          if (!wordEntries[word]) {
-            wordEntries[word] = [];
-          }
+    for (const word in entriesData) {
+      const posData = entriesData[word];
+      for (const pos in posData) {
+        const senses = posData[pos].sense || [];
+        const synsetIds = senses.map(s => s.synset).filter(Boolean);
 
-          wordEntries[word].push({
-            pos,
-            synsetIds
-          });
+        if (!wordEntries[word]) {
+          wordEntries[word] = [];
         }
+        wordEntries[word].push({ pos, synsetIds });
       }
-
-      console.log(`Loaded entry data from ${entryFile}`);
-    } catch (error) {
-      console.error(`Failed to load entry file ${entryFile}:`, error);
     }
+    console.log(`Loaded entry data from ${filename}`);
   }
 
   return wordEntries;
 }
 
 /**
- * Combines word entries with synset definitions to create the final dictionary.
- * @param {Object} wordEntries - Mapping from word to array of { pos, synsetIds }.
- * @param {Object} synsetMappings - Mapping from synset ID to { pos, definitions }.
- * @returns {Object} - Final dictionary mapping words to their pos and definitions.
+ * Combines word entries with synset definitions to form the final dictionary.
+ * finalDictionary[word] = [ { pos: 'n', definitions: [ ... ] }, ... ]
  */
 function createFinalDictionary(wordEntries, synsetMappings) {
   const finalDictionary = {};
 
   for (const word in wordEntries) {
     const entries = wordEntries[word];
-    
     for (const entry of entries) {
       const { pos, synsetIds } = entry;
-      
       for (const synsetId of synsetIds) {
         const synset = synsetMappings[synsetId];
         if (synset && synset.definitions.length > 0) {
-          if (!finalDictionary[word.toLowerCase()]) {
-            finalDictionary[word.toLowerCase()] = [];
+          const lowerWord = word.toLowerCase();
+          if (!finalDictionary[lowerWord]) {
+            finalDictionary[lowerWord] = [];
           }
-
-          finalDictionary[word.toLowerCase()].push({
+          finalDictionary[lowerWord].push({
             pos: synset.pos,
             definitions: synset.definitions
           });
         } else {
-          // Synset not found or no definitions available
-          console.warn(`No definitions found for synset ID: ${synsetId} (Word: ${word})`);
+          console.warn(`No definitions found for synset ID "${synsetId}" (Word: ${word})`);
         }
       }
     }
@@ -236,25 +210,18 @@ function createFinalDictionary(wordEntries, synsetMappings) {
 }
 
 /**
- * Loads and parses all WordNet data to create the final dictionary.
- * @returns {Promise<Object>} - Final dictionary ready for use.
+ * Orchestrates the entire loading of WordNet data (synsets + entries) in a browser environment.
  */
 export async function loadWordNetDictionary() {
-  try {
-    console.log("Starting to load synset mappings...");
-    const synsetMappings = await loadSynsetMappings();
+  console.log("Loading synset mappings...");
+  const synsetMappings = await loadSynsetMappings();
 
-    console.log("Starting to load word entries...");
-    const wordEntries = await loadWordEntries();
+  console.log("Loading word entries...");
+  const wordEntries = await loadWordEntries();
 
-    console.log("Combining synset mappings with word entries...");
-    const finalDictionary = createFinalDictionary(wordEntries, synsetMappings);
+  console.log("Combining data into final dictionary...");
+  const finalDictionary = createFinalDictionary(wordEntries, synsetMappings);
 
-    console.log("WordNet dictionary successfully loaded.");
-    return finalDictionary;
-
-  } catch (error) {
-    console.error("Error loading WordNet dictionary:", error);
-    throw error;
-  }
+  console.log("WordNet dictionary successfully loaded.");
+  return finalDictionary;
 }
