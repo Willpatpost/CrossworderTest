@@ -212,9 +212,8 @@ export class CrosswordSolver {
             if (wordSearchInput) {
                 wordSearchInput.addEventListener('input', this.handleSearchInput);
             }
-
-            // (Optional) If you add an "Auto-Number" button in HTML, do:
-            // this.bindButton('#auto-number-button', this.autoNumberGrid);
+            
+            this.bindButton('#auto-number-button', this.autoNumberGrid);
 
         } catch (error) {
             this.handleError("Error setting up event listeners:", error);
