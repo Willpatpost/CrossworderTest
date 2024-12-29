@@ -47,7 +47,7 @@
         </section>
 
         <!-- Word Lookup Section
-             (Dynamically enhanced for real-time search by CrosswordSolver.js) -->
+             (Dynamically enhanced by CrosswordSolver.js) -->
         <section class="word-lookup-section">
             <h2>Word Lookup</h2>
             <div class="search-container">
@@ -105,18 +105,20 @@
 
             <!-- Grid Container -->
             <div class="grid-container" id="grid-container">
-                <!-- The crossword grid is dynamically generated here by the solver in main.js -->
+                <!-- Crossword grid is dynamically generated here by main.js / CrosswordSolver.js -->
             </div>
 
             <!-- Word Lists -->
             <div class="word-lists-container">
                 <div class="word-list">
                     <h3>Across</h3>
-                    <textarea id="across-display" readonly></textarea>
+                    <!-- Replaced <textarea> with a scrollable <div> -->
+                    <div id="across-display" class="word-list-display"></div>
                 </div>
                 <div class="word-list">
                     <h3>Down</h3>
-                    <textarea id="down-display" readonly></textarea>
+                    <!-- Replaced <textarea> with a scrollable <div> -->
+                    <div id="down-display" class="word-list-display"></div>
                 </div>
             </div>
         </section>
@@ -126,6 +128,10 @@
             <button id="solve-crossword-button" class="btn solve-btn">
                 Solve Crossword
             </button>
+            <!-- Optional Auto-Number Button -->
+            <button id="auto-number-button" class="btn secondary-btn">
+                Auto Number
+            </button>
         </section>
 
         <!-- Footer -->
@@ -134,7 +140,7 @@
         </footer>
     </div>
 
-    <!-- Now we load our main module instead of the single script.js -->
+    <!-- Main module loading -->
     <script type="module" src="main.js"></script>
 </body>
 </html>
