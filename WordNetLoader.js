@@ -3,11 +3,12 @@
 /**
  * WordNetLoader is responsible for loading and parsing WordNet JSON files in a purely
  * browser-based environment (e.g., GitHub Pages).
- *
- * Instead of using 'fs' from Node.js, we use 'fetch' to retrieve each JSON file.
+ * 
+ * We've added extra debugging in `loadWordEntries()` to skip or warn about malformed entries
+ * rather than crash with ".push is not a function".
  */
 
-const WORDNET_FOLDER = 'Data/WordNet'; // relative path if your JSON files are in Data/WordNet/
+const WORDNET_FOLDER = 'Data/WordNet'; // Adjust if needed
 const SYNSET_FILES = [
   'adj.all.json',
   'adj.pert.json',
@@ -118,7 +119,7 @@ async function loadSynsetMappings() {
     for (const synsetId in synsetData) {
       const synset = synsetData[synsetId];
       const pos = synset.partOfSpeech || inferPOSFromFilename(filename);
-      const definitions = synset.definition || [];
+      const definitions = Array.isArray(synset.definition) ? synset.definition : [];
 
       if (!synsetMappings[synsetId]) {
         synsetMappings[synsetId] = {
@@ -126,6 +127,7 @@ async function loadSynsetMappings() {
           definitions: []
         };
       }
+      // Merge definitions from multiple files if needed
       synsetMappings[synsetId].definitions.push(...definitions);
     }
     console.log(`Loaded synset data from ${filename}`);
@@ -147,11 +149,16 @@ function inferPOSFromFilename(filename) {
 
 /**
  * Loads all 'entry' files and maps words to their synsets and parts of speech.
- * @returns {Promise<Object>} - e.g. { "apple": [ { pos: "n", synsetIds: [ ... ] } ], ... }
+ *
+ * We add debugging checks for malformed data to prevent 
+ * "wordEntries[word].push is not a function" crashes.
+ *
+ * @returns {Promise<Object>} - e.g. { "apple": [ { pos: "n", synsetIds: [...] } ], ... }
  */
 async function loadWordEntries() {
   const wordEntries = {};
 
+  // Fetch all entry files in parallel
   const filePromises = ENTRY_FILES.map(f => fetchJSONFile(f));
   const fileDataArray = await Promise.all(filePromises);
 
@@ -159,18 +166,62 @@ async function loadWordEntries() {
     const entriesData = fileDataArray[i];
     const filename = ENTRY_FILES[i];
 
+    // For each top-level word (key)
     for (const word in entriesData) {
       const posData = entriesData[word];
-      for (const pos in posData) {
-        const senses = posData[pos].sense || [];
-        const synsetIds = senses.map(s => s.synset).filter(Boolean);
 
+      // Make sure posData is an object (not null, not array)
+      if (typeof posData !== 'object' || !posData || Array.isArray(posData)) {
+        console.warn(
+          `Skipping malformed top-level entry in ${filename}:`,
+          `"${word}" =>`, posData
+        );
+        continue;
+      }
+
+      // For each part-of-speech subkey (e.g. "n", "v", "r", "a")
+      for (const pos in posData) {
+        const senseObj = posData[pos];
+
+        // senseObj must be an object with a "sense" array
+        if (
+          !senseObj ||
+          typeof senseObj !== 'object' ||
+          Array.isArray(senseObj) ||
+          !Array.isArray(senseObj.sense)
+        ) {
+          console.warn(
+            `Skipping malformed sense data: word="${word}", pos="${pos}" in ${filename}.`,
+            `Expected { sense: [...] }, got =>`,
+            senseObj
+          );
+          continue;
+        }
+
+        // Now we can safely map synset IDs
+        const synsetIds = senseObj.sense
+          .map(s => s.synset)
+          .filter(Boolean);
+
+        // If we haven't yet created an array for this word, do so
         if (!wordEntries[word]) {
           wordEntries[word] = [];
+        } 
+        // If somehow wordEntries[word] is not an array (very rare),
+        // we overwrite it with a fresh array:
+        else if (!Array.isArray(wordEntries[word])) {
+          console.warn(
+            `Found a non-array entry for word="${word}". Overwriting with empty array.`,
+            wordEntries[word]
+          );
+          wordEntries[word] = [];
         }
+
+        // Finally, push the valid { pos, synsetIds } object
         wordEntries[word].push({ pos, synsetIds });
       }
     }
+
     console.log(`Loaded entry data from ${filename}`);
   }
 
@@ -200,7 +251,9 @@ function createFinalDictionary(wordEntries, synsetMappings) {
             definitions: synset.definitions
           });
         } else {
-          console.warn(`No definitions found for synset ID "${synsetId}" (Word: ${word})`);
+          console.warn(
+            `No definitions found for synset ID "${synsetId}" (Word: "${word}"). Possibly incomplete data.`
+          );
         }
       }
     }
@@ -211,17 +264,23 @@ function createFinalDictionary(wordEntries, synsetMappings) {
 
 /**
  * Orchestrates the entire loading of WordNet data (synsets + entries) in a browser environment.
+ * Adds debugging checks for malformed data in the entry files.
  */
 export async function loadWordNetDictionary() {
-  console.log("Loading synset mappings...");
-  const synsetMappings = await loadSynsetMappings();
+  try {
+    console.log("Loading synset mappings...");
+    const synsetMappings = await loadSynsetMappings();
 
-  console.log("Loading word entries...");
-  const wordEntries = await loadWordEntries();
+    console.log("Loading word entries...");
+    const wordEntries = await loadWordEntries();
 
-  console.log("Combining data into final dictionary...");
-  const finalDictionary = createFinalDictionary(wordEntries, synsetMappings);
+    console.log("Combining data into final dictionary...");
+    const finalDictionary = createFinalDictionary(wordEntries, synsetMappings);
 
-  console.log("WordNet dictionary successfully loaded.");
-  return finalDictionary;
+    console.log("WordNet dictionary successfully loaded.");
+    return finalDictionary;
+  } catch (error) {
+    console.error("Error loading WordNet dictionary:", error);
+    throw error;
+  }
 }
