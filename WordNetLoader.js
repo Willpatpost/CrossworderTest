@@ -1,284 +1,260 @@
 // WordNetLoader.js
 
-// All 73 JSON files you mentioned, listed in a single array.
-const WORDNET_JSON_FILES = [
-  // Adjectives
-  'Data/WordNet/adj.all.json',
-  'Data/WordNet/adj.pert.json',
-  'Data/WordNet/adj.ppl.json',
+/**
+ * WordNetLoader is responsible for loading and parsing all WordNet JSON files.
+ * It creates a comprehensive dictionary mapping words to their parts of speech and definitions.
+ */
 
-  // Adverbs
-  'Data/WordNet/adv.all.json',
+import fs from 'fs';
+import path from 'path';
+import yaml from 'js-yaml'; // If JSON files need YAML parsing, otherwise remove.
 
-  // "entries-*" files 
-  'Data/WordNet/entries-0.json',
-  'Data/WordNet/entries-a.json',
-  'Data/WordNet/entries-b.json',
-  'Data/WordNet/entries-c.json',
-  'Data/WordNet/entries-d.json',
-  'Data/WordNet/entries-e.json',
-  'Data/WordNet/entries-f.json',
-  'Data/WordNet/entries-g.json',
-  'Data/WordNet/entries-h.json',
-  'Data/WordNet/entries-i.json',
-  'Data/WordNet/entries-j.json',
-  'Data/WordNet/entries-k.json',
-  'Data/WordNet/entries-l.json',
-  'Data/WordNet/entries-m.json',
-  'Data/WordNet/entries-n.json',
-  'Data/WordNet/entries-o.json',
-  'Data/WordNet/entries-p.json',
-  'Data/WordNet/entries-q.json',
-  'Data/WordNet/entries-r.json',
-  'Data/WordNet/entries-s.json',
-  'Data/WordNet/entries-t.json',
-  'Data/WordNet/entries-u.json',
-  'Data/WordNet/entries-v.json',
-  'Data/WordNet/entries-w.json',
-  'Data/WordNet/entries-x.json',
-  'Data/WordNet/entries-y.json',
-  'Data/WordNet/entries-z.json',
-
-  // Frames
-  'Data/WordNet/frames.json',
-
-  // Nouns
-  'Data/WordNet/noun.Tops.json',
-  'Data/WordNet/noun.act.json',
-  'Data/WordNet/noun.animal.json',
-  'Data/WordNet/noun.artifact.json',
-  'Data/WordNet/noun.attribute.json',
-  'Data/WordNet/noun.body.json',
-  'Data/WordNet/noun.cognition.json',
-  'Data/WordNet/noun.communication.json',
-  'Data/WordNet/noun.event.json',
-  'Data/WordNet/noun.feeling.json',
-  'Data/WordNet/noun.food.json',
-  'Data/WordNet/noun.group.json',
-  'Data/WordNet/noun.location.json',
-  'Data/WordNet/noun.motive.json',
-  'Data/WordNet/noun.object.json',
-  'Data/WordNet/noun.person.json',
-  'Data/WordNet/noun.phenomenon.json',
-  'Data/WordNet/noun.plant.json',
-  'Data/WordNet/noun.possession.json',
-  'Data/WordNet/noun.process.json',
-  'Data/WordNet/noun.quantity.json',
-  'Data/WordNet/noun.relation.json',
-  'Data/WordNet/noun.shape.json',
-  'Data/WordNet/noun.state.json',
-  'Data/WordNet/noun.substance.json',
-  'Data/WordNet/noun.time.json',
-
-  // Verbs
-  'Data/WordNet/verb.body.json',
-  'Data/WordNet/verb.change.json',
-  'Data/WordNet/verb.cognition.json',
-  'Data/WordNet/verb.communication.json',
-  'Data/WordNet/verb.competition.json',
-  'Data/WordNet/verb.consumption.json',
-  'Data/WordNet/verb.contact.json',
-  'Data/WordNet/verb.creation.json',
-  'Data/WordNet/verb.emotion.json',
-  'Data/WordNet/verb.motion.json',
-  'Data/WordNet/verb.perception.json',
-  'Data/WordNet/verb.possession.json',
-  'Data/WordNet/verb.social.json',
-  'Data/WordNet/verb.stative.json',
-  'Data/WordNet/verb.weather.json'
+const WORDNET_FOLDER = path.join('Data', 'WordNet');
+const SYNSET_FILES = [
+  'adj.all.json',
+  'adj.pert.json',
+  'adj.ppl.json',
+  'adv.all.json',
+  'noun.Tops.json',
+  'noun.act.json',
+  'noun.animal.json',
+  'noun.artifact.json',
+  'noun.attribute.json',
+  'noun.body.json',
+  'noun.cognition.json',
+  'noun.communication.json',
+  'noun.event.json',
+  'noun.feeling.json',
+  'noun.food.json',
+  'noun.group.json',
+  'noun.location.json',
+  'noun.motive.json',
+  'noun.object.json',
+  'noun.person.json',
+  'noun.phenomenon.json',
+  'noun.plant.json',
+  'noun.possession.json',
+  'noun.process.json',
+  'noun.quantity.json',
+  'noun.relation.json',
+  'noun.shape.json',
+  'noun.state.json',
+  'noun.substance.json',
+  'verb.body.json',
+  'verb.change.json',
+  'verb.cognition.json',
+  'verb.communication.json',
+  'verb.competition.json',
+  'verb.consumption.json',
+  'verb.contact.json',
+  'verb.creation.json',
+  'verb.emotion.json',
+  'verb.motion.json',
+  'verb.perception.json',
+  'verb.possession.json',
+  'verb.social.json',
+  'verb.stative.json',
+  'verb.weather.json'
 ];
 
-// We'll create two top-level maps in memory:
-// 1) synsetsMap: keyed by "00001740-a", "00002098-a", etc.
-//    -> stores { pos, definitions:[], examples:[], members:[], domain_topic:[], etc. }
-// 2) aggregator: keyed by "word" -> array of { pos, definitions, examples, ... }
-
-export async function loadWordNetDictionary() {
-  // Step 1: fetch all files in parallel
-  const fetchPromises = WORDNET_JSON_FILES.map(async (filePath) => {
-    const response = await fetch(filePath);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${filePath} - ${response.statusText}`);
-    }
-    const data = await response.json();
-    return { filePath, data };
-  });
-
-  const fileDataArray = await Promise.all(fetchPromises);
-
-  // Step 2: We'll build these in memory
-  const synsetsMap = {};   // { "00001740-a": { pos:"a", definitions:[], examples:[], ... } }
-  const aggregator = {};   // { "able": [ { pos:"a", definitions:[], examples:[] }, ... ], ... }
-
-  // Step 3: parse each file
-  for (const { filePath, data } of fileDataArray) {
-    // We'll do a naive guess: if top-level keys look like synset IDs, parse them into synsetsMap
-    // if top-level keys look more like actual text words, parse them into aggregator.
-    // In reality, for WordNet, it's more nuanced.
-
-    for (const topKey in data) {
-      const record = data[topKey];
-
-      // 1) Check if topKey looks like "00001740-a" or "08970180-n"
-      if (/^\d{8}[-][avnrs]$/.test(topKey)) {
-        // This is a synset record from e.g. adj.all.json
-        parseSynsetRecord(synsetsMap, topKey, record);
-      }
-      // 2) Otherwise, it might be an "entries" style record with a top-level word or phrase
-      else {
-        parseEntriesRecord(aggregator, synsetsMap, topKey, record);
-      }
-    }
-  }
-
-  // Step 4: aggregator now has partial info from "entries" files that cross-reference synsetsMap.
-  // The parseEntriesRecord() function can fill in definitions/examples from synsetsMap by looking up each sense.
-
-  // Step 5: Also parse "members" in synsetsMap? 
-  // If the synset has "members": ["able"], we can push aggregator["able"] = ...
-  // But we already do that in parseSynsetRecord, or we can do a second pass if needed.
-
-  // (We can do a second pass to unify everything, if we want each "members" to appear in aggregator as well.)
-
-  unifySynsetMembers(synsetsMap, aggregator);
-
-  return aggregator;
-}
-
-/** 
- * Parse a single synset entry, e.g.:
- * {
- *   "attribute": [...],
- *   "definition": [...],
- *   "example": [...],
- *   "ili": "i1",
- *   "members": [ "able" ],
- *   "partOfSpeech": "a"
- * }
- */
-function parseSynsetRecord(synsetsMap, synsetId, record) {
-  // record might have fields like definition, example, partOfSpeech, members, etc.
-  const pos = record.partOfSpeech || guessPOSfromSynsetID(synsetId);
-  const definitions = Array.isArray(record.definition) ? record.definition : [];
-  const examples = Array.isArray(record.example) ? record.example : [];
-
-  synsetsMap[synsetId] = {
-    pos,
-    definitions,
-    examples,
-    members: record.members || [],
-    // we can store other fields if needed:
-    domain_topic: record.domain_topic || [],
-    attribute: record.attribute || [],
-    ili: record.ili || null
-    // ...
-  };
-}
+const ENTRY_FILES = [
+  'entries-0.json',
+  'entries-a.json',
+  'entries-b.json',
+  'entries-c.json',
+  'entries-d.json',
+  'entries-e.json',
+  'entries-f.json',
+  'entries-g.json',
+  'entries-h.json',
+  'entries-i.json',
+  'entries-j.json',
+  'entries-k.json',
+  'entries-l.json',
+  'entries-m.json',
+  'entries-n.json',
+  'entries-o.json',
+  'entries-p.json',
+  'entries-q.json',
+  'entries-r.json',
+  'entries-s.json',
+  'entries-t.json',
+  'entries-u.json',
+  'entries-v.json',
+  'entries-w.json',
+  'entries-x.json',
+  'entries-y.json',
+  'entries-z.json'
+];
 
 /**
- * Parse an "entries" style record. 
- * E.g. 
- * {
- *   "n": {
- *     "sense": [
- *       { "id": "'hood%1:14:01::", "synset": "08242255-n" }
- *     ]
- *   }
- * }
- * or it might contain "a", "v", "r", etc.
- *
- * We'll look up each sense's synset in synsetsMap to get full definitions.
+ * Asynchronously reads and parses a JSON file.
+ * @param {string} filePath - Path to the JSON file.
+ * @returns {Promise<Object>} - Parsed JSON object.
  */
-function parseEntriesRecord(aggregator, synsetsMap, topKey, record) {
-  // topKey is the "word" or phrase (like "'hood", "able", etc.)
-  // record might have { n: { sense: [ ... ] }, a: { sense: [ ... ] }, ... } or it might be more advanced
-
-  // For each part-of-speech key (like 'n', 'v', 'a', 'r'):
-  for (const posKey in record) {
-    const objForThisPOS = record[posKey];
-    if (!objForThisPOS || !Array.isArray(objForThisPOS.sense)) {
-      continue;
-    }
-
-    // For each sense:
-    for (const senseObj of objForThisPOS.sense) {
-      // senseObj might look like { id: "'hood%1:14:01::", synset: "08242255-n" }
-      const synsetId = senseObj.synset; // e.g. "08242255-n"
-      // Look up that synset in synsetsMap
-      if (synsetsMap[synsetId]) {
-        // We can combine data
-        addToAggregator(aggregator, topKey, synsetsMap[synsetId]);
-      } else {
-        // No direct match found in synsetsMap => partial data
-        // Let's store a minimal entry or skip
-        addToAggregator(aggregator, topKey, {
-          pos: posKey,
-          definitions: ["[Definition not found for synset " + synsetId + "]"],
-          examples: []
-        });
+async function readJSONFile(filePath) {
+  return new Promise((resolve, reject) => {
+    fs.readFile(filePath, 'utf8', (err, data) => {
+      if (err) {
+        console.error(`Error reading file ${filePath}:`, err);
+        return reject(err);
       }
-    }
-  }
-}
-
-/**
- * Adds the given synset data to aggregator[word].
- * Example aggregator record:
- *  aggregator["able"] = [
- *    { pos: "a", definitions: [...], examples: [...] },
- *    ...
- *  ]
- */
-function addToAggregator(aggregator, rawWord, synsetData) {
-  const word = rawWord.toLowerCase(); // normalize
-  if (!aggregator[word]) {
-    aggregator[word] = [];
-  }
-
-  // Check if there's already an entry with this pos & definitions
-  // We might want to de-dupe. For now, we'll just push a new entry.
-  aggregator[word].push({
-    pos: synsetData.pos || 'u', // unknown
-    definitions: synsetData.definitions || [],
-    examples: synsetData.examples || []
+      try {
+        const jsonData = JSON.parse(data);
+        resolve(jsonData);
+      } catch (parseErr) {
+        console.error(`Error parsing JSON from file ${filePath}:`, parseErr);
+        reject(parseErr);
+      }
+    });
   });
 }
 
 /**
- * Attempt to guess part of speech from a synset ID if not specified
- * e.g. "00001740-a" => "a", "08970180-n" => "n"
+ * Loads all synset files and creates a synset mapping.
+ * @returns {Promise<Object>} - Mapping from synset ID to { pos, definitions }.
  */
-function guessPOSfromSynsetID(synsetId) {
-  const lastChar = synsetId.slice(-1);
-  if (['n', 'v', 'a', 'r', 's'].includes(lastChar)) {
-    return lastChar;
-  }
-  return 'u'; // unknown
-}
+async function loadSynsetMappings() {
+  const synsetMappings = {};
 
-/**
- * After we've built synsetsMap, we can unify any 'members' 
- * that didn't appear in the 'entries' files.
- * For example, adj.all.json might have: 
- * {
- *   "00001740-a": { "members": ["able"], "definitions":["..."], "pos":"a", ... }
- * }
- * But "able" might not appear in any 'entries-*.json' 
- * so aggregator["able"] won't exist. Let's fix that:
- */
-function unifySynsetMembers(synsetsMap, aggregator) {
-  for (const synsetId in synsetsMap) {
-    const { pos, definitions, examples, members } = synsetsMap[synsetId];
-    if (Array.isArray(members)) {
-      for (const m of members) {
-        const w = m.toLowerCase();
-        if (!aggregator[w]) {
-          aggregator[w] = [];
+  for (const synsetFile of SYNSET_FILES) {
+    const filePath = path.join(WORDNET_FOLDER, synsetFile);
+    try {
+      const synsetData = await readJSONFile(filePath);
+      
+      for (const synsetId in synsetData) {
+        const synset = synsetData[synsetId];
+        const pos = synset.partOfSpeech || inferPOSFromFilename(synsetFile);
+        const definitions = synset.definition || [];
+
+        if (!synsetMappings[synsetId]) {
+          synsetMappings[synsetId] = {
+            pos,
+            definitions: []
+          };
         }
-        // If aggregator[w] doesn’t already contain this (pos, definitions), add it:
-        // (You might want to check for duplicates. We'll just push to be safe.)
-        aggregator[w].push({ pos, definitions, examples });
+
+        synsetMappings[synsetId].definitions.push(...definitions);
+      }
+
+      console.log(`Loaded synset data from ${synsetFile}`);
+    } catch (error) {
+      console.error(`Failed to load synset file ${synsetFile}:`, error);
+    }
+  }
+
+  return synsetMappings;
+}
+
+/**
+ * Infers part of speech from the synset filename.
+ * @param {string} filename - Synset filename.
+ * @returns {string} - Part of speech ('a', 'n', 'v', 'r').
+ */
+function inferPOSFromFilename(filename) {
+  if (filename.startsWith('adj')) return 'a';
+  if (filename.startsWith('noun')) return 'n';
+  if (filename.startsWith('verb')) return 'v';
+  if (filename.startsWith('adv')) return 'r';
+  return 'unknown';
+}
+
+/**
+ * Loads all entry files and maps words to their synsets and parts of speech.
+ * @returns {Promise<Object>} - Mapping from word to array of { pos, synsetIds }.
+ */
+async function loadWordEntries() {
+  const wordEntries = {};
+
+  for (const entryFile of ENTRY_FILES) {
+    const filePath = path.join(WORDNET_FOLDER, entryFile);
+    try {
+      const entriesData = await readJSONFile(filePath);
+
+      for (const word in entriesData) {
+        const posData = entriesData[word];
+        
+        for (const pos in posData) {
+          const senses = posData[pos].sense || [];
+          const synsetIds = senses.map(sense => sense.synset).filter(Boolean);
+
+          if (!wordEntries[word]) {
+            wordEntries[word] = [];
+          }
+
+          wordEntries[word].push({
+            pos,
+            synsetIds
+          });
+        }
+      }
+
+      console.log(`Loaded entry data from ${entryFile}`);
+    } catch (error) {
+      console.error(`Failed to load entry file ${entryFile}:`, error);
+    }
+  }
+
+  return wordEntries;
+}
+
+/**
+ * Combines word entries with synset definitions to create the final dictionary.
+ * @param {Object} wordEntries - Mapping from word to array of { pos, synsetIds }.
+ * @param {Object} synsetMappings - Mapping from synset ID to { pos, definitions }.
+ * @returns {Object} - Final dictionary mapping words to their pos and definitions.
+ */
+function createFinalDictionary(wordEntries, synsetMappings) {
+  const finalDictionary = {};
+
+  for (const word in wordEntries) {
+    const entries = wordEntries[word];
+    
+    for (const entry of entries) {
+      const { pos, synsetIds } = entry;
+      
+      for (const synsetId of synsetIds) {
+        const synset = synsetMappings[synsetId];
+        if (synset && synset.definitions.length > 0) {
+          if (!finalDictionary[word.toLowerCase()]) {
+            finalDictionary[word.toLowerCase()] = [];
+          }
+
+          finalDictionary[word.toLowerCase()].push({
+            pos: synset.pos,
+            definitions: synset.definitions
+          });
+        } else {
+          // Synset not found or no definitions available
+          console.warn(`No definitions found for synset ID: ${synsetId} (Word: ${word})`);
+        }
       }
     }
+  }
+
+  return finalDictionary;
+}
+
+/**
+ * Loads and parses all WordNet data to create the final dictionary.
+ * @returns {Promise<Object>} - Final dictionary ready for use.
+ */
+export async function loadWordNetDictionary() {
+  try {
+    console.log("Starting to load synset mappings...");
+    const synsetMappings = await loadSynsetMappings();
+
+    console.log("Starting to load word entries...");
+    const wordEntries = await loadWordEntries();
+
+    console.log("Combining synset mappings with word entries...");
+    const finalDictionary = createFinalDictionary(wordEntries, synsetMappings);
+
+    console.log("WordNet dictionary successfully loaded.");
+    return finalDictionary;
+
+  } catch (error) {
+    console.error("Error loading WordNet dictionary:", error);
+    throw error;
   }
 }
