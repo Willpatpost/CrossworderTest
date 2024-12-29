@@ -47,7 +47,7 @@
         </section>
 
         <!-- Word Lookup Section
-             (Dynamically enhanced by script.js for real-time search) -->
+             (Dynamically enhanced by CrosswordSolver.js) -->
         <section class="word-lookup-section">
             <h2>Word Lookup</h2>
             <div class="search-container">
@@ -85,6 +85,11 @@
                 <button id="number-entry-button" class="btn mode-btn">
                     Number Entry Mode
                 </button>
+                <!-- Moved the "Auto Number" button to be next to the Number Entry Mode button -->
+                <button id="auto-number-button" class="btn secondary-btn">
+                    Auto Number
+                </button>
+
                 <button id="letter-entry-button" class="btn mode-btn">
                     Letter Entry Mode
                 </button>
@@ -105,18 +110,20 @@
 
             <!-- Grid Container -->
             <div class="grid-container" id="grid-container">
-                <!-- The crossword grid is dynamically generated here by script.js -->
+                <!-- Crossword grid is dynamically generated here by main.js / CrosswordSolver.js -->
             </div>
 
             <!-- Word Lists -->
             <div class="word-lists-container">
                 <div class="word-list">
                     <h3>Across</h3>
-                    <textarea id="across-display" readonly></textarea>
+                    <!-- Replaced <textarea> with a scrollable <div> -->
+                    <div id="across-display" class="word-list-display"></div>
                 </div>
                 <div class="word-list">
                     <h3>Down</h3>
-                    <textarea id="down-display" readonly></textarea>
+                    <!-- Replaced <textarea> with a scrollable <div> -->
+                    <div id="down-display" class="word-list-display"></div>
                 </div>
             </div>
         </section>
@@ -134,7 +141,7 @@
         </footer>
     </div>
 
-    <!-- Link to the JavaScript file -->
-    <script src="script.js"></script>
+    <!-- Main module loading -->
+    <script type="module" src="main.js"></script>
 </body>
 </html>
