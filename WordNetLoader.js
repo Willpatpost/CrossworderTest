@@ -2,13 +2,13 @@
 
 /**
  * WordNetLoader is responsible for loading and parsing WordNet JSON files in a purely
- * browser-based environment (e.g., GitHub Pages).
- * 
- * We've added extra debugging in `loadWordEntries()` to skip or warn about malformed entries
- * rather than crash with ".push is not a function".
+ * browser-based environment (GitHub Pages). Now includes special handling to avoid
+ * "constructor" or other prototype property collisions.
  */
 
-const WORDNET_FOLDER = 'Data/WordNet'; // Adjust if needed
+// Adjust if needed
+const WORDNET_FOLDER = 'Data/WordNet';
+
 const SYNSET_FILES = [
   'adj.all.json',
   'adj.pert.json',
@@ -88,8 +88,6 @@ const ENTRY_FILES = [
 
 /**
  * Loads a single JSON file from Data/WordNet via fetch, returning the parsed object.
- * @param {string} filename - e.g. 'adj.all.json'
- * @returns {Promise<Object>}
  */
 async function fetchJSONFile(filename) {
   const url = `${WORDNET_FOLDER}/${filename}`;
@@ -102,16 +100,13 @@ async function fetchJSONFile(filename) {
 
 /**
  * Loads all synset files and creates a mapping from synset IDs to { pos, definitions }.
- * @returns {Promise<Object>} - e.g. { "00001740-a": { pos: "a", definitions: [ ... ] }, ... }
  */
 async function loadSynsetMappings() {
-  const synsetMappings = {};
+  const synsetMappings = Object.create(null); // no prototype collisions
 
-  // Fetch all synset files in parallel
   const filePromises = SYNSET_FILES.map(f => fetchJSONFile(f));
   const fileDataArray = await Promise.all(filePromises);
 
-  // Each fileData is an object keyed by synsetId
   for (let i = 0; i < fileDataArray.length; i++) {
     const synsetData = fileDataArray[i];
     const filename = SYNSET_FILES[i];
@@ -127,7 +122,6 @@ async function loadSynsetMappings() {
           definitions: []
         };
       }
-      // Merge definitions from multiple files if needed
       synsetMappings[synsetId].definitions.push(...definitions);
     }
     console.log(`Loaded synset data from ${filename}`);
@@ -136,8 +130,8 @@ async function loadSynsetMappings() {
   return synsetMappings;
 }
 
-/**
- * Guesses part of speech from filename, if not explicitly set in the JSON.
+/** 
+ * Infers part of speech from filename
  */
 function inferPOSFromFilename(filename) {
   if (filename.startsWith('adj')) return 'a';
@@ -148,17 +142,12 @@ function inferPOSFromFilename(filename) {
 }
 
 /**
- * Loads all 'entry' files and maps words to their synsets and parts of speech.
- *
- * We add debugging checks for malformed data to prevent 
- * "wordEntries[word].push is not a function" crashes.
- *
- * @returns {Promise<Object>} - e.g. { "apple": [ { pos: "n", synsetIds: [...] } ], ... }
+ * Loads all 'entry' files and maps words to their synsets and parts of speech,
+ * skipping malformed entries. Uses Object.create(null) to avoid "constructor" collisions.
  */
 async function loadWordEntries() {
-  const wordEntries = {};
+  const wordEntries = Object.create(null); // no prototype collisions here
 
-  // Fetch all entry files in parallel
   const filePromises = ENTRY_FILES.map(f => fetchJSONFile(f));
   const fileDataArray = await Promise.all(filePromises);
 
@@ -166,11 +155,9 @@ async function loadWordEntries() {
     const entriesData = fileDataArray[i];
     const filename = ENTRY_FILES[i];
 
-    // For each top-level word (key)
     for (const word in entriesData) {
       const posData = entriesData[word];
 
-      // Make sure posData is an object (not null, not array)
       if (typeof posData !== 'object' || !posData || Array.isArray(posData)) {
         console.warn(
           `Skipping malformed top-level entry in ${filename}:`,
@@ -179,11 +166,8 @@ async function loadWordEntries() {
         continue;
       }
 
-      // For each part-of-speech subkey (e.g. "n", "v", "r", "a")
       for (const pos in posData) {
         const senseObj = posData[pos];
-
-        // senseObj must be an object with a "sense" array
         if (
           !senseObj ||
           typeof senseObj !== 'object' ||
@@ -198,17 +182,13 @@ async function loadWordEntries() {
           continue;
         }
 
-        // Now we can safely map synset IDs
-        const synsetIds = senseObj.sense
-          .map(s => s.synset)
-          .filter(Boolean);
+        const synsetIds = senseObj.sense.map(s => s.synset).filter(Boolean);
 
-        // If we haven't yet created an array for this word, do so
+        // If wordEntries[word] doesn't exist, create it
         if (!wordEntries[word]) {
           wordEntries[word] = [];
         } 
-        // If somehow wordEntries[word] is not an array (very rare),
-        // we overwrite it with a fresh array:
+        // If it does exist but is not an array, overwrite with empty array
         else if (!Array.isArray(wordEntries[word])) {
           console.warn(
             `Found a non-array entry for word="${word}". Overwriting with empty array.`,
@@ -217,7 +197,6 @@ async function loadWordEntries() {
           wordEntries[word] = [];
         }
 
-        // Finally, push the valid { pos, synsetIds } object
         wordEntries[word].push({ pos, synsetIds });
       }
     }
@@ -233,7 +212,8 @@ async function loadWordEntries() {
  * finalDictionary[word] = [ { pos: 'n', definitions: [ ... ] }, ... ]
  */
 function createFinalDictionary(wordEntries, synsetMappings) {
-  const finalDictionary = {};
+  // again, use no-prototype object
+  const finalDictionary = Object.create(null);
 
   for (const word in wordEntries) {
     const entries = wordEntries[word];
@@ -243,9 +223,12 @@ function createFinalDictionary(wordEntries, synsetMappings) {
         const synset = synsetMappings[synsetId];
         if (synset && synset.definitions.length > 0) {
           const lowerWord = word.toLowerCase();
-          if (!finalDictionary[lowerWord]) {
+
+          // If finalDictionary[lowerWord] doesn't exist or is not an array, fix it
+          if (!finalDictionary[lowerWord] || !Array.isArray(finalDictionary[lowerWord])) {
             finalDictionary[lowerWord] = [];
           }
+
           finalDictionary[lowerWord].push({
             pos: synset.pos,
             definitions: synset.definitions
@@ -258,13 +241,11 @@ function createFinalDictionary(wordEntries, synsetMappings) {
       }
     }
   }
-
   return finalDictionary;
 }
 
 /**
- * Orchestrates the entire loading of WordNet data (synsets + entries) in a browser environment.
- * Adds debugging checks for malformed data in the entry files.
+ * Main method to load all WordNet data in the browser, with debug checks for malformed data.
  */
 export async function loadWordNetDictionary() {
   try {
