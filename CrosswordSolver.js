@@ -5,26 +5,26 @@ import { predefinedPuzzles } from './puzzles.js';
 export class CrosswordSolver {
     constructor() {
         // --------------------- Configuration & Flags ---------------------
-        this.DEBUG = false;             // Toggle debug messages
-        this.isSolving = false;         // Prevent concurrent solving
-        this.isNumberEntryMode = false; // Number entry mode flag
-        this.isLetterEntryMode = false; // Letter entry mode flag
-        this.isDragMode = false;        // Drag mode flag
-        this.isDragging = false;        // Internal drag-state flag
+        this.DEBUG = false;
+        this.isSolving = false;
+        this.isNumberEntryMode = false;
+        this.isLetterEntryMode = false;
+        this.isDragMode = false;
+        this.isDragging = false;
 
         // --------------------- Data Structures ---------------------
-        this.grid = [];            
-        this.words = [];           
-        this.wordLengthCache = {}; 
+        this.grid = [];
+        this.words = [];
+        this.wordLengthCache = {};
         this.letterFrequencies = {};
-        this.slots = {};           
-        this.constraints = {};     
-        this.solution = {};        
-        this.domains = {};         
-        this.cellContents = {};    
-        this.cells = {};           
-        this.performanceData = {}; 
-        this.recursiveCalls = 0;   
+        this.slots = {};
+        this.constraints = {};
+        this.solution = {};
+        this.domains = {};
+        this.cellContents = {};
+        this.cells = {};
+        this.performanceData = {};
+        this.recursiveCalls = 0;
 
         // --------------------- Predefined Puzzles ---------------------
         this.predefinedPuzzles = predefinedPuzzles;
@@ -36,7 +36,7 @@ export class CrosswordSolver {
         this.stopDragBound = null;
 
         // --------------------- WordNet Dictionary ---------------------
-        this.dictionary = null; // set via setDictionary() after loading
+        this.dictionary = null; // set via setDictionary(dictionaryObj) after loading
 
         // --------------------- Method Binding ---------------------
         this.loadWords = this.loadWords.bind(this);
@@ -52,6 +52,9 @@ export class CrosswordSolver {
         this.displaySearchResults = this.displaySearchResults.bind(this);
         this.showDefinitionPopup = this.showDefinitionPopup.bind(this);
         this.autoNumberGrid = this.autoNumberGrid.bind(this);
+
+        // A simple cache for fallback definitions so we don't re-fetch the same word repeatedly
+        this.fallbackCache = {};
     }
 
     // ----------------------------------------------------------------
@@ -63,25 +66,123 @@ export class CrosswordSolver {
         this.debugLog("Dictionary set. Example 'run':", this.dictionary['run']);
     }
 
-    showDefinitionPopup(rawWord) {
+    /**
+     * showDefinitionPopup(rawWord):
+     * 1) Look up rawWord in our local WordNet dictionary.
+     * 2) If found, display the definitions from "WordNet".
+     * 3) If not found or empty, fetch from a fallback dictionary API.
+     *    - If successful, show from "DictionaryAPI" or whichever source.
+     *    - If still not found, show "No definition found."
+     */
+    async showDefinitionPopup(rawWord) {
         if (!rawWord) return;
-        if (!this.dictionary) {
-            alert("No dictionary loaded. Cannot show definitions.");
+        const word = rawWord.toLowerCase();
+
+        // 1) Attempt local dictionary first
+        const senses = this.dictionary ? this.dictionary[word] : null;
+        if (senses && senses.length > 0) {
+            // We have at least one sense from WordNet
+            this.displayDefinitionsPopup(rawWord, senses, "WordNet");
             return;
         }
 
-        const word = rawWord.toLowerCase();
-        const senses = this.dictionary[word];
+        // 2) Fallback: fetch from a dictionary API
+        try {
+            const fallbackData = await this.fetchFallbackDefinition(word);
+            if (fallbackData && fallbackData.length > 0) {
+                // Convert fallbackData to the same shape we use for display
+                // e.g. an array of { pos, definitions: [...] }
+                const senses = this.transformFallbackData(fallbackData);
+                if (senses.length > 0) {
+                    this.displayDefinitionsPopup(rawWord, senses, "DictionaryAPI");
+                    return;
+                }
+            }
 
-        if (!senses || senses.length === 0) {
+            // 3) If still no definition, display "No definition found."
             this.createPopup(`
               <h2>${rawWord}</h2>
               <p><em>No definition found.</em></p>
-              <small>Source: WordNet</small>
+              <small>Source: DictionaryAPI</small>
             `);
-            return;
+        } catch (err) {
+            console.warn("Fallback definition fetch failed:", err);
+            // Show a basic "no definition" message
+            this.createPopup(`
+              <h2>${rawWord}</h2>
+              <p><em>No definition found (API error).</em></p>
+              <small>Source: DictionaryAPI</small>
+            `);
+        }
+    }
+
+    /**
+     * fetchFallbackDefinition(word):
+     * Uses a free dictionary API (e.g. https://api.dictionaryapi.dev/api/v2/entries/en/<word>)
+     * Returns the JSON data or null if not found.
+     */
+    async fetchFallbackDefinition(word) {
+        // If we already have it in our fallbackCache, return it
+        if (this.fallbackCache[word]) {
+            return this.fallbackCache[word];
         }
 
+        const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            // e.g. 404 "No definitions found" or other error
+            throw new Error(`API returned status ${resp.status}`);
+        }
+        const data = await resp.json();
+        // Cache it
+        this.fallbackCache[word] = data;
+        return data;
+    }
+
+    /**
+     * transformFallbackData(data):
+     * Transforms the dictionaryapi.dev JSON shape into an array of:
+     *    [ { pos: 'n', definitions: [ 'Definition text', ... ]}, ... ]
+     */
+    transformFallbackData(data) {
+        // data typically looks like:
+        // [
+        //   {
+        //     "word": "hello",
+        //     "phonetics": [...],
+        //     "meanings": [
+        //       {
+        //         "partOfSpeech": "interjection",
+        //         "definitions": [
+        //           { "definition": "A greeting", "example": "Hello there!" }
+        //         ]
+        //       },
+        //       ...
+        //     ]
+        //   }
+        // ]
+        // We'll flatten them
+        const result = [];
+        if (!Array.isArray(data)) return result;
+
+        for (const entry of data) {
+            if (!entry.meanings) continue;
+            for (const meaning of entry.meanings) {
+                const pos = meaning.partOfSpeech || 'unknown';
+                const defList = (meaning.definitions || []).map(d => d.definition || '');
+                if (defList.length > 0) {
+                    result.push({ pos, definitions: defList });
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * displayDefinitionsPopup(rawWord, senses, sourceLabel):
+     * Renders the definitions in a popup for the user.
+     */
+    displayDefinitionsPopup(rawWord, senses, sourceLabel) {
         let innerHTML = `<h2>${rawWord}</h2>`;
 
         // Group senses by part-of-speech
@@ -91,25 +192,27 @@ export class CrosswordSolver {
             if (!sensesByPos[posKey]) {
                 sensesByPos[posKey] = [];
             }
+            // sense.definitions is an array of strings
             sensesByPos[posKey].push(sense.definitions);
         }
 
-        // Output each POS + its definitions
+        // Output each POS + definitions
         Object.keys(sensesByPos).forEach(posKey => {
             const definitionsForPos = sensesByPos[posKey];
             const flattenedDefs = definitionsForPos.flat();
-
             innerHTML += `<h4>(${posKey})</h4>`;
             flattenedDefs.forEach((def, idx) => {
                 innerHTML += `<p>${idx + 1}. ${def}</p>`;
             });
         });
 
-        innerHTML += `<small>Source: WordNet</small>`;
-
+        innerHTML += `<small>Source: ${sourceLabel}</small>`;
         this.createPopup(innerHTML);
     }
 
+    /**
+     * Basic popup creation
+     */
     createPopup(contentHTML) {
         const overlay = document.createElement('div');
         overlay.style.position = 'fixed';
@@ -173,13 +276,9 @@ export class CrosswordSolver {
     init() {
         try {
             this.createEventListeners();
-
-            // Still load Words.txt for legacy usage
+            // Load from Words.txt (legacy approach)
             this.loadWords()
-                .then(() => {
-                    // Default 10x10
-                    this.generateGrid(10, 10);
-                })
+                .then(() => this.generateGrid(10, 10))
                 .catch((error) => {
                     this.handleError("Initialization failed during word loading.", error);
                 });
@@ -203,6 +302,9 @@ export class CrosswordSolver {
             this.bindButton('#load-hard-button', () => this.loadPredefinedPuzzle("Hard"));
 
             this.bindButton('#number-entry-button', this.startNumberEntryMode);
+            // Ensure you do the same for the new Auto-Number button:
+            this.bindButton('#auto-number-button', this.autoNumberGrid);
+
             this.bindButton('#letter-entry-button', this.startLetterEntryMode);
             this.bindButton('#drag-mode-button', this.startDragMode);
 
@@ -212,9 +314,6 @@ export class CrosswordSolver {
             if (wordSearchInput) {
                 wordSearchInput.addEventListener('input', this.handleSearchInput);
             }
-            
-            this.bindButton('#auto-number-button', this.autoNumberGrid);
-
         } catch (error) {
             this.handleError("Error setting up event listeners:", error);
         }
@@ -295,7 +394,7 @@ export class CrosswordSolver {
 
     autoNumberGrid() {
         try {
-            // Remove existing numbers
+            // Wipe existing numbers
             for (let r = 0; r < this.grid.length; r++) {
                 for (let c = 0; c < this.grid[0].length; c++) {
                     if (/\d+/.test(this.grid[r][c])) {
@@ -441,12 +540,9 @@ export class CrosswordSolver {
             this.grid = [];
             this.resetDataStructures();
 
-            // Deep copy
             this.grid = puzzle.grid.map(row => [...row]);
-
             this.renderGrid();
 
-            // Populate pre-filled letters / numbers
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     const cellValue = this.grid[r][c];
@@ -497,7 +593,6 @@ export class CrosswordSolver {
                 return;
             }
 
-            // Default mode: toggle black/white
             if (this.grid[row][col] !== "#") {
                 this.updateCell(row, col, '', '#000', '#000');
                 this.grid[row][col] = "#";
@@ -582,7 +677,6 @@ export class CrosswordSolver {
                 button.textContent = "Drag Mode";
                 button.style.backgroundColor = "#0069d9";
 
-                // Remove event listeners
                 for (const key in this.cells) {
                     const cell = this.cells[key];
                     cell.removeEventListener('mousedown', this.startDragBound);
@@ -751,10 +845,10 @@ export class CrosswordSolver {
     // ----------------------------------------------------------------
 
     solveCrossword() {
-        // **Clear status box** before new solve
+        // Clear status
         const statusDisplay = document.getElementById('status-display');
         if (statusDisplay) {
-            statusDisplay.value = ''; // Clear it
+            statusDisplay.value = '';
         }
 
         if (this.isSolving) {
@@ -766,10 +860,8 @@ export class CrosswordSolver {
         const solveButton = document.getElementById('solve-crossword-button');
         if (solveButton) solveButton.disabled = true;
 
-        // Start fresh
         this.updateStatus("Solving...", true);
 
-        // Solve asynchronously
         this.solveCrosswordThread()
             .finally(() => {
                 if (solveButton) solveButton.disabled = false;
@@ -1238,13 +1330,6 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * Replaces the previous <textarea> approach with a clickable list
-     * of words for both Across and Down. 
-     * 
-     * NOTE: Make sure your HTML uses <div id="across-display"></div>
-     * and <div id="down-display"></div> or some container that can hold HTML.
-     */
     displayWordList() {
         try {
             const acrossWords = [];
@@ -1275,22 +1360,19 @@ export class CrosswordSolver {
                 throw new Error("Word list display elements not found. Make sure you replaced <textarea> with a container!");
             }
 
-            // Clear them
             acrossDisplay.innerHTML = '';
             downDisplay.innerHTML = '';
 
-            // Populate clickable entries
             acrossWords.forEach(entry => {
                 const div = document.createElement('div');
                 div.style.cursor = 'pointer';
                 div.style.marginBottom = '5px';
                 div.textContent = entry;
                 div.addEventListener('click', () => {
-                    // The actual word is after the colon and space
-                    // e.g. "12: HELLO" -> "HELLO"
                     const parts = entry.split(':');
                     if (parts.length === 2) {
                         const word = parts[1].trim();
+                        // Now we do fallback
                         this.showDefinitionPopup(word);
                     }
                 });
@@ -1363,11 +1445,8 @@ export class CrosswordSolver {
             return;
         }
 
-        // Filter words in this.words (legacy approach)
-        // or we can also check dictionary keys for matches
         const sourceWords = this.words.map(w => w.toUpperCase());
         const allDictionaryWords = this.dictionary ? Object.keys(this.dictionary).map(k => k.toUpperCase()) : [];
-        // Combine them, removing duplicates
         const combinedSet = new Set([...sourceWords, ...allDictionaryWords]);
         const combinedWords = Array.from(combinedSet);
 
@@ -1413,7 +1492,7 @@ export class CrosswordSolver {
                 if (matchesCount) {
                     matchesCount.textContent = "Found 1 match.";
                 }
-                // Show popup for this clicked word
+                // Show the definition (with fallback) for that word
                 this.showDefinitionPopup(word);
             });
 
