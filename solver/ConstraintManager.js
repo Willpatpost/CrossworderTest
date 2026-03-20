@@ -6,20 +6,21 @@ export class ConstraintManager {
         this.slots = {};
         this.constraints = {};
         this.domains = {};
-        this.cellContents = {}; 
     }
 
+    /**
+     * Builds the slot structures and calculates intersections (constraints).
+     * @param {Array<Array<string>>} grid - The current 2D grid state.
+     */
     buildDataStructures(grid) {
         this.slots = {};
         this.constraints = {};
-        // We will return a flat map for the solver, but keep a local one for static values
-        const staticLetters = {}; 
         
         const rows = grid.length;
         const cols = grid[0].length;
         let wordCounter = 1;
 
-        // 1. Identify slots
+        // 1. Identify slots (Across and Down)
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const isAcross = GridUtils.isStartOfAcrossSlot(grid, r, c);
@@ -42,8 +43,7 @@ export class ConstraintManager {
             }
         }
 
-        // 2. Generate a flat cellContents map for the SolverEngine
-        // This map contains exactly what is physically in the grid (Letters or Clue Numbers)
+        // 2. Map actual cell values (for the solver to respect user-typed letters)
         const flatCellMap = {};
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -53,7 +53,6 @@ export class ConstraintManager {
 
         this.generateConstraints();
         
-        // We return the flat map because SolverEngine.js uses: val = cellContents[`${r},${c}`]
         return { slots: this.slots, cellContents: flatCellMap };
     }
 
@@ -69,7 +68,6 @@ export class ConstraintManager {
         }
 
         return {
-            // ID format changed to "1-across" to match UI expectations
             id: `${number}-${direction}`, 
             direction,
             number,
@@ -78,20 +76,25 @@ export class ConstraintManager {
         };
     }
 
+    /**
+     * Finds where slots intersect and creates constraint mappings.
+     */
     generateConstraints() {
         this.constraints = {};
-        const positionMap = {};
+        const positionToSlots = {};
 
+        // Map every grid coordinate to the slots that pass through it
         for (const slotId in this.slots) {
             this.slots[slotId].positions.forEach((pos, idx) => {
                 const key = `${pos[0]},${pos[1]}`;
-                if (!positionMap[key]) positionMap[key] = [];
-                positionMap[key].push({ slotId, idx });
+                if (!positionToSlots[key]) positionToSlots[key] = [];
+                positionToSlots[key].push({ slotId, idx });
             });
         }
 
-        for (const key in positionMap) {
-            const overlaps = positionMap[key];
+        // Where more than one slot exists in a cell, create a constraint
+        for (const key in positionToSlots) {
+            const overlaps = positionToSlots[key];
             if (overlaps.length > 1) {
                 for (let i = 0; i < overlaps.length; i++) {
                     for (let j = i + 1; j < overlaps.length; j++) {
@@ -114,30 +117,28 @@ export class ConstraintManager {
     }
 
     /**
-     * Corrected: Uses the actual grid content to build the initial regex patterns.
+     * CRITICAL PERFORMANCE FIX: Filters word lists based on current grid letters
+     * before the solver even starts.
      */
-    setupDomains(slots, wordLengthCache) {
+    setupDomains(slots, wordLengthCache, grid) {
         this.domains = {};
         for (const slotId in slots) {
             const slot = slots[slotId];
-            const possibleWords = wordLengthCache[slot.length] || [];
+            const allWords = wordLengthCache[slot.length] || [];
 
-            // Build regex from pre-filled letters currently in the grid
-            const pattern = slot.positions.map(pos => {
+            // Build a regex pattern based on what's currently in the grid
+            // Example: If user typed 'C' in first cell and 'T' in 4th: "^C..T.$"
+            const patternParts = slot.positions.map(pos => {
                 const [r, c] = pos;
-                // This logic should match SolverEngine: only lock in actual A-Z letters
-                // If it's a number or a space, it's a wildcard '.'
-                const val = this.slots[slotId].gridRef ? this.slots[slotId].gridRef[r][c] : ""; 
-                // Note: Since we don't have grid here, we use the slots' positions 
-                // and the logic within the Solver is usually better for dynamic checking.
-                // For the initial domain, we can assume all words are possible unless 
-                // we want to pre-filter based on user-typed letters.
-                return '.'; 
-            }).join('');
+                const char = grid[r][c];
+                // Only treat actual A-Z characters as constraints
+                return (/[A-Z]/i.test(char)) ? char.toUpperCase() : '.';
+            });
 
-            // For now, let's keep the domains full and let the Solver's isConsistent 
-            // handle the user-typed letters. This is much safer against "No solution found" errors.
-            this.domains[slotId] = [...possibleWords];
+            const pattern = new RegExp(`^${patternParts.join('')}$`);
+
+            // Filter the domain: only keep words that match the existing letters
+            this.domains[slotId] = allWords.filter(word => pattern.test(word));
         }
         return this.domains;
     }

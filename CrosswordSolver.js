@@ -54,7 +54,7 @@ export class CrosswordSolver {
         document.getElementById('letter-entry-button').onclick = () => this.modes.toggle('letter');
         document.getElementById('drag-mode-button').onclick = () => this.modes.toggle('drag');
         
-        // Auto Number (Triggers a re-render which recalculates numbers)
+        // Auto Number
         document.getElementById('auto-number-button').onclick = () => this.render();
 
         // Solver
@@ -65,17 +65,20 @@ export class CrosswordSolver {
         if (searchInput) {
             searchInput.oninput = () => this.handleSearch(searchInput.value);
         }
+
+        // Global Mouse Up for drag mode
+        window.onmouseup = () => this.handleMouseUp();
     }
 
     // --- Interaction Handlers ---
-    handleMouseDown(r, c) {
+    handleMouseDown(e, r, c) {
         if (this.modes.currentMode !== 'drag') return;
         this.isDragging = true;
         this.gridManager.toggleToBlack = (this.grid[r][c] !== "#");
         this.toggleCell(r, c);
     }
 
-    handleMouseOver(r, c) {
+    handleMouseOver(e, r, c) {
         if (this.isDragging) this.toggleCell(r, c);
     }
 
@@ -85,6 +88,7 @@ export class CrosswordSolver {
 
     toggleCell(r, c) {
         this.grid[r][c] = this.gridManager.toggleToBlack ? "#" : " ";
+        // Re-calculate slots immediately so numbers update while dragging
         const { slots } = this.constraintManager.buildDataStructures(this.grid);
         this.slots = slots;
         this.gridManager.syncGridToDOM(this.grid, this.slots);
@@ -94,20 +98,16 @@ export class CrosswordSolver {
         const mode = this.modes.currentMode;
         if (mode === 'number') {
             this.gridManager.addNumberToCell(this.grid, r, c);
-            const { slots } = this.constraintManager.buildDataStructures(this.grid);
-            this.slots = slots;
-            this.gridManager.syncGridToDOM(this.grid, this.slots);
+            this.render(); // Full re-render to update slot numbering
         } else if (mode === 'letter') {
-            const letter = prompt("Enter Letter:").toUpperCase();
+            const letter = prompt("Enter Letter (Leave blank to clear):");
             if (letter !== null) {
-                this.grid[r][c] = letter.charAt(0) || " ";
+                this.grid[r][c] = letter.trim().toUpperCase().charAt(0) || " ";
                 this.gridManager.syncGridToDOM(this.grid, this.slots);
             }
         } else if (mode === 'default') {
             this.grid[r][c] = (this.grid[r][c] === "#") ? " " : "#";
-            const { slots } = this.constraintManager.buildDataStructures(this.grid);
-            this.slots = slots;
-            this.gridManager.syncGridToDOM(this.grid, this.slots);
+            this.render();
         }
     }
 
@@ -130,40 +130,50 @@ export class CrosswordSolver {
         const { slots } = this.constraintManager.buildDataStructures(this.grid);
         this.slots = slots;
         this.gridManager.render(this.grid, container, this);
+        // Clear word lists on re-render
+        this.display.updateWordLists(this.slots, {}, (word) => this.popups.show(word));
     }
 
     async handleSolve() {
-        this.display.updateStatus("Analyzing constraints...");
+        this.display.updateStatus("Analyzing grid...");
         const start = performance.now();
         
-        // 1. Refresh constraints
+        // 1. Build structure and identify what letters are already there
         const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
         this.slots = slots;
         
-        // 2. Fetch missing word lists
-        this.display.updateStatus("Loading word lists...");
+        // 2. Fetch required word lists based on slot lengths
+        this.display.updateStatus("Fetching dictionaries...");
         const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
         for (const len of uniqueLengths) {
             if (!this.wordLengthCache[len]) {
-                this.wordLengthCache[len] = await this.wordProvider.getWordsOfLength(len);
+                try {
+                    this.wordLengthCache[len] = await this.wordProvider.getWordsOfLength(len);
+                } catch (e) {
+                    this.display.updateStatus(`Error loading ${len}-letter words.`, true);
+                    this.wordLengthCache[len] = [];
+                }
             }
         }
 
-        // 3. Setup domains and letter frequencies
+        // 3. Prepare Solver Data
+        this.display.updateStatus("Calculating heuristics...");
         this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
-        const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache);
+        
+        // IMPORTANT: setupDomains now uses the grid to pre-filter word lists
+        const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache, this.grid);
 
-        // 4. Check for Word Reuse toggle
         const allowReuse = document.getElementById('allow-reuse-toggle')?.checked || false;
 
-        this.display.updateStatus("Solving...");
+        this.display.updateStatus("Running Backtracking Solver...");
+        
         const result = this.solver.backtrackingSolve(
             this.slots, 
             domains, 
             this.constraintManager.constraints, 
             this.letterFrequencies, 
             cellContents,
-            { allowReuse: allowReuse } // Pass settings to the randomized solver
+            { allowReuse: allowReuse }
         );
 
         const end = performance.now();
@@ -172,7 +182,7 @@ export class CrosswordSolver {
             this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
             this.applySolutionToGrid(this.slots, result.solution);
         } else {
-            this.display.updateStatus("No solution found.");
+            this.display.updateStatus("No solution found for this configuration.");
         }
     }
 
@@ -189,10 +199,16 @@ export class CrosswordSolver {
     }
 
     async handleSearch(val) {
-        if (!val || val.length < 2) return;
-        const words = await this.wordProvider.getWordsOfLength(val.length);
-        const regex = new RegExp(`^${val.replace(/\?/g, '.').toUpperCase()}$`);
+        const query = val.trim();
+        if (!query || query.length < 2) return;
+        
+        const words = await this.wordProvider.getWordsOfLength(query.length);
+        const regexPattern = query.replace(/\?/g, '.').toUpperCase();
+        const regex = new RegExp(`^${regexPattern}$`);
+        
         const matches = words.filter(w => regex.test(w)).slice(0, 50);
-        this.display.updateSearchResults(matches, (selected) => this.popups.show(selected));
+        this.display.updateSearchResults(matches, (selectedWord) => {
+            this.popups.show(selectedWord);
+        });
     }
 }
