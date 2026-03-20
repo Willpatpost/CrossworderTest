@@ -3,36 +3,47 @@
 export class SolverEngine {
     constructor() {
         this.recursiveCalls = 0;
-        this.allowReuse = false; 
+        this.allowReuse = false;
+        this.onUpdateCallback = null; // Used for UI visualization
     }
 
     /**
      * Entry point for the solver.
+     * Note: This is now an ASYNC function.
      */
-    backtrackingSolve(slots, domains, constraints, letterFrequencies, cellContents, settings = {}) {
+    async backtrackingSolve(slots, domains, constraints, letterFrequencies, cellContents, settings = {}) {
         this.recursiveCalls = 0;
         this.allowReuse = settings.allowReuse ?? false;
+        const visualize = settings.visualize ?? false;
         
         const assignment = {};
         
         // 1. Clone domains. 
-        // IMPORTANT: Because ConstraintManager now filters by grid letters, 
-        // localDomains[id].length is now small and meaningful.
         const localDomains = {};
         for (const id in domains) {
             localDomains[id] = [...domains[id]];
         }
 
         // 2. Initial Pruning (AC-3)
-        // This removes words that can't possibly work with neighbors
         const consistent = this.ac3(localDomains, constraints);
         if (!consistent) return { success: false };
 
-        // 3. Start recursive search
-        return this._recursiveSearch(slots, localDomains, constraints, letterFrequencies, cellContents, assignment);
+        // 3. Start recursive search (awaiting the async result)
+        return await this._recursiveSearch(
+            slots, 
+            localDomains, 
+            constraints, 
+            letterFrequencies, 
+            cellContents, 
+            assignment, 
+            visualize
+        );
     }
 
-    _recursiveSearch(slots, domains, constraints, letterFrequencies, cellContents, assignment) {
+    /**
+     * The core recursive search, converted to async to allow "pausing" for the UI.
+     */
+    async _recursiveSearch(slots, domains, constraints, letterFrequencies, cellContents, assignment, visualize) {
         // Base Case: All slots filled
         if (Object.keys(assignment).length === Object.keys(slots).length) {
             return { success: true, solution: { ...assignment } };
@@ -40,38 +51,47 @@ export class SolverEngine {
 
         this.recursiveCalls++;
         
-        // HEURISTIC: Pick the slot with the fewest possible words left (MRV)
+        // HEURISTIC: MRV
         const varToAssign = this.selectUnassignedVariable(assignment, domains, constraints);
         if (!varToAssign) return { success: false };
 
-        // HEURISTIC: Order words by letter frequency (Least Constraining Value / Quality)
+        // HEURISTIC: Order values
         let orderedValues = this.orderDomainValues(varToAssign, domains, letterFrequencies);
-        
-        // Weighted Shuffle: We want randomness, but we want to try "good" words first.
-        // We take the top 20% of "good" words and shuffle them, rather than shuffling everything.
         orderedValues = this.smartShuffle(orderedValues);
 
         for (const value of orderedValues) {
-            // Check uniqueness if reuse is disabled
             if (!this.allowReuse && Object.values(assignment).includes(value)) {
                 continue;
             }
 
-            // Final check against user-typed letters and intersections
             if (this.isConsistent(varToAssign, value, assignment, slots, constraints, cellContents)) {
                 
                 assignment[varToAssign] = value;
                 
-                // Forward Checking: Prune domains of neighbors to catch dead-ends early
+                // --- VISUALIZATION HOOK ---
+                if (visualize && this.onUpdateCallback) {
+                    this.onUpdateCallback(varToAssign, value);
+                    // This tiny delay allows the browser to re-render the grid
+                    await new Promise(resolve => setTimeout(resolve, 5)); 
+                }
+
+                // Forward Checking
                 const inferences = this.forwardCheck(varToAssign, value, assignment, domains, constraints);
                 
                 if (inferences !== false) {
-                    const result = this._recursiveSearch(slots, domains, constraints, letterFrequencies, cellContents, assignment);
+                    // MUST await the recursive call now
+                    const result = await this._recursiveSearch(slots, domains, constraints, letterFrequencies, cellContents, assignment, visualize);
                     if (result.success) return result;
                 }
                 
                 // Backtrack
                 delete assignment[varToAssign];
+                
+                if (visualize && this.onUpdateCallback) {
+                    this.onUpdateCallback(varToAssign, ""); // Clear the letters on backtrack
+                    await new Promise(resolve => setTimeout(resolve, 2)); 
+                }
+
                 this.restoreDomains(domains, inferences);
             }
         }
@@ -81,7 +101,6 @@ export class SolverEngine {
 
     /**
      * Picks the variable with the Minimum Remaining Values (MRV).
-     * Ties are broken by the Degree Heuristic (most intersections).
      */
     selectUnassignedVariable(assignment, domains, constraints) {
         const unassigned = Object.keys(domains).filter(s => !(s in assignment));
@@ -94,7 +113,6 @@ export class SolverEngine {
                 minSize = size;
                 bestSlot = slotId;
             } else if (size === minSize) {
-                // Degree Heuristic tie-breaker
                 const degA = constraints[slotId] ? Object.keys(constraints[slotId]).length : 0;
                 const degBest = bestSlot && constraints[bestSlot] ? Object.keys(constraints[bestSlot]).length : 0;
                 if (degA > degBest) bestSlot = slotId;
@@ -103,9 +121,6 @@ export class SolverEngine {
         return bestSlot;
     }
 
-    /**
-     * Orders words based on English letter frequency.
-     */
     orderDomainValues(slot, domains, letterFrequencies) {
         const domain = [...domains[slot]];
         if (Object.keys(letterFrequencies).length === 0) return domain;
@@ -116,13 +131,8 @@ export class SolverEngine {
         return domain.sort((a, b) => getScore(b) - getScore(a));
     }
 
-    /**
-     * Shuffles slightly while preserving high-quality words near the front.
-     */
     smartShuffle(array) {
         if (array.length <= 1) return array;
-        // Keep the top "stratum" of words mostly at the front, but shuffle within segments
-        // This prevents the solver from trying rare words (like 'XYLYL') too early.
         const segmentSize = Math.max(5, Math.floor(array.length * 0.1));
         for (let i = 0; i < array.length; i += segmentSize) {
             let end = Math.min(i + segmentSize, array.length);
@@ -138,7 +148,6 @@ export class SolverEngine {
         const slotObj = slots[slotId];
         const positions = slotObj.positions;
         
-        // 1. Check against "static" grid content (User typed letters)
         for (let i = 0; i < positions.length; i++) {
             const [r, c] = positions[i];
             const val = cellContents[`${r},${c}`];
@@ -147,7 +156,6 @@ export class SolverEngine {
             }
         }
 
-        // 2. Check against "dynamic" assignment (other words placed by solver)
         const neighbors = constraints[slotId] || {};
         for (const neighborId in neighbors) {
             if (neighborId in assignment) {

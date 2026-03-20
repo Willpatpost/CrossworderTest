@@ -317,3 +317,55 @@ footer {
         height: 200px;
     }
 }
+
+/* Styling for the Toggle Switches (Allow Reuse / Visualize) */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin: 10px 0;
+    font-size: 0.9em;
+}
+
+.toggle-container input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+}
+
+/* Specific button colors for Symmetry & Mode states */
+#symmetry-button {
+    background-color: #28a745; /* Green by default */
+    color: white;
+    font-weight: bold;
+}
+
+/* Active/Exit states for Mode buttons (handled via JS, but good to have here) */
+.btn-active {
+    background-color: #dc3545 !important; /* Red for 'Exit Mode' */
+}
+
+/* Grid Cell Numbering (The small numbers in the top-left of cells) */
+.grid-container td {
+    position: relative;
+}
+
+.cell-number {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    font-size: 9px;
+    color: #555;
+    pointer-events: none; /* Ensure clicks pass through to the TD */
+}
+
+/* Visual Solve Flicker - Optional: highlights cells being changed */
+.cell-updating {
+    background-color: #fff3cd !important;
+    transition: background-color 0.1s;
+}
+
+/* Add this if you haven't already to support the 'success-btn' class */
+.success-btn {
+    background-color: #28a745;
+    color: white;
+}
