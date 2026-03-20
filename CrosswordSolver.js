@@ -173,6 +173,8 @@ export class CrosswordSolver {
         this.display.updateWordLists(this.slots, {}, (word) => this.popups.show(word));
     }
 
+    // Inside CrosswordSolver.js
+
     async handleSolve() {
         if (this.isSolving) return;
         this.isSolving = true;
@@ -182,9 +184,12 @@ export class CrosswordSolver {
         try {
             this.display.updateStatus("Preparing solver...");
             const start = performance.now();
+            
+            // 1. Rebuild structures to ensure we have the latest slots
             const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
             this.slots = slots;
             
+            // 2. Ensure word cache is ready
             const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
             for (const len of uniqueLengths) {
                 if (!this.wordLengthCache[len]) {
@@ -194,9 +199,11 @@ export class CrosswordSolver {
 
             const letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
             const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache, this.grid);
+            
             const allowReuse = document.getElementById('allow-reuse-toggle')?.checked || false;
             const visualize = document.getElementById('visualize-solve-toggle')?.checked || false;
 
+            // 3. Visualization Hook
             if (visualize) {
                 this.solver.onUpdateCallback = (slotId, word) => {
                     const slot = this.slots[slotId];
@@ -211,18 +218,29 @@ export class CrosswordSolver {
                 };
             }
 
+            // 4. Run Solver
             const result = await this.solver.backtrackingSolve(
                 this.slots, domains, this.constraintManager.constraints, 
                 letterFrequencies, cellContents, { allowReuse, visualize }
             );
 
             const end = performance.now();
+            
             if (result.success) {
                 this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
+                
+                // --- THE FIX IS HERE ---
+                // We must pass the result.solution (the map of slotId -> word) 
+                // to the display manager so it can render the text in the sidebars.
+                this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
+                
                 this.applySolutionToGrid(this.slots, result.solution);
             } else {
                 this.display.updateStatus("No solution found.");
             }
+        } catch (error) {
+            console.error(error);
+            this.display.updateStatus("An error occurred during solving.");
         } finally {
             this.isSolving = false;
             if (solveBtn) solveBtn.disabled = false;
