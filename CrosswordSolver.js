@@ -228,10 +228,7 @@ export class CrosswordSolver {
             
             if (result.success) {
                 this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
-                
-                // --- THE FIX IS HERE ---
-                // We must pass the result.solution (the map of slotId -> word) 
-                // to the display manager so it can render the text in the sidebars.
+            
                 this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
                 
                 this.applySolutionToGrid(this.slots, result.solution);
