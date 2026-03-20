@@ -5,12 +5,18 @@ export class SolverEngine {
         this.recursiveCalls = 0;
         this.allowReuse = false;
         this.onUpdateCallback = null; // Used for UI visualization
+        this.isInterrupted = false;
+    }
+
+    interrupt() {
+        this.isInterrupted = true;
     }
 
     /**
      * Entry point for the solver.
      */
     async backtrackingSolve(slots, domains, constraints, letterFrequencies, cellContents, settings = {}) {
+        this.isInterrupted = false; // Reset at start
         this.recursiveCalls = 0;
         this.allowReuse = settings.allowReuse ?? false;
         const visualize = settings.visualize ?? false;
@@ -48,7 +54,18 @@ export class SolverEngine {
             return { success: true, solution: { ...assignment } };
         }
 
+        // CHECK FOR INTERRUPTION
+        if (this.isInterrupted) {
+            throw new Error("SOLVE_CANCELLED");
+        }
+
         this.recursiveCalls++;
+        
+        // To allow the UI to actually process the click, we need a "breather"
+        // If visualizing is off, maybe check every 500 calls
+        if (this.recursiveCalls % 500 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
         
         // HEURISTIC: Minimum Remaining Values (MRV)
         const varToAssign = this.selectUnassignedVariable(assignment, domains, constraints);
