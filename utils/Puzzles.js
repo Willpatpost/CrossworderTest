@@ -1,4 +1,4 @@
-// puzzles.js
+// utils/Puzzles.js
 
 /**
  * Export an array of all predefined puzzles for easy, medium, and hard modes.
