@@ -1,6 +1,6 @@
 // WiktionaryDefinitionsProvider.js
 export class WiktionaryDefinitionsProvider {
-  constructor({ basePath = "Data/defs_by_length" } = {}) {
+  constructor({ basePath = "data/defs_by_length" } = {}) {
     this.basePath = basePath;
 
     // len -> defs map object { "WORD": [ {pos, definitions}, ... ] }

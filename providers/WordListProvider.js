@@ -1,6 +1,6 @@
 // WordListProvider.js
 export class WordListProvider {
-  constructor({ basePath = "Data/words_by_length", uppercase = true } = {}) {
+  constructor({ basePath = "data/words_by_length", uppercase = true } = {}) {
     this.basePath = basePath;
     this.uppercase = uppercase;
 
