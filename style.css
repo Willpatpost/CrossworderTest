@@ -369,3 +369,15 @@ footer {
     background-color: #28a745;
     color: white;
 }
+
+.highlight-active {
+    background-color: #ffda6a !important; /* Bright yellow for focused cell */
+}
+
+.highlight-word {
+    background-color: #fff9c4 !important; /* Light yellow for the rest of the word */
+}
+
+.block {
+    background-color: #333 !important;
+}

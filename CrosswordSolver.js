@@ -30,6 +30,9 @@ export class CrosswordSolver {
         this.isDragging = false;
         this.isSolving = false; 
         this.activeWorker = null; // Track the worker for cancellation
+        
+        // NEW: Store the generated solution for Play Mode validation
+        this.currentSolution = null; 
     }
 
     async init() {
@@ -60,14 +63,54 @@ export class CrosswordSolver {
         document.getElementById('auto-number-button').onclick = () => this.render();
         document.getElementById('solve-crossword-button').onclick = () => this.handleSolve();
         
-        // Cancel Button Listener
         const cancelBtn = document.getElementById('cancel-solve-button');
         if (cancelBtn) cancelBtn.onclick = () => this.handleCancel();
 
         const searchInput = document.getElementById('word-search-input');
         if (searchInput) searchInput.oninput = () => this.handleSearch(searchInput.value);
 
+        // NEW: Play Mode Listeners
+        const playBtn = document.getElementById('play-mode-button');
+        if (playBtn) playBtn.onclick = () => this.handlePlayModeToggle();
+
+        const checkGridBtn = document.getElementById('check-grid-button');
+        if (checkGridBtn) checkGridBtn.onclick = () => console.log("Check Grid clicked - To be implemented");
+
+        const revealWordBtn = document.getElementById('reveal-word-button');
+        if (revealWordBtn) revealWordBtn.onclick = () => console.log("Reveal Word clicked - To be implemented");
+
+        const revealPuzzleBtn = document.getElementById('reveal-puzzle-button');
+        if (revealPuzzleBtn) revealPuzzleBtn.onclick = () => console.log("Reveal Puzzle clicked - To be implemented");
+
         window.onmouseup = () => this.handleMouseUp();
+    }
+
+    // NEW: Handle the transition between Builder and Player states
+    handlePlayModeToggle() {
+        if (!this.currentSolution) {
+            this.display.updateStatus("Please generate a solution first before playing!");
+            return;
+        }
+
+        const isNowPlaying = this.modes.togglePlayMode();
+        
+        if (isNowPlaying) {
+            this.display.updateStatus("Entered Play Mode. Good luck!");
+            // In the next step, we will clear the physical grid here so the user can type
+        } else {
+            this.display.updateStatus("Returned to Builder Mode.");
+            // Restore the solved grid visually
+            this.applySolutionToGrid(this.slots, this.currentSolution);
+        }
+
+        // Trigger the updated DisplayManager to swap Words for Clues
+        this.display.updateWordLists(
+            this.slots, 
+            this.currentSolution, 
+            (word) => { if (!this.modes.isPlayMode) this.popups.show(word); },
+            this.defProvider,
+            this.modes.isPlayMode
+        );
     }
 
     handleCancel() {
@@ -82,7 +125,6 @@ export class CrosswordSolver {
             if (cancelBtn) cancelBtn.style.display = 'none';
             
             this.display.updateStatus("Solve operation cancelled by user.");
-            // Optional: Re-sync grid to remove partial visualization artifacts
             this.gridManager.syncGridToDOM(this.grid, this.slots);
         }
     }
@@ -119,10 +161,18 @@ export class CrosswordSolver {
         this.constraintManager.buildDataStructures(this.grid);
         this.slots = this.constraintManager.slots;
         this.gridManager.syncGridToDOM(this.grid, this.slots);
+        this.currentSolution = null; // Reset solution if grid geometry changes
     }
 
     handleCellClick(e, r, c) {
         if (this.isSolving) return;
+        
+        // NEW: Prevent builder clicks while in play mode
+        if (this.modes.isPlayMode) {
+            // We will add grid selection/typing logic here later
+            return;
+        }
+
         const mode = this.modes.currentMode;
         if (mode === 'number') {
             this.gridManager.addNumberToCell(this.grid, r, c);
@@ -132,6 +182,7 @@ export class CrosswordSolver {
             if (letter !== null) {
                 this.grid[r][c] = letter.trim().toUpperCase().charAt(0) || " ";
                 this.gridManager.syncGridToDOM(this.grid, this.slots);
+                this.currentSolution = null; // Reset solution on manual edit
             }
         } else if (mode === 'default') {
             this.toggleCell(r, c);
@@ -140,6 +191,7 @@ export class CrosswordSolver {
 
     generateNewGrid(rows, cols) {
         this.grid = Array.from({ length: rows }, () => Array(cols).fill(" "));
+        this.currentSolution = null;
         this.render();
     }
 
@@ -147,6 +199,7 @@ export class CrosswordSolver {
         const puzzle = predefinedPuzzles.find(p => p.name === name);
         if (puzzle) {
             this.grid = JSON.parse(JSON.stringify(puzzle.grid));
+            this.currentSolution = null;
             this.render();
         }
     }
@@ -156,7 +209,15 @@ export class CrosswordSolver {
         this.constraintManager.buildDataStructures(this.grid);
         this.slots = this.constraintManager.slots;
         this.gridManager.render(this.grid, container, this);
-        this.display.updateWordLists(this.slots, {}, (word) => this.popups.show(word));
+        
+        // Ensure we pass the new arguments so it doesn't break
+        this.display.updateWordLists(
+            this.slots, 
+            this.currentSolution || {}, 
+            (word) => this.popups.show(word),
+            this.defProvider,
+            this.modes.isPlayMode
+        );
     }
 
     async handleSolve() {
@@ -243,15 +304,24 @@ export class CrosswordSolver {
 
             const end = performance.now();
             if (result.success) {
+                // NEW: Store the solution!
+                this.currentSolution = result.solution;
+
                 this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
                 this.applySolutionToGrid(this.slots, result.solution);
-                this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
+                
+                this.display.updateWordLists(
+                    this.slots, 
+                    result.solution, 
+                    (word) => this.popups.show(word),
+                    this.defProvider,
+                    this.modes.isPlayMode
+                );
             } else {
                 this.display.updateStatus("No solution found.");
                 this.gridManager.syncGridToDOM(this.grid, this.slots);
             }
         } catch (err) {
-            // Only show error if it wasn't a manual termination
             if (this.isSolving) {
                 console.error(err);
                 this.display.updateStatus("Solver Error: " + err.message);

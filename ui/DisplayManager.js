@@ -22,10 +22,10 @@ export class DisplayManager {
     }
 
     /**
-     * RESTORED: Clickable word lists that trigger definitions.
-     * Maps to OG: displayWordList()
+     * Updated: Renders word lists with support for "Play Mode" (Clues)
+     * and "Builder Mode" (Words).
      */
-    updateWordLists(slots, solution = {}, onWordClick) {
+    async updateWordLists(slots, solution = {}, onWordClick, definitionsProvider = null, isPlayMode = false) {
         if (!this.acrossDisplay || !this.downDisplay) return;
 
         this.acrossDisplay.innerHTML = '';
@@ -40,34 +40,70 @@ export class DisplayManager {
             .filter(s => s.direction === 'down')
             .sort((a, b) => a.number - b.number);
 
-        const renderList = (slotsArr, container) => {
-            slotsArr.forEach(slot => {
-                const word = solution[slot.id] || ".".repeat(slot.length);
+        const renderList = async (slotsArr, container) => {
+            for (const slot of slotsArr) {
+                const word = solution[slot.id];
                 const item = document.createElement('div');
                 item.className = 'word-list-item';
-                item.style.padding = '4px 8px';
+                item.dataset.slotId = slot.id;
+                
+                // Styling
+                item.style.padding = '6px 10px';
                 item.style.cursor = 'pointer';
                 item.style.borderBottom = '1px solid #eee';
-                item.textContent = `${slot.number}. ${word}`;
+                item.style.display = 'flex';
+                item.style.flexDirection = 'column';
+
+                // 1. Number and Clue/Word Container
+                const title = document.createElement('strong');
+                title.textContent = `${slot.number}. `;
+                
+                const content = document.createElement('span');
+                
+                if (isPlayMode && word && definitionsProvider) {
+                    // Fetch real clue if in play mode and word exists
+                    try {
+                        const senses = await definitionsProvider.lookup(word);
+                        if (senses && senses.length > 0) {
+                            // Pick the first definition found
+                            content.textContent = senses[0].definitions[0];
+                        } else {
+                            content.textContent = "No clue available for this word.";
+                        }
+                    } catch (e) {
+                        content.textContent = "Click to reveal word (Clue fetch failed).";
+                    }
+                } else {
+                    // Default builder mode: show the word or dots
+                    content.textContent = word || ".".repeat(slot.length);
+                }
+
+                item.appendChild(title);
+                item.appendChild(content);
 
                 // Hover effects
-                item.onmouseover = () => item.style.backgroundColor = '#f8f9fa';
-                item.onmouseout = () => item.style.backgroundColor = 'transparent';
+                item.onmouseover = () => {
+                    item.style.backgroundColor = '#e3f2fd';
+                    // We can emit a custom event here later to highlight the grid
+                };
+                item.onmouseout = () => {
+                    item.style.backgroundColor = 'transparent';
+                };
                 
-                // RESTORED: Click to show definition
-                item.onclick = () => onWordClick(word);
+                // Interaction
+                item.onclick = () => onWordClick(word || slot.id);
 
                 container.appendChild(item);
-            });
+            }
         };
 
-        renderList(acrossSlots, this.acrossDisplay);
-        renderList(downSlots, this.downDisplay);
+        // Note: Using await here to ensure clues load in order
+        await renderList(acrossSlots, this.acrossDisplay);
+        await renderList(downSlots, this.downDisplay);
     }
 
     /**
-     * RESTORED: Search result dropdown logic.
-     * Maps to OG: displaySearchResults()
+     * Search result dropdown logic for the sidebar search tool.
      */
     updateSearchResults(matches, onSelect) {
         if (!this.dropdown) return;
@@ -98,5 +134,19 @@ export class DisplayManager {
 
             this.dropdown.appendChild(item);
         });
+    }
+
+    /**
+     * Highlights a specific slot in the sidebar to match grid focus
+     */
+    highlightSlotInList(slotId) {
+        const allItems = document.querySelectorAll('.word-list-item');
+        allItems.forEach(el => el.style.borderLeft = 'none');
+        
+        const target = document.querySelector(`.word-list-item[data-slot-id="${slotId}"]`);
+        if (target) {
+            target.style.borderLeft = '4px solid #007bff';
+            target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
     }
 }
