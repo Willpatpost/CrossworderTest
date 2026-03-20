@@ -4,26 +4,34 @@ import { GridUtils } from '../utils/GridUtils.js';
 export class ConstraintManager {
     constructor() {
         this.slots = {};
-        this.constraints = {};
-        this.domains = {};
+        this.constraints = {}; // Maps slotId -> { neighborId: [[myIdx, neighborIdx], ...] }
     }
 
     /**
-     * Builds the slot structures and calculates intersections (constraints).
+     * Scans the grid to find all word slots and their intersections.
+     * Returns cellContents: a map of { "r,c": "LETTER" } for pre-filled cells.
      */
     buildDataStructures(grid) {
         this.slots = {};
         this.constraints = {};
+        const cellContents = {};
         
         const rows = grid.length;
         const cols = grid[0].length;
         let wordCounter = 1;
 
+        // 1. Identify all Across and Down slots
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
+                const char = grid[r][c];
+                
+                // Track pre-filled letters for the solver
+                if (/[A-Z]/i.test(char)) {
+                    cellContents[`${r},${c}`] = char.toUpperCase();
+                }
+
                 const isAcross = GridUtils.isStartOfAcrossSlot(grid, r, c);
                 const isDown = GridUtils.isStartOfDownSlot(grid, r, c);
-
                 let assignedNumber = false;
 
                 if (isAcross) {
@@ -41,100 +49,84 @@ export class ConstraintManager {
             }
         }
 
-        const flatCellMap = {};
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                flatCellMap[`${r},${c}`] = grid[r][c];
-            }
-        }
+        // 2. Map Intersections (Constraints)
+        this._buildIntersections();
 
-        this.generateConstraints();
-        
-        return { slots: this.slots, cellContents: flatCellMap };
+        return { slots: this.slots, cellContents };
     }
 
-    _extractSlot(grid, r, c, direction, counter) {
-        const positions = [];
-        let currR = r;
-        let currC = c;
+    /**
+     * Finds every point where an ACROSS word and a DOWN word share a cell.
+     */
+    _buildIntersections() {
+        const acrossSlots = Object.values(this.slots).filter(s => s.direction === 'across');
+        const downSlots = Object.values(this.slots).filter(s => s.direction === 'down');
 
-        // If the cell contains a manual number (string digit), use it. 
-        // Otherwise, use the auto-counter.
-        const gridVal = grid[r][c];
-        const displayLabel = (/\d/.test(gridVal)) ? parseInt(gridVal, 10) : counter;
+        for (const aSlot of acrossSlots) {
+            for (const dSlot of downSlots) {
+                // Find shared coordinates
+                const overlaps = [];
+                aSlot.positions.forEach((posA, idxA) => {
+                    dSlot.positions.forEach((posD, idxD) => {
+                        if (posA[0] === posD[0] && posA[1] === posD[1]) {
+                            overlaps.push([idxA, idxD]);
+                        }
+                    });
+                });
 
-        while (currR < grid.length && currC < grid[0].length && grid[currR][currC] !== "#") {
-            positions.push([currR, currC]);
-            if (direction === "across") currC++;
-            else currR++;
-        }
-
-        return {
-            id: `${displayLabel}-${direction}`, 
-            direction,
-            number: displayLabel,
-            length: positions.length,
-            positions
-        };
-    }
-
-    generateConstraints() {
-        this.constraints = {};
-        const positionToSlots = {};
-
-        for (const slotId in this.slots) {
-            this.slots[slotId].positions.forEach((pos, idx) => {
-                const key = `${pos[0]},${pos[1]}`;
-                if (!positionToSlots[key]) positionToSlots[key] = [];
-                positionToSlots[key].push({ slotId, idx });
-            });
-        }
-
-        for (const key in positionToSlots) {
-            const overlaps = positionToSlots[key];
-            if (overlaps.length > 1) {
-                for (let i = 0; i < overlaps.length; i++) {
-                    for (let j = i + 1; j < overlaps.length; j++) {
-                        const sA = overlaps[i].slotId;
-                        const idxA = overlaps[i].idx;
-                        const sB = overlaps[j].slotId;
-                        const idxB = overlaps[j].idx;
-
-                        if (!this.constraints[sA]) this.constraints[sA] = {};
-                        if (!this.constraints[sA][sB]) this.constraints[sA][sB] = [];
-                        this.constraints[sA][sB].push([idxA, idxB]);
-
-                        if (!this.constraints[sB]) this.constraints[sB] = {};
-                        if (!this.constraints[sB][sA]) this.constraints[sB][sA] = [];
-                        this.constraints[sB][sA].push([idxB, idxA]);
-                    }
+                if (overlaps.length > 0) {
+                    if (!this.constraints[aSlot.id]) this.constraints[aSlot.id] = {};
+                    if (!this.constraints[dSlot.id]) this.constraints[dSlot.id] = {};
+                    
+                    this.constraints[aSlot.id][dSlot.id] = overlaps;
+                    this.constraints[dSlot.id][aSlot.id] = overlaps.map(([iA, iD]) => [iD, iA]);
                 }
             }
         }
     }
 
+    _extractSlot(grid, r, c, dir, num) {
+        const positions = [];
+        let currR = r;
+        let currC = c;
+
+        while (currR < grid.length && currC < grid[0].length && grid[currR][currC] !== '#') {
+            positions.push([currR, currC]);
+            if (dir === 'across') currC++; else currR++;
+        }
+
+        return {
+            id: `${dir}-${num}`,
+            number: num,
+            direction: dir,
+            length: positions.length,
+            positions: positions
+        };
+    }
+
     /**
-     * Filters word lists based on current grid letters.
+     * Creates the initial word choices for every slot based on pre-filled letters.
      */
     setupDomains(slots, wordLengthCache, grid) {
-        this.domains = {};
-        for (const slotId in slots) {
-            const slot = slots[slotId];
+        const domains = {};
+        for (const id in slots) {
+            const slot = slots[id];
             const allWords = wordLengthCache[slot.length] || [];
 
-            // Pattern building: "^..C.T$"
-            const patternParts = slot.positions.map(pos => {
-                const [r, c] = pos;
+            // Create a regex pattern based on current grid letters (e.g., "A.B..")
+            const pattern = slot.positions.map(([r, c]) => {
                 const char = grid[r][c];
-                // Check if it's a letter (ignoring numbers/spaces)
                 return (/[A-Z]/i.test(char)) ? char.toUpperCase() : '.';
-            });
+            }).join('');
 
-            const patternStr = `^${patternParts.join('')}$`;
-            const pattern = new RegExp(patternStr);
-
-            this.domains[slotId] = allWords.filter(word => pattern.test(word));
+            if (pattern.includes('.')) {
+                const regex = new RegExp(`^${pattern}$`);
+                domains[id] = allWords.filter(w => regex.test(w));
+            } else {
+                // If the word is already fully typed out, the domain is just that word
+                domains[id] = [pattern];
+            }
         }
-        return this.domains;
+        return domains;
     }
 }

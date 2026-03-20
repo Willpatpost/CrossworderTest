@@ -16,7 +16,6 @@ export class CrosswordSolver {
         this.defProvider = new WiktionaryDefinitionsProvider();
         this.solver = new SolverEngine();
         this.constraintManager = new ConstraintManager();
-        
         this.cells = {}; 
         this.gridManager = new GridManager(this.cells);
         this.display = new DisplayManager();
@@ -26,15 +25,15 @@ export class CrosswordSolver {
         this.grid = [];
         this.slots = {}; 
         this.wordLengthCache = {};
-        this.letterFrequencies = {};
         this.isDragging = false;
-        this.isSolving = false; // Flag to prevent concurrent solve operations
+        this.isSolving = false;
+        this.currentDirection = 'across'; 
     }
 
     async init() {
         this.setupEventListeners();
         this.loadPredefinedPuzzle("Easy");
-        this.display.updateStatus("System Ready.");
+        this.display.updateStatus("System Ready. Click a cell to type.");
     }
 
     setupEventListeners() {
@@ -48,7 +47,7 @@ export class CrosswordSolver {
         document.getElementById('load-easy-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Easy");
         document.getElementById('load-medium-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Medium");
         document.getElementById('load-hard-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Hard");
-
+        
         document.getElementById('number-entry-button').onclick = () => this.modes.toggle('number');
         document.getElementById('letter-entry-button').onclick = () => this.modes.toggle('letter');
         document.getElementById('drag-mode-button').onclick = () => this.modes.toggle('drag');
@@ -63,6 +62,63 @@ export class CrosswordSolver {
         if (searchInput) searchInput.oninput = () => this.handleSearch(searchInput.value);
 
         window.onmouseup = () => this.handleMouseUp();
+        window.addEventListener('keydown', (e) => this.handleKeyDown(e));
+    }
+
+    handleKeyDown(e) {
+        if (this.isSolving || !this.gridManager.selectedCell) return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        const { r, c } = this.gridManager.selectedCell;
+        const rows = this.grid.length;
+        const cols = this.grid[0].length;
+
+        if (e.key === 'ArrowRight') this.gridManager.focusCell(r, Math.min(cols - 1, c + 1));
+        if (e.key === 'ArrowLeft')  this.gridManager.focusCell(r, Math.max(0, c - 1));
+        if (e.key === 'ArrowDown')  this.gridManager.focusCell(Math.min(rows - 1, r + 1), c);
+        if (e.key === 'ArrowUp')    this.gridManager.focusCell(Math.max(0, r - 1), c);
+
+        if (/^[a-zA-Z]$/.test(e.key)) {
+            e.preventDefault();
+            this.grid[r][c] = e.key.toUpperCase();
+            this.gridManager.syncGridToDOM(this.grid, this.slots);
+            this.moveCursor(r, c, 1);
+        }
+
+        if (e.key === 'Backspace') {
+            e.preventDefault();
+            this.grid[r][c] = " ";
+            this.gridManager.syncGridToDOM(this.grid, this.slots);
+            this.moveCursor(r, c, -1);
+        }
+    }
+
+    moveCursor(r, c, delta) {
+        if (this.currentDirection === 'across') {
+            const nextC = c + delta;
+            if (nextC >= 0 && nextC < this.grid[0].length) this.gridManager.focusCell(r, nextC);
+        } else {
+            const nextR = r + delta;
+            if (nextR >= 0 && nextR < this.grid.length) this.gridManager.focusCell(nextR, c);
+        }
+    }
+
+    handleCellClick(e, r, c) {
+        if (this.isSolving) return;
+
+        if (this.gridManager.selectedCell?.r === r && this.gridManager.selectedCell?.c === c) {
+            this.currentDirection = this.currentDirection === 'across' ? 'down' : 'across';
+            this.display.updateStatus(`Direction: ${this.currentDirection.toUpperCase()}`);
+        }
+
+        this.gridManager.focusCell(r, c);
+        const mode = this.modes.currentMode;
+        if (mode === 'number') {
+            this.gridManager.addNumberToCell(this.grid, r, c);
+            this.render(); 
+        } else if (mode === 'default') {
+            this.toggleCell(r, c);
+        }
     }
 
     handleMouseDown(e, r, c) {
@@ -85,36 +141,15 @@ export class CrosswordSolver {
         const rows = this.grid.length;
         const cols = this.grid[0].length;
         const targetVal = this.gridManager.toggleToBlack ? "#" : " ";
-
         this.grid[r][c] = targetVal;
 
         if (this.modes.isSymmetryEnabled) {
-            const mirrorR = rows - 1 - r;
-            const mirrorC = cols - 1 - c;
-            this.grid[mirrorR][mirrorC] = targetVal;
+            this.grid[rows - 1 - r][cols - 1 - c] = targetVal;
         }
 
-        // Rebuild slot structures immediately after grid changes
         this.constraintManager.buildDataStructures(this.grid);
         this.slots = this.constraintManager.slots;
         this.gridManager.syncGridToDOM(this.grid, this.slots);
-    }
-
-    handleCellClick(e, r, c) {
-        if (this.isSolving) return;
-        const mode = this.modes.currentMode;
-        if (mode === 'number') {
-            this.gridManager.addNumberToCell(this.grid, r, c);
-            this.render(); 
-        } else if (mode === 'letter') {
-            const letter = prompt("Enter Letter:");
-            if (letter !== null) {
-                this.grid[r][c] = letter.trim().toUpperCase().charAt(0) || " ";
-                this.gridManager.syncGridToDOM(this.grid, this.slots);
-            }
-        } else if (mode === 'default') {
-            this.toggleCell(r, c);
-        }
     }
 
     generateNewGrid(rows, cols) {
@@ -141,19 +176,15 @@ export class CrosswordSolver {
     async handleSolve() {
         if (this.isSolving) return;
         this.isSolving = true;
-        
         const solveBtn = document.getElementById('solve-crossword-button');
         if (solveBtn) solveBtn.disabled = true;
 
         try {
-            this.display.updateStatus("Analyzing grid constraints...");
+            this.display.updateStatus("Preparing solver...");
             const start = performance.now();
-            
-            // 1. Finalize slot structures and extract pre-filled letters
             const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
             this.slots = slots;
             
-            // 2. Load missing word lengths into cache
             const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
             for (const len of uniqueLengths) {
                 if (!this.wordLengthCache[len]) {
@@ -161,58 +192,37 @@ export class CrosswordSolver {
                 }
             }
 
-            // 3. Pre-calculate search heuristics
-            this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
+            const letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
             const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache, this.grid);
-            
             const allowReuse = document.getElementById('allow-reuse-toggle')?.checked || false;
             const visualize = document.getElementById('visualize-solve-toggle')?.checked || false;
 
-            this.display.updateStatus(visualize ? "Solving visually..." : "Solving...");
-
-            // 4. Set up Visualization callback
             if (visualize) {
                 this.solver.onUpdateCallback = (slotId, word) => {
                     const slot = this.slots[slotId];
                     if (!slot) return;
                     slot.positions.forEach((pos, i) => {
-                        const [r, c] = pos;
-                        // Directly update DOM to avoid overhead of full sync during visualization
-                        const td = this.cells[`${r},${c}`];
+                        const td = this.cells[`${pos[0]},${pos[1]}`];
                         if (td) {
-                            const letterSpan = td.querySelector('.cell-letter') || td;
-                            letterSpan.textContent = word[i] || "";
-                            td.style.backgroundColor = word ? "#e3f2fd" : "white"; // Highlight active search
+                            const span = td.querySelector('.cell-letter') || td;
+                            span.textContent = word[i] || "";
                         }
                     });
                 };
-            } else {
-                this.solver.onUpdateCallback = null;
             }
 
-            // 5. Execute search
             const result = await this.solver.backtrackingSolve(
-                this.slots, 
-                domains, 
-                this.constraintManager.constraints, 
-                this.letterFrequencies, 
-                cellContents,
-                { allowReuse, visualize }
+                this.slots, domains, this.constraintManager.constraints, 
+                letterFrequencies, cellContents, { allowReuse, visualize }
             );
 
             const end = performance.now();
             if (result.success) {
                 this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
                 this.applySolutionToGrid(this.slots, result.solution);
-                this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
             } else {
                 this.display.updateStatus("No solution found.");
-                // Restore original grid state on failure
-                this.gridManager.syncGridToDOM(this.grid, this.slots);
             }
-        } catch (err) {
-            console.error(err);
-            this.display.updateStatus("Solver Error: " + err.message);
         } finally {
             this.isSolving = false;
             if (solveBtn) solveBtn.disabled = false;
@@ -222,10 +232,8 @@ export class CrosswordSolver {
     applySolutionToGrid(slots, solution) {
         for (const slotId in solution) {
             const word = solution[slotId];
-            const slot = slots[slotId];
-            slot.positions.forEach((pos, i) => {
-                const [r, c] = pos;
-                this.grid[r][c] = word[i];
+            slots[slotId].positions.forEach((pos, i) => {
+                this.grid[pos[0]][pos[1]] = word[i];
             });
         }
         this.gridManager.syncGridToDOM(this.grid, slots);
@@ -234,14 +242,9 @@ export class CrosswordSolver {
     async handleSearch(val) {
         const query = val.trim();
         if (!query || query.length < 2) return;
-        
-        try {
-            const words = await this.wordProvider.getWordsOfLength(query.length);
-            const regex = new RegExp(`^${query.replace(/\?/g, '.').toUpperCase()}$`);
-            const matches = words.filter(w => regex.test(w)).slice(0, 50);
-            this.display.updateSearchResults(matches, (selected) => this.popups.show(selected));
-        } catch (e) {
-            console.warn("Search failed", e);
-        }
+        const words = await this.wordProvider.getWordsOfLength(query.length);
+        const regex = new RegExp(`^${query.replace(/\?/g, '.').toUpperCase()}$`);
+        const matches = words.filter(w => regex.test(w)).slice(0, 50);
+        this.display.updateSearchResults(matches, (selected) => this.popups.show(selected));
     }
 }
