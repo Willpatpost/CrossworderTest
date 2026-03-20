@@ -79,13 +79,17 @@
         </section>
 
         <section class="mode-controls-section">
-            <h2>Editor Controls</h2>
+            <h2>Editor & Play Controls</h2>
             <div class="mode-controls">
                 <button id="drag-mode-button" class="btn mode-btn">Drag Mode</button>
                 <button id="letter-entry-button" class="btn mode-btn">Letter Mode</button>
                 <button id="number-entry-button" class="btn mode-btn">Manual Number</button>
                 <button id="auto-number-button" class="btn secondary-btn">Auto Number</button>
                 <button id="symmetry-button" class="btn success-btn">Symmetry: ON</button>
+                
+                <button id="play-mode-button" class="btn" style="background-color: #6f42c1; color: white;">
+                    Enter Play Mode
+                </button>
             </div>
             <div id="mode-label" class="mode-label">Mode: Default (Toggle Black Squares)</div>
         </section>
@@ -94,6 +98,10 @@
             <div class="status-display-container">
                 <h3>Status</h3>
                 <textarea id="status-display" readonly></textarea>
+                
+                <div id="game-stats" style="display:none; margin-top: 10px; padding: 10px; background: #e9ecef; border-radius: 4px;">
+                    <strong>Progress:</strong> <span id="solve-progress">0%</span>
+                </div>
             </div>
 
             <div class="grid-container" id="grid-container">
@@ -113,15 +121,21 @@
 
         <section class="controls-section">
             <button id="solve-crossword-button" class="btn solve-btn">
-                Solve Crossword
+                Solve & Generate Clues
             </button>
-            <button id="cancel-solve-button" class="btn danger-btn" style="display:none; background-color: #dc3545; color: white;">
+            <button id="cancel-solve-button" class="btn danger-btn" style="display:none;">
                 Cancel Solve
             </button>
+
+            <div id="play-controls" style="display:none; gap: 10px; justify-content: center; width: 100%; margin-top: 10px;">
+                <button id="check-grid-button" class="btn secondary-btn">Check Grid</button>
+                <button id="reveal-word-button" class="btn secondary-btn">Reveal Word</button>
+                <button id="reveal-puzzle-button" class="btn danger-btn" style="background-color: #dc3545; color: white;">Reveal All</button>
+            </div>
         </section>
 
         <footer>
-            <p>© William Poston Crossword Generator</p>
+            <p>© Willpatpost Crossword Generator</p>
         </footer>
     </div>
 

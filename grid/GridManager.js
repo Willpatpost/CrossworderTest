@@ -3,24 +3,25 @@ export class GridManager {
     constructor(cellsMap) {
         this.cells = cellsMap; // Shared map of "r,c" -> <td> elements
         this.toggleToBlack = true;
+        
+        // Play Mode State
+        this.selectedCell = null; // {r, c}
+        this.selectedDirection = 'across'; // 'across' or 'down'
     }
 
     /**
      * Initial full render of the table.
-     * Clears previous references to prevent memory leaks.
      */
     render(grid, container, coordinator) {
         container.innerHTML = '';
         
-        // CRITICAL: Clear the shared cells map so we don't reference old DOM nodes
         for (const key in this.cells) {
             delete this.cells[key];
         }
 
         const table = document.createElement('table');
         table.id = 'crossword-grid';
-        table.style.borderCollapse = 'collapse';
-        table.style.margin = '0 auto';
+        table.className = 'crossword-table';
 
         for (let r = 0; r < grid.length; r++) {
             const tr = document.createElement('tr');
@@ -29,13 +30,23 @@ export class GridManager {
                 td.dataset.row = r;
                 td.dataset.col = c;
                 
-                // Initialize cell styling
                 this._applyBaseStyles(td);
 
-                // Event Listeners for Modes
+                // Event Listeners
                 td.addEventListener('mousedown', (e) => coordinator.handleMouseDown(e, r, c));
                 td.addEventListener('mouseover', (e) => coordinator.handleMouseOver(e, r, c));
-                td.addEventListener('click', (e) => coordinator.handleCellClick(e, r, c));
+                td.addEventListener('click', (e) => this._handleInternalClick(e, r, c, coordinator));
+
+                const content = grid[r][c];
+                if (content === "#") {
+                    td.classList.add('block');
+                } else {
+                    const letterSpan = document.createElement('span');
+                    letterSpan.className = 'cell-letter';
+                    // In Play Mode, we start with empty strings in white cells
+                    letterSpan.textContent = coordinator.modes.isPlayMode ? "" : (content.trim() || "");
+                    td.appendChild(letterSpan);
+                }
 
                 this.cells[`${r},${c}`] = td;
                 tr.appendChild(td);
@@ -43,148 +54,191 @@ export class GridManager {
             table.appendChild(tr);
         }
         
-        // Final sync to show current numbers/letters
-        this.syncGridToDOM(grid, coordinator.slots || {});
-        
-        // We use a named function or a specific cleanup if we were destroying the app, 
-        // but for now, we just ensure the global listener is active.
-        window.onmouseup = () => coordinator.handleMouseUp();
-        
         container.appendChild(table);
+        this._setupKeyboardListeners(coordinator);
     }
 
-    _applyBaseStyles(td) {
-        td.style.width = '35px';
-        td.style.height = '35px';
-        td.style.border = '1px solid #333';
-        td.style.textAlign = 'center';
-        td.style.verticalAlign = 'middle';
-        td.style.fontSize = '18px';
-        td.style.fontWeight = 'bold';
-        td.style.cursor = 'pointer';
-        td.style.userSelect = 'none';
-        td.style.position = 'relative'; // Crucial for corner numbers
-        td.style.backgroundColor = '#fff';
-    }
+    _handleInternalClick(e, r, c, coordinator) {
+        if (coordinator.modes.isPlayMode) {
+            const cell = coordinator.grid[r][c];
+            if (cell === "#") return;
 
-    /**
-     * Handles the layered display of numbers and letters.
-     */
-    updateCellDisplay(td, value, slotNumber = null) {
-        // We use a fragment or selective updates if performance becomes an issue during visualization,
-        // but innerHTML = '' is safe for now.
-        td.innerHTML = ''; 
-
-        if (value === "#") {
-            td.style.backgroundColor = '#000';
-            return;
-        }
-
-        td.style.backgroundColor = '#fff';
-
-        // 1. Add the Clue Number (Top-Left)
-        if (slotNumber) {
-            const numSpan = document.createElement('span');
-            numSpan.textContent = slotNumber;
-            numSpan.style.position = 'absolute';
-            numSpan.style.top = '1px';
-            numSpan.style.left = '2px';
-            numSpan.style.fontSize = '10px';
-            numSpan.style.fontWeight = 'normal';
-            numSpan.style.color = '#555';
-            numSpan.className = 'cell-number';
-            td.appendChild(numSpan);
-        }
-
-        // 2. Add the Letter (Center)
-        // If the value is a single letter, display it. 
-        // Note: we ignore placeholder digits that might be in the raw grid array.
-        if (value && /^[A-Z]$/i.test(value)) {
-            const letterSpan = document.createElement('span');
-            letterSpan.textContent = value.toUpperCase();
-            letterSpan.style.display = 'block';
-            letterSpan.style.marginTop = '4px';
-            td.appendChild(letterSpan);
+            // Toggle direction if clicking the same cell
+            if (this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c) {
+                this.selectedDirection = this.selectedDirection === 'across' ? 'down' : 'across';
+            } else {
+                this.selectedCell = { r, c };
+            }
+            this._highlightUI(coordinator);
+        } else {
+            coordinator.handleCellClick(e, r, c);
         }
     }
 
-    /**
-     * Synchronizes the internal grid state to the visible DOM cells.
-     */
-    syncGridToDOM(grid, slots = {}) {
-        const numberMap = {};
-        Object.values(slots).forEach(slot => {
-            const [r, c] = slot.positions[0];
-            numberMap[`${r},${c}`] = slot.number;
+    _setupKeyboardListeners(coordinator) {
+        // Remove old listener if exists to prevent duplicates
+        window.onkeydown = (e) => {
+            if (!coordinator.modes.isPlayMode || !this.selectedCell) return;
+
+            const { r, c } = this.selectedCell;
+            const key = e.key.toUpperCase();
+
+            if (key.length === 1 && key >= 'A' && key <= 'Z') {
+                this._updateCellValue(r, c, key, coordinator);
+                this._moveCursor(1, coordinator);
+                e.preventDefault();
+            } else if (key === 'BACKSPACE') {
+                this._updateCellValue(r, c, "", coordinator);
+                this._moveCursor(-1, coordinator);
+                e.preventDefault();
+            } else if (key.startsWith('ARROW')) {
+                this._handleArrowNavigation(key, coordinator);
+                e.preventDefault();
+            }
+        };
+    }
+
+    _updateCellValue(r, c, val, coordinator) {
+        const td = this.cells[`${r},${c}`];
+        if (td) {
+            const span = td.querySelector('.cell-letter');
+            if (span) span.textContent = val;
+        }
+    }
+
+    _moveCursor(delta, coordinator) {
+        if (!this.selectedCell) return;
+        let { r, c } = this.selectedCell;
+        const grid = coordinator.grid;
+
+        for (let i = 0; i < 20; i++) { // Limit search range
+            if (this.selectedDirection === 'across') c += delta;
+            else r += delta;
+
+            if (grid[r] && grid[r][c] !== undefined && grid[r][c] !== "#") {
+                this.selectedCell = { r, c };
+                this._highlightUI(coordinator);
+                return;
+            }
+        }
+    }
+
+    _handleArrowNavigation(key, coordinator) {
+        let { r, c } = this.selectedCell;
+        if (key === 'ARROWUP') r--;
+        if (key === 'ARROWDOWN') r++;
+        if (key === 'ARROWLEFT') c--;
+        if (key === 'ARROWRIGHT') c++;
+
+        if (coordinator.grid[r] && coordinator.grid[r][c] !== undefined && coordinator.grid[r][c] !== "#") {
+            this.selectedCell = { r, c };
+            this._highlightUI(coordinator);
+        }
+    }
+
+    _highlightUI(coordinator) {
+        // Clear old highlights
+        Object.values(this.cells).forEach(td => {
+            td.classList.remove('highlight-active', 'highlight-word');
         });
 
+        if (!this.selectedCell) return;
+
+        const { r, c } = this.selectedCell;
+        const activeTd = this.cells[`${r},${c}`];
+        if (activeTd) activeTd.classList.add('highlight-active');
+
+        // Highlight full word
+        const slot = Object.values(coordinator.slots).find(s => 
+            s.direction === this.selectedDirection && 
+            s.positions.some(p => p[0] === r && p[1] === c)
+        );
+
+        if (slot) {
+            slot.positions.forEach(pos => {
+                const td = this.cells[`${pos[0]},${pos[1]}`];
+                if (td && td !== activeTd) td.classList.add('highlight-word');
+            });
+        }
+    }
+
+    syncGridToDOM(grid, slots) {
         for (let r = 0; r < grid.length; r++) {
             for (let c = 0; c < grid[0].length; c++) {
                 const td = this.cells[`${r},${c}`];
-                if (td) {
-                    this.updateCellDisplay(td, grid[r][c], numberMap[`${r},${c}`]);
+                if (!td) continue;
+
+                const val = grid[r][c];
+                if (val === "#") {
+                    td.classList.add('block');
+                    td.innerHTML = "";
+                } else {
+                    td.classList.remove('block');
+                    if (!td.querySelector('.cell-letter')) {
+                        td.innerHTML = `<span class="cell-letter"></span>`;
+                    }
+                    td.querySelector('.cell-letter').textContent = (/[A-Z]/i.test(val)) ? val : "";
                 }
+            }
+        }
+        this._applyNumbering(grid, slots);
+    }
+
+    _applyNumbering(grid, slots) {
+        Object.values(this.cells).forEach(td => {
+            const existingNum = td.querySelector('.cell-number');
+            if (existingNum) existingNum.remove();
+        });
+
+        for (const id in slots) {
+            const slot = slots[id];
+            const [r, c] = slot.positions[0];
+            const td = this.cells[`${r},${c}`];
+            if (td && !td.querySelector('.cell-number')) {
+                const numSpan = document.createElement('span');
+                numSpan.className = 'cell-number';
+                numSpan.textContent = slot.number;
+                td.prepend(numSpan);
             }
         }
     }
 
-    /**
-     * Shifts existing manual numbers to make room for a new one.
-     */
-    _shiftNumbers(grid, threshold, delta) {
-        for (let r = 0; r < grid.length; r++) {
-            for (let c = 0; c < grid[0].length; c++) {
-                const val = parseInt(grid[r][c], 10);
-                if (!isNaN(val) && val >= threshold) {
-                    grid[r][c] = (val + delta).toString();
-                }
-            }
-        }
+    _applyBaseStyles(td) {
+        td.classList.add('grid-cell');
+        td.style.width = '40px';
+        td.style.height = '40px';
+        td.style.border = '1px solid #333';
+        td.style.textAlign = 'center';
+        td.style.verticalAlign = 'middle';
+        td.style.fontSize = '20px';
+        td.style.fontWeight = 'bold';
+        td.style.cursor = 'pointer';
+        td.style.backgroundColor = '#fff';
     }
 
-    /**
-     * Gets all manually placed numbers in the grid sorted by value.
-     */
     _getNumberPositions(grid) {
         const pos = [];
         for (let r = 0; r < grid.length; r++) {
             for (let c = 0; c < grid[0].length; c++) {
                 const val = parseInt(grid[r][c], 10);
-                if (!isNaN(val)) {
-                    pos.push({ n: val, r, c });
-                }
+                if (!isNaN(val)) pos.push({ n: val, r, c });
             }
         }
         return pos.sort((a, b) => a.n - b.n);
     }
 
-    /**
-     * Calculates what the index of a new manual number should be based on its 
-     * coordinates relative to existing numbers.
-     */
+    addNumberToCell(grid, row, col) {
+        const positions = this._getNumberPositions(grid);
+        if (!isNaN(parseInt(grid[row][col], 10))) return;
+        grid[row][col] = this._calculateNewNumberIndex(row, col, positions).toString();
+    }
+
     _calculateNewNumberIndex(r, c, positions) {
         let index = 0;
         for (let i = 0; i < positions.length; i++) {
-            // Numbers in crosswords generally follow reading order: row then column
-            if (r < positions[i].r || (r === positions[i].r && c < positions[i].c)) {
-                break;
-            }
+            if (r < positions[i].r || (r === positions[i].r && c < positions[i].c)) break;
             index = i + 1;
         }
         return index + 1;
-    }
-
-    /**
-     * Public method for coordinator to add a manual number.
-     */
-    addNumberToCell(grid, row, col) {
-        const positions = this._getNumberPositions(grid);
-        
-        // If cell already has a number, we don't add a new one (could implement removal logic later)
-        if (!isNaN(parseInt(grid[row][col], 10))) return;
-
-        const newNum = this._calculateNewNumberIndex(row, col, positions);
-        this._shiftNumbers(grid, newNum, 1);
-        grid[row][col] = newNum.toString();
     }
 }
