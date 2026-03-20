@@ -12,34 +12,41 @@ export class SolverEngine {
         this.recursiveCalls = 0;
         const assignment = {};
         
-        // Clone domains to avoid mutating the original cache
+        // 1. Clone domains to avoid mutating the original word list cache
         const localDomains = {};
         for (const id in domains) {
             localDomains[id] = [...domains[id]];
         }
 
-        // Run AC-3 to prune initial impossible values
+        // 2. Run AC-3 to prune initial impossible values based on grid intersections
         const consistent = this.ac3(localDomains, constraints);
         if (!consistent) return { success: false };
 
+        // 3. Start the recursive search
         return this._recursiveSearch(slots, localDomains, constraints, letterFrequencies, cellContents, assignment);
     }
 
     _recursiveSearch(slots, domains, constraints, letterFrequencies, cellContents, assignment) {
+        // Base case: All slots filled
         if (Object.keys(assignment).length === Object.keys(slots).length) {
             return { success: true, solution: { ...assignment } };
         }
 
         this.recursiveCalls++;
+        
+        // Select next variable using MRV (Minimum Remaining Values)
         const varToAssign = this.selectUnassignedVariable(assignment, domains, constraints);
         if (!varToAssign) return { success: false };
 
+        // Order words by letter frequency (Heuristic)
         const orderedValues = this.orderDomainValues(varToAssign, domains, letterFrequencies);
 
         for (const value of orderedValues) {
             if (this.isConsistent(varToAssign, value, assignment, slots, constraints, cellContents)) {
                 
                 assignment[varToAssign] = value;
+                
+                // Forward Checking: Prune domains of neighbors to catch failures early
                 const inferences = this.forwardCheck(varToAssign, value, assignment, domains, constraints);
                 
                 if (inferences !== false) {
@@ -47,6 +54,7 @@ export class SolverEngine {
                     if (result.success) return result;
                 }
                 
+                // Backtrack: Remove assignment and restore pruned domains
                 delete assignment[varToAssign];
                 this.restoreDomains(domains, inferences);
             }
@@ -56,24 +64,26 @@ export class SolverEngine {
     }
 
     /**
-     * THE FIX: Ensure we only compare actual letters (A-Z).
-     * We ignore digits because those are just UI clue numbers.
+     * Checks if a word fits current grid letters and intersections.
+     * CRITICAL: Ignores digits (clue numbers) in the cellContents.
      */
     isConsistent(slotId, word, assignment, slots, constraints, cellContents) {
         const slotObj = slots[slotId];
         const positions = slotObj.positions || slotObj;
         
+        // Check against letters physically entered in the grid
         for (let i = 0; i < positions.length; i++) {
             const [r, c] = positions[i];
             const val = cellContents[`${r},${c}`];
             
-            // Only conflict if the cell contains a LETTER (A-Z)
-            // If it contains a number ("1") or is empty (" "), it's a match.
+            // Only conflict if the cell contains an actual LETTER (A-Z)
+            // If it contains a clue number ("1") or is empty (" "), it's a match.
             if (val && /[A-Z]/.test(val)) {
                 if (val !== word[i]) return false;
             }
         }
 
+        // Check against words already placed by the solver in intersecting slots
         const neighbors = constraints[slotId] || {};
         for (const neighborId in neighbors) {
             if (neighborId in assignment) {
@@ -97,6 +107,11 @@ export class SolverEngine {
             if (size < minSize) {
                 minSize = size;
                 bestSlot = slot;
+            } else if (size === minSize) {
+                // Tie-breaker: Degree heuristic (most intersections)
+                const degA = constraints[slot] ? Object.keys(constraints[slot]).length : 0;
+                const degBest = constraints[bestSlot] ? Object.keys(constraints[bestSlot]).length : 0;
+                if (degA > degBest) bestSlot = slot;
             }
         }
         return bestSlot;
@@ -106,6 +121,8 @@ export class SolverEngine {
         const domain = [...domains[slot]];
         const getScore = (word) =>
             word.split('').reduce((acc, ch) => acc + (letterFrequencies[ch] || 0), 0);
+        
+        // Try most common letter combinations first
         return domain.sort((a, b) => getScore(b) - getScore(a));
     }
 
@@ -117,6 +134,7 @@ export class SolverEngine {
             if (!(neighborId in assignment)) {
                 const overlaps = neighbors[neighborId];
                 const oldDomain = domains[neighborId];
+                
                 const newDomain = oldDomain.filter(w => {
                     for (const [myIdx, neighborIdx] of overlaps) {
                         if (value[myIdx] !== w[neighborIdx]) return false;

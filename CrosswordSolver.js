@@ -24,7 +24,7 @@ export class CrosswordSolver {
         this.popups = new PopupManager(this.defProvider);
 
         this.grid = [];
-        this.slots = {}; // Store slots at the class level
+        this.slots = {}; 
         this.wordLengthCache = {};
         this.letterFrequencies = {};
         this.isDragging = false;
@@ -73,7 +73,6 @@ export class CrosswordSolver {
 
     toggleCell(r, c) {
         this.grid[r][c] = this.gridManager.toggleToBlack ? "#" : " ";
-        // Re-run slot detection to keep clue numbers accurate while drawing
         const { slots } = this.constraintManager.buildDataStructures(this.grid);
         this.slots = slots;
         this.gridManager.syncGridToDOM(this.grid, this.slots);
@@ -125,9 +124,11 @@ export class CrosswordSolver {
         this.display.updateStatus("Analyzing constraints...");
         const start = performance.now();
         
+        // 1. Refresh constraints based on current grid state
         const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
         this.slots = slots;
         
+        // 2. Fetch missing word lists
         this.display.updateStatus("Loading word lists...");
         const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
         for (const len of uniqueLengths) {
@@ -136,8 +137,10 @@ export class CrosswordSolver {
             }
         }
 
+        // 3. Setup domains specific to these slots
+        // We pass both slots AND the cache so it can map word lengths to slot IDs
         this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
-        const domains = this.constraintManager.setupDomains(this.wordLengthCache);
+        const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache);
 
         this.display.updateStatus("Solving...");
         const result = this.solver.backtrackingSolve(
@@ -148,7 +151,6 @@ export class CrosswordSolver {
         const end = performance.now();
         if (result.success) {
             this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
-            // This now passes the rich slot objects to populate the word banks
             this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
             this.applySolutionToGrid(this.slots, result.solution);
         } else {
@@ -156,17 +158,12 @@ export class CrosswordSolver {
         }
     }
 
-    /**
-     * UPDATED: Overwrites the grid array with the solved letters.
-     * The GridManager will handle keeping the clue numbers visible.
-     */
     applySolutionToGrid(slots, solution) {
         for (const slotId in solution) {
             const word = solution[slotId];
             const slot = slots[slotId];
             slot.positions.forEach((pos, i) => {
                 const [r, c] = pos;
-                // Overwrite everything. Letters are now distinct from clue numbers.
                 this.grid[r][c] = word[i];
             });
         }
