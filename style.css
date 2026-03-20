@@ -369,3 +369,15 @@ footer {
     background-color: #28a745;
     color: white;
 }
+
+.cell-selected {
+    outline: 3px solid #007bff !important; /* Bright Blue Outline */
+    outline-offset: -3px;
+    background-color: #fff9c4 !important; /* Soft Yellow background */
+    z-index: 2; /* Ensure outline is above borders */
+}
+
+/* Optional: Subtle transition for visualizer letters */
+.grid-container td span {
+    transition: all 0.1s ease-in-out;
+}

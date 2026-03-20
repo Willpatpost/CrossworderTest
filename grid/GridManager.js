@@ -1,15 +1,15 @@
-// ui/GridManager.js
+// grid/GridManager.js
 export class GridManager {
     constructor(cellsMap) {
-        this.cells = cellsMap; // Shared map of "r,c" -> <td> elements
+        this.cells = cellsMap; 
         this.toggleToBlack = true;
+        this.selectedCell = null; // {r, c}
     }
 
-    /**
-     * Initial full render of the table.
-     */
     render(grid, container, coordinator) {
         container.innerHTML = '';
+        for (const key in this.cells) delete this.cells[key];
+
         const table = document.createElement('table');
         table.id = 'crossword-grid';
         table.style.borderCollapse = 'collapse';
@@ -21,11 +21,8 @@ export class GridManager {
                 const td = document.createElement('td');
                 td.dataset.row = r;
                 td.dataset.col = c;
-                
-                // Initialize cell styling
                 this._applyBaseStyles(td);
 
-                // Event Listeners for Modes
                 td.addEventListener('mousedown', (e) => coordinator.handleMouseDown(e, r, c));
                 td.addEventListener('mouseover', (e) => coordinator.handleMouseOver(e, r, c));
                 td.addEventListener('click', (e) => coordinator.handleCellClick(e, r, c));
@@ -35,12 +32,20 @@ export class GridManager {
             }
             table.appendChild(tr);
         }
-        
-        // Final sync to show current numbers/letters
         this.syncGridToDOM(grid, coordinator.slots || {});
-        
-        window.addEventListener('mouseup', () => coordinator.handleMouseUp());
         container.appendChild(table);
+    }
+
+    focusCell(r, c) {
+        if (this.selectedCell) {
+            const oldTd = this.cells[`${this.selectedCell.r},${this.selectedCell.c}`];
+            if (oldTd) oldTd.classList.remove('cell-selected');
+        }
+        this.selectedCell = { r, c };
+        const newTd = this.cells[`${r},${c}`];
+        if (newTd) {
+            newTd.classList.add('cell-selected');
+        }
     }
 
     _applyBaseStyles(td) {
@@ -53,27 +58,22 @@ export class GridManager {
         td.style.fontWeight = 'bold';
         td.style.cursor = 'pointer';
         td.style.userSelect = 'none';
-        td.style.position = 'relative'; // Crucial for corner numbers
+        td.style.position = 'relative';
         td.style.backgroundColor = '#fff';
     }
 
-    /**
-     * UPDATED: Specifically handles the "Layered" display of numbers and letters.
-     */
     updateCellDisplay(td, value, slotNumber = null) {
-        td.innerHTML = ''; // Clear existing content
-
+        td.innerHTML = ''; 
         if (value === "#") {
             td.style.backgroundColor = '#000';
             return;
         }
-
         td.style.backgroundColor = '#fff';
 
-        // 1. Add the Clue Number (if applicable)
         if (slotNumber) {
             const numSpan = document.createElement('span');
             numSpan.textContent = slotNumber;
+            numSpan.className = 'cell-number';
             numSpan.style.position = 'absolute';
             numSpan.style.top = '1px';
             numSpan.style.left = '2px';
@@ -83,22 +83,17 @@ export class GridManager {
             td.appendChild(numSpan);
         }
 
-        // 2. Add the Letter (if value is a letter and not just a placeholder number)
-        if (value && /[A-Z]/.test(value)) {
+        if (value && /^[A-Z]$/i.test(value)) {
             const letterSpan = document.createElement('span');
-            letterSpan.textContent = value;
+            letterSpan.textContent = value.toUpperCase();
+            letterSpan.className = 'cell-letter';
             letterSpan.style.display = 'block';
             letterSpan.style.marginTop = '4px';
             td.appendChild(letterSpan);
         }
     }
 
-    /**
-     * UPDATED: Generates a mapping of coordinates to numbers so the 
-     * UI knows where to put clue numbers without using the cell's main value.
-     */
     syncGridToDOM(grid, slots = {}) {
-        // Create a lookup for which cells need a number label
         const numberMap = {};
         Object.values(slots).forEach(slot => {
             const [r, c] = slot.positions[0];
@@ -110,19 +105,27 @@ export class GridManager {
                 const td = this.cells[`${r},${c}`];
                 if (td) {
                     this.updateCellDisplay(td, grid[r][c], numberMap[`${r},${c}`]);
+                    if (this.selectedCell?.r === r && this.selectedCell?.c === c) {
+                        td.classList.add('cell-selected');
+                    }
                 }
             }
         }
     }
 
-    // ... (rest of the shift/index logic from your version)
+    addNumberToCell(grid, row, col) {
+        const positions = this._getNumberPositions(grid);
+        if (!isNaN(parseInt(grid[row][col], 10))) return;
+        const newNum = this._calculateNewNumberIndex(row, col, positions);
+        this._shiftNumbers(grid, newNum, 1);
+        grid[row][col] = newNum.toString();
+    }
+
     _shiftNumbers(grid, threshold, delta) {
         for (let r = 0; r < grid.length; r++) {
             for (let c = 0; c < grid[0].length; c++) {
                 const val = parseInt(grid[r][c], 10);
-                if (!isNaN(val) && val >= threshold) {
-                    grid[r][c] = (val + delta).toString();
-                }
+                if (!isNaN(val) && val >= threshold) grid[r][c] = (val + delta).toString();
             }
         }
     }
@@ -144,14 +147,5 @@ export class GridManager {
             index = i + 1;
         }
         return index + 1;
-    }
-
-    addNumberToCell(grid, row, col) {
-        const positions = this._getNumberPositions(grid);
-        const newNum = this._calculateNewNumberIndex(row, col, positions);
-        this._shiftNumbers(grid, newNum, 1);
-        grid[row][col] = newNum.toString();
-        // Since we modified numbers, we need the coordinator to rebuild slots 
-        // if we want the clue numbers to update instantly.
     }
 }
