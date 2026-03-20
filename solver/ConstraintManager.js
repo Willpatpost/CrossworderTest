@@ -10,7 +10,6 @@ export class ConstraintManager {
 
     /**
      * Builds the slot structures and calculates intersections (constraints).
-     * @param {Array<Array<string>>} grid - The current 2D grid state.
      */
     buildDataStructures(grid) {
         this.slots = {};
@@ -20,7 +19,6 @@ export class ConstraintManager {
         const cols = grid[0].length;
         let wordCounter = 1;
 
-        // 1. Identify slots (Across and Down)
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const isAcross = GridUtils.isStartOfAcrossSlot(grid, r, c);
@@ -43,7 +41,6 @@ export class ConstraintManager {
             }
         }
 
-        // 2. Map actual cell values (for the solver to respect user-typed letters)
         const flatCellMap = {};
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -56,10 +53,15 @@ export class ConstraintManager {
         return { slots: this.slots, cellContents: flatCellMap };
     }
 
-    _extractSlot(grid, r, c, direction, number) {
+    _extractSlot(grid, r, c, direction, counter) {
         const positions = [];
         let currR = r;
         let currC = c;
+
+        // If the cell contains a manual number (string digit), use it. 
+        // Otherwise, use the auto-counter.
+        const gridVal = grid[r][c];
+        const displayLabel = (/\d/.test(gridVal)) ? parseInt(gridVal, 10) : counter;
 
         while (currR < grid.length && currC < grid[0].length && grid[currR][currC] !== "#") {
             positions.push([currR, currC]);
@@ -68,22 +70,18 @@ export class ConstraintManager {
         }
 
         return {
-            id: `${number}-${direction}`, 
+            id: `${displayLabel}-${direction}`, 
             direction,
-            number,
+            number: displayLabel,
             length: positions.length,
             positions
         };
     }
 
-    /**
-     * Finds where slots intersect and creates constraint mappings.
-     */
     generateConstraints() {
         this.constraints = {};
         const positionToSlots = {};
 
-        // Map every grid coordinate to the slots that pass through it
         for (const slotId in this.slots) {
             this.slots[slotId].positions.forEach((pos, idx) => {
                 const key = `${pos[0]},${pos[1]}`;
@@ -92,7 +90,6 @@ export class ConstraintManager {
             });
         }
 
-        // Where more than one slot exists in a cell, create a constraint
         for (const key in positionToSlots) {
             const overlaps = positionToSlots[key];
             if (overlaps.length > 1) {
@@ -117,8 +114,7 @@ export class ConstraintManager {
     }
 
     /**
-     * CRITICAL PERFORMANCE FIX: Filters word lists based on current grid letters
-     * before the solver even starts.
+     * Filters word lists based on current grid letters.
      */
     setupDomains(slots, wordLengthCache, grid) {
         this.domains = {};
@@ -126,18 +122,17 @@ export class ConstraintManager {
             const slot = slots[slotId];
             const allWords = wordLengthCache[slot.length] || [];
 
-            // Build a regex pattern based on what's currently in the grid
-            // Example: If user typed 'C' in first cell and 'T' in 4th: "^C..T.$"
+            // Pattern building: "^..C.T$"
             const patternParts = slot.positions.map(pos => {
                 const [r, c] = pos;
                 const char = grid[r][c];
-                // Only treat actual A-Z characters as constraints
+                // Check if it's a letter (ignoring numbers/spaces)
                 return (/[A-Z]/i.test(char)) ? char.toUpperCase() : '.';
             });
 
-            const pattern = new RegExp(`^${patternParts.join('')}$`);
+            const patternStr = `^${patternParts.join('')}$`;
+            const pattern = new RegExp(patternStr);
 
-            // Filter the domain: only keep words that match the existing letters
             this.domains[slotId] = allWords.filter(word => pattern.test(word));
         }
         return this.domains;

@@ -3,6 +3,7 @@ export class ModeManager {
     constructor() {
         this.currentMode = 'default';
         this.modes = ['number', 'letter', 'drag'];
+        this.isSymmetryEnabled = true; // Default to true as it's standard for crosswords
     }
 
     toggle(modeType) {
@@ -15,10 +16,19 @@ export class ModeManager {
         return this.currentMode;
     }
 
+    toggleSymmetry() {
+        this.isSymmetryEnabled = !this.isSymmetryEnabled;
+        this._updateUI();
+        return this.isSymmetryEnabled;
+    }
+
     _updateUI() {
         const label = document.getElementById('mode-label');
-        if (label) label.textContent = `Mode: ${this.currentMode.charAt(0).toUpperCase() + this.currentMode.slice(1)}`;
+        if (label) {
+            label.textContent = `Mode: ${this.currentMode.charAt(0).toUpperCase() + this.currentMode.slice(1)}`;
+        }
 
+        // Update standard mode buttons
         this.modes.forEach(m => {
             const btn = document.getElementById(`${m}-entry-button`) || document.getElementById(`${m}-mode-button`);
             if (btn) {
@@ -27,5 +37,12 @@ export class ModeManager {
                 btn.textContent = isActive ? `Exit ${m.charAt(0).toUpperCase() + m.slice(1)} Mode` : `${m.charAt(0).toUpperCase() + m.slice(1)} Mode`;
             }
         });
+
+        // Update Symmetry button specifically
+        const symBtn = document.getElementById('symmetry-button');
+        if (symBtn) {
+            symBtn.style.backgroundColor = this.isSymmetryEnabled ? "#28a745" : "#6c757d";
+            symBtn.textContent = `Symmetry: ${this.isSymmetryEnabled ? "ON" : "OFF"}`;
+        }
     }
 }

@@ -24,7 +24,7 @@
                     id="rows-input"
                     name="rows-input"
                     min="5"
-                    max="20"
+                    max="25"
                     value="10"
                 />
 
@@ -34,17 +34,23 @@
                     id="columns-input"
                     name="columns-input"
                     min="5"
-                    max="20"
+                    max="25"
                     value="10"
                 />
 
                 <button id="generate-grid-button" class="btn primary-btn">
-                    Generate Grid
+                    Generate New Grid
                 </button>
 
-                <div class="toggle-container">
-                    <input type="checkbox" id="allow-reuse-toggle" name="allow-reuse-toggle" />
-                    <label for="allow-reuse-toggle">Allow Word Reuse</label>
+                <div class="toggle-group">
+                    <div class="toggle-container">
+                        <input type="checkbox" id="allow-reuse-toggle" name="allow-reuse-toggle" />
+                        <label for="allow-reuse-toggle">Allow Word Reuse</label>
+                    </div>
+                    <div class="toggle-container">
+                        <input type="checkbox" id="visualize-solve-toggle" name="visualize-solve-toggle" checked />
+                        <label for="visualize-solve-toggle">Visualize Solve</label>
+                    </div>
                 </div>
             </div>
         </section>
@@ -55,7 +61,7 @@
                 <input
                     type="text"
                     id="word-search-input"
-                    placeholder="Search for a word..."
+                    placeholder="Search (use ? for wildcards, e.g. C??T)..."
                     aria-label="Word Search Input"
                 />
                 <div id="search-dropdown"></div>
@@ -66,36 +72,22 @@
         <section class="predefined-puzzles-section">
             <h2>Predefined Puzzles</h2>
             <div class="predefined-puzzles-controls">
-                <button id="load-easy-button" class="btn secondary-btn">
-                    Load Easy Puzzle
-                </button>
-                <button id="load-medium-button" class="btn secondary-btn">
-                    Load Medium Puzzle
-                </button>
-                <button id="load-hard-button" class="btn secondary-btn">
-                    Load Hard Puzzle
-                </button>
+                <button id="load-easy-button" class="btn secondary-btn">Easy</button>
+                <button id="load-medium-button" class="btn secondary-btn">Medium</button>
+                <button id="load-hard-button" class="btn secondary-btn">Hard</button>
             </div>
         </section>
 
         <section class="mode-controls-section">
-            <h2>Mode Controls</h2>
+            <h2>Editor Controls</h2>
             <div class="mode-controls">
-                <button id="number-entry-button" class="btn mode-btn">
-                    Number Entry Mode
-                </button>
-                <button id="auto-number-button" class="btn secondary-btn">
-                    Auto Number
-                </button>
-
-                <button id="letter-entry-button" class="btn mode-btn">
-                    Letter Entry Mode
-                </button>
-                <button id="drag-mode-button" class="btn mode-btn">
-                    Drag Mode
-                </button>
+                <button id="drag-mode-button" class="btn mode-btn">Drag Mode</button>
+                <button id="letter-entry-button" class="btn mode-btn">Letter Mode</button>
+                <button id="number-entry-button" class="btn mode-btn">Manual Number</button>
+                <button id="auto-number-button" class="btn secondary-btn">Auto Number</button>
+                <button id="symmetry-button" class="btn success-btn">Symmetry: ON</button>
             </div>
-            <div id="mode-label" class="mode-label">Mode: Default</div>
+            <div id="mode-label" class="mode-label">Mode: Default (Toggle Black Squares)</div>
         </section>
 
         <section class="middle-content-section">
