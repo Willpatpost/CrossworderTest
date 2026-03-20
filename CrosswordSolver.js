@@ -28,7 +28,8 @@ export class CrosswordSolver {
         this.wordLengthCache = {};
         this.letterFrequencies = {};
         this.isDragging = false;
-        this.isSolving = false; // Flag to prevent concurrent solve operations
+        this.isSolving = false; 
+        this.activeWorker = null; // Track the worker for cancellation
     }
 
     async init() {
@@ -58,11 +59,32 @@ export class CrosswordSolver {
 
         document.getElementById('auto-number-button').onclick = () => this.render();
         document.getElementById('solve-crossword-button').onclick = () => this.handleSolve();
+        
+        // Cancel Button Listener
+        const cancelBtn = document.getElementById('cancel-solve-button');
+        if (cancelBtn) cancelBtn.onclick = () => this.handleCancel();
 
         const searchInput = document.getElementById('word-search-input');
         if (searchInput) searchInput.oninput = () => this.handleSearch(searchInput.value);
 
         window.onmouseup = () => this.handleMouseUp();
+    }
+
+    handleCancel() {
+        if (this.activeWorker) {
+            this.activeWorker.terminate();
+            this.activeWorker = null;
+            this.isSolving = false;
+            
+            const solveBtn = document.getElementById('solve-crossword-button');
+            const cancelBtn = document.getElementById('cancel-solve-button');
+            if (solveBtn) solveBtn.disabled = false;
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            
+            this.display.updateStatus("Solve operation cancelled by user.");
+            // Optional: Re-sync grid to remove partial visualization artifacts
+            this.gridManager.syncGridToDOM(this.grid, this.slots);
+        }
     }
 
     handleMouseDown(e, r, c) {
@@ -94,7 +116,6 @@ export class CrosswordSolver {
             this.grid[mirrorR][mirrorC] = targetVal;
         }
 
-        // Rebuild slot structures immediately after grid changes
         this.constraintManager.buildDataStructures(this.grid);
         this.slots = this.constraintManager.slots;
         this.gridManager.syncGridToDOM(this.grid, this.slots);
@@ -140,20 +161,21 @@ export class CrosswordSolver {
 
     async handleSolve() {
         if (this.isSolving) return;
-        this.isSolving = true;
         
         const solveBtn = document.getElementById('solve-crossword-button');
+        const cancelBtn = document.getElementById('cancel-solve-button');
+        
+        this.isSolving = true;
         if (solveBtn) solveBtn.disabled = true;
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
 
         try {
             this.display.updateStatus("Analyzing grid constraints...");
             const start = performance.now();
             
-            // 1. Finalize slot structures and extract pre-filled letters
             const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
             this.slots = slots;
             
-            // 2. Load missing word lengths into cache
             const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
             for (const len of uniqueLengths) {
                 if (!this.wordLengthCache[len]) {
@@ -161,7 +183,6 @@ export class CrosswordSolver {
                 }
             }
 
-            // 3. Pre-calculate search heuristics
             this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
             const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache, this.grid);
             
@@ -170,35 +191,55 @@ export class CrosswordSolver {
 
             this.display.updateStatus(visualize ? "Solving visually..." : "Solving...");
 
-            // 4. Set up Visualization callback
-            if (visualize) {
-                this.solver.onUpdateCallback = (slotId, word) => {
-                    const slot = this.slots[slotId];
-                    if (!slot) return;
-                    slot.positions.forEach((pos, i) => {
-                        const [r, c] = pos;
-                        // Directly update DOM to avoid overhead of full sync during visualization
-                        const td = this.cells[`${r},${c}`];
-                        if (td) {
-                            const letterSpan = td.querySelector('.cell-letter') || td;
-                            letterSpan.textContent = word[i] || "";
-                            td.style.backgroundColor = word ? "#e3f2fd" : "white"; // Highlight active search
-                        }
-                    });
-                };
-            } else {
-                this.solver.onUpdateCallback = null;
-            }
+            const result = await new Promise((resolve, reject) => {
+                this.activeWorker = new Worker('./solver/SolverWorker.js', { type: 'module' });
 
-            // 5. Execute search
-            const result = await this.solver.backtrackingSolve(
-                this.slots, 
-                domains, 
-                this.constraintManager.constraints, 
-                this.letterFrequencies, 
-                cellContents,
-                { allowReuse, visualize }
-            );
+                this.activeWorker.onmessage = (e) => {
+                    const { type, payload } = e.data;
+
+                    if (type === 'UPDATE') {
+                        const { slotId, word } = payload;
+                        const slot = this.slots[slotId];
+                        if (!slot) return;
+                        
+                        slot.positions.forEach((pos, i) => {
+                            const [r, c] = pos;
+                            const td = this.cells[`${r},${c}`];
+                            if (td) {
+                                const letterSpan = td.querySelector('.cell-letter') || td;
+                                letterSpan.textContent = word[i] || "";
+                                td.style.backgroundColor = word ? "#e3f2fd" : "white";
+                            }
+                        });
+                    } else if (type === 'RESULT') {
+                        this.activeWorker.terminate();
+                        this.activeWorker = null;
+                        resolve(payload);
+                    } else if (type === 'ERROR') {
+                        this.activeWorker.terminate();
+                        this.activeWorker = null;
+                        reject(new Error(payload));
+                    }
+                };
+
+                this.activeWorker.onerror = (err) => {
+                    if (this.activeWorker) this.activeWorker.terminate();
+                    this.activeWorker = null;
+                    reject(err);
+                };
+
+                this.activeWorker.postMessage({
+                    type: 'START_SOLVE',
+                    payload: {
+                        slots: this.slots,
+                        domains,
+                        constraints: this.constraintManager.constraints,
+                        letterFrequencies: this.letterFrequencies,
+                        cellContents,
+                        settings: { allowReuse, visualize }
+                    }
+                });
+            });
 
             const end = performance.now();
             if (result.success) {
@@ -207,15 +248,19 @@ export class CrosswordSolver {
                 this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
             } else {
                 this.display.updateStatus("No solution found.");
-                // Restore original grid state on failure
                 this.gridManager.syncGridToDOM(this.grid, this.slots);
             }
         } catch (err) {
-            console.error(err);
-            this.display.updateStatus("Solver Error: " + err.message);
+            // Only show error if it wasn't a manual termination
+            if (this.isSolving) {
+                console.error(err);
+                this.display.updateStatus("Solver Error: " + err.message);
+            }
         } finally {
             this.isSolving = false;
+            this.activeWorker = null;
             if (solveBtn) solveBtn.disabled = false;
+            if (cancelBtn) cancelBtn.style.display = 'none';
         }
     }
 
