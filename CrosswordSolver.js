@@ -24,6 +24,7 @@ export class CrosswordSolver {
         this.popups = new PopupManager(this.defProvider);
 
         this.grid = [];
+        this.slots = {}; // Store slots at the class level
         this.wordLengthCache = {};
         this.letterFrequencies = {};
         this.isDragging = false;
@@ -36,37 +37,33 @@ export class CrosswordSolver {
     }
 
     setupEventListeners() {
-        // Grid Controls
         document.getElementById('generate-grid-button').onclick = () => {
             const r = parseInt(document.getElementById('rows-input').value) || 10;
             const c = parseInt(document.getElementById('columns-input').value) || 10;
             this.generateNewGrid(r, c);
         };
 
-        // Mode Toggles
         document.getElementById('number-entry-button').onclick = () => this.modes.toggle('number');
         document.getElementById('letter-entry-button').onclick = () => this.modes.toggle('letter');
         document.getElementById('drag-mode-button').onclick = () => this.modes.toggle('drag');
 
-        // Solver Action
         document.getElementById('solve-crossword-button').onclick = () => this.handleSolve();
 
-        // RESTORED: Search/Word Lookup Logic
         const searchInput = document.getElementById('word-search-input');
         if (searchInput) {
             searchInput.oninput = () => this.handleSearch(searchInput.value);
         }
     }
 
-    // --- Drag & Interaction Handlers (Restored from OG) ---
-    handleMouseDown(e, r, c) {
+    // --- Interaction Handlers ---
+    handleMouseDown(r, c) {
         if (this.modes.currentMode !== 'drag') return;
         this.isDragging = true;
         this.gridManager.toggleToBlack = (this.grid[r][c] !== "#");
         this.toggleCell(r, c);
     }
 
-    handleMouseOver(e, r, c) {
+    handleMouseOver(r, c) {
         if (this.isDragging) this.toggleCell(r, c);
     }
 
@@ -76,23 +73,30 @@ export class CrosswordSolver {
 
     toggleCell(r, c) {
         this.grid[r][c] = this.gridManager.toggleToBlack ? "#" : " ";
-        const td = this.cells[`${r},${c}`];
-        this.gridManager.updateCellDisplay(td, this.grid[r][c]);
+        // Re-run slot detection to keep clue numbers accurate while drawing
+        const { slots } = this.constraintManager.buildDataStructures(this.grid);
+        this.slots = slots;
+        this.gridManager.syncGridToDOM(this.grid, this.slots);
     }
 
     handleCellClick(e, r, c) {
         const mode = this.modes.currentMode;
         if (mode === 'number') {
             this.gridManager.addNumberToCell(this.grid, r, c);
+            const { slots } = this.constraintManager.buildDataStructures(this.grid);
+            this.slots = slots;
+            this.gridManager.syncGridToDOM(this.grid, this.slots);
         } else if (mode === 'letter') {
             const letter = prompt("Enter Letter:").toUpperCase();
             if (letter !== null) {
                 this.grid[r][c] = letter.charAt(0) || " ";
-                this.gridManager.syncGridToDOM(this.grid);
+                this.gridManager.syncGridToDOM(this.grid, this.slots);
             }
         } else if (mode === 'default') {
             this.grid[r][c] = (this.grid[r][c] === "#") ? " " : "#";
-            this.gridManager.syncGridToDOM(this.grid);
+            const { slots } = this.constraintManager.buildDataStructures(this.grid);
+            this.slots = slots;
+            this.gridManager.syncGridToDOM(this.grid, this.slots);
         }
     }
 
@@ -112,7 +116,8 @@ export class CrosswordSolver {
 
     render() {
         const container = document.getElementById('grid-container');
-        // Pass 'this' as the coordinator so GridManager can call interaction hooks
+        const { slots } = this.constraintManager.buildDataStructures(this.grid);
+        this.slots = slots;
         this.gridManager.render(this.grid, container, this);
     }
 
@@ -121,48 +126,53 @@ export class CrosswordSolver {
         const start = performance.now();
         
         const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
+        this.slots = slots;
         
         this.display.updateStatus("Loading word lists...");
-        const uniqueLengths = [...new Set(Object.values(slots).map(s => s.length))];
+        const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
         for (const len of uniqueLengths) {
             if (!this.wordLengthCache[len]) {
                 this.wordLengthCache[len] = await this.wordProvider.getWordsOfLength(len);
             }
         }
 
-        // RESTORED: Heuristic calculation
         this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
         const domains = this.constraintManager.setupDomains(this.wordLengthCache);
 
         this.display.updateStatus("Solving...");
         const result = this.solver.backtrackingSolve(
-            slots, domains, this.constraintManager.constraints, 
+            this.slots, domains, this.constraintManager.constraints, 
             this.letterFrequencies, cellContents
         );
 
         const end = performance.now();
         if (result.success) {
             this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
-            // RESTORED: Clickable list items link to PopupManager
-            this.display.updateWordLists(slots, result.solution, (word) => this.popups.show(word));
-            this.applySolutionToGrid(slots, result.solution);
+            // This now passes the rich slot objects to populate the word banks
+            this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
+            this.applySolutionToGrid(this.slots, result.solution);
         } else {
             this.display.updateStatus("No solution found.");
         }
     }
 
+    /**
+     * UPDATED: Overwrites the grid array with the solved letters.
+     * The GridManager will handle keeping the clue numbers visible.
+     */
     applySolutionToGrid(slots, solution) {
         for (const slotId in solution) {
             const word = solution[slotId];
-            slots[slotId].forEach((pos, i) => {
+            const slot = slots[slotId];
+            slot.positions.forEach((pos, i) => {
                 const [r, c] = pos;
-                if (!/\d/.test(this.grid[r][c])) this.grid[r][c] = word[i];
+                // Overwrite everything. Letters are now distinct from clue numbers.
+                this.grid[r][c] = word[i];
             });
         }
-        this.gridManager.syncGridToDOM(this.grid);
+        this.gridManager.syncGridToDOM(this.grid, slots);
     }
 
-    // --- Search Helper ---
     async handleSearch(val) {
         if (!val || val.length < 2) return;
         const words = await this.wordProvider.getWordsOfLength(val.length);
