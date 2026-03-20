@@ -37,18 +37,30 @@ export class CrosswordSolver {
     }
 
     setupEventListeners() {
+        // Grid Generation
         document.getElementById('generate-grid-button').onclick = () => {
             const r = parseInt(document.getElementById('rows-input').value) || 10;
             const c = parseInt(document.getElementById('columns-input').value) || 10;
             this.generateNewGrid(r, c);
         };
 
+        // Predefined Puzzles
+        document.getElementById('load-easy-button').onclick = () => this.loadPredefinedPuzzle("Easy");
+        document.getElementById('load-medium-button').onclick = () => this.loadPredefinedPuzzle("Medium");
+        document.getElementById('load-hard-button').onclick = () => this.loadPredefinedPuzzle("Hard");
+
+        // Mode Controls
         document.getElementById('number-entry-button').onclick = () => this.modes.toggle('number');
         document.getElementById('letter-entry-button').onclick = () => this.modes.toggle('letter');
         document.getElementById('drag-mode-button').onclick = () => this.modes.toggle('drag');
+        
+        // Auto Number (Triggers a re-render which recalculates numbers)
+        document.getElementById('auto-number-button').onclick = () => this.render();
 
+        // Solver
         document.getElementById('solve-crossword-button').onclick = () => this.handleSolve();
 
+        // Search/Lookup
         const searchInput = document.getElementById('word-search-input');
         if (searchInput) {
             searchInput.oninput = () => this.handleSearch(searchInput.value);
@@ -124,7 +136,7 @@ export class CrosswordSolver {
         this.display.updateStatus("Analyzing constraints...");
         const start = performance.now();
         
-        // 1. Refresh constraints based on current grid state
+        // 1. Refresh constraints
         const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
         this.slots = slots;
         
@@ -137,15 +149,21 @@ export class CrosswordSolver {
             }
         }
 
-        // 3. Setup domains specific to these slots
-        // We pass both slots AND the cache so it can map word lengths to slot IDs
+        // 3. Setup domains and letter frequencies
         this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
         const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache);
 
+        // 4. Check for Word Reuse toggle
+        const allowReuse = document.getElementById('allow-reuse-toggle')?.checked || false;
+
         this.display.updateStatus("Solving...");
         const result = this.solver.backtrackingSolve(
-            this.slots, domains, this.constraintManager.constraints, 
-            this.letterFrequencies, cellContents
+            this.slots, 
+            domains, 
+            this.constraintManager.constraints, 
+            this.letterFrequencies, 
+            cellContents,
+            { allowReuse: allowReuse } // Pass settings to the randomized solver
         );
 
         const end = performance.now();

@@ -1,4 +1,5 @@
 <!-- index.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,17 +7,14 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Custom Crossword Generator</title>
-    <!-- Link to the CSS file -->
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div class="main-container">
-        <!-- Header -->
         <header>
             <h1>Custom Crossword Generator</h1>
         </header>
 
-        <!-- Settings Section -->
         <section class="settings-section">
             <h2>Settings</h2>
             <div class="settings-controls">
@@ -43,11 +41,14 @@
                 <button id="generate-grid-button" class="btn primary-btn">
                     Generate Grid
                 </button>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="allow-reuse-toggle" name="allow-reuse-toggle" />
+                    <label for="allow-reuse-toggle">Allow Word Reuse</label>
+                </div>
             </div>
         </section>
 
-        <!-- Word Lookup Section
-             (Dynamically enhanced by CrosswordSolver.js) -->
         <section class="word-lookup-section">
             <h2>Word Lookup</h2>
             <div class="search-container">
@@ -62,7 +63,6 @@
             </div>
         </section>
 
-        <!-- Predefined Puzzles Section -->
         <section class="predefined-puzzles-section">
             <h2>Predefined Puzzles</h2>
             <div class="predefined-puzzles-controls">
@@ -78,14 +78,12 @@
             </div>
         </section>
 
-        <!-- Mode Controls Section -->
         <section class="mode-controls-section">
             <h2>Mode Controls</h2>
             <div class="mode-controls">
                 <button id="number-entry-button" class="btn mode-btn">
                     Number Entry Mode
                 </button>
-                <!-- Moved the "Auto Number" button to be next to the Number Entry Mode button -->
                 <button id="auto-number-button" class="btn secondary-btn">
                     Auto Number
                 </button>
@@ -100,48 +98,38 @@
             <div id="mode-label" class="mode-label">Mode: Default</div>
         </section>
 
-        <!-- Middle Content Section -->
         <section class="middle-content-section">
-            <!-- Status Display -->
             <div class="status-display-container">
                 <h3>Status</h3>
                 <textarea id="status-display" readonly></textarea>
             </div>
 
-            <!-- Grid Container -->
             <div class="grid-container" id="grid-container">
-                <!-- Crossword grid is dynamically generated here by main.js / CrosswordSolver.js -->
-            </div>
+                </div>
 
-            <!-- Word Lists -->
             <div class="word-lists-container">
                 <div class="word-list">
                     <h3>Across</h3>
-                    <!-- Replaced <textarea> with a scrollable <div> -->
                     <div id="across-display" class="word-list-display"></div>
                 </div>
                 <div class="word-list">
                     <h3>Down</h3>
-                    <!-- Replaced <textarea> with a scrollable <div> -->
                     <div id="down-display" class="word-list-display"></div>
                 </div>
             </div>
         </section>
 
-        <!-- Controls Section -->
         <section class="controls-section">
             <button id="solve-crossword-button" class="btn solve-btn">
                 Solve Crossword
             </button>
         </section>
 
-        <!-- Footer -->
         <footer>
             <p>© William Poston Crossword Generator</p>
         </footer>
     </div>
 
-    <!-- Main module loading -->
     <script type="module" src="main.js"></script>
 </body>
 </html>
