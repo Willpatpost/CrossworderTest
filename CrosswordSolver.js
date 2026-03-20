@@ -28,6 +28,7 @@ export class CrosswordSolver {
         this.wordLengthCache = {};
         this.letterFrequencies = {};
         this.isDragging = false;
+        this.isSolving = false; // Flag to prevent concurrent solve operations
     }
 
     async init() {
@@ -38,20 +39,20 @@ export class CrosswordSolver {
 
     setupEventListeners() {
         document.getElementById('generate-grid-button').onclick = () => {
+            if (this.isSolving) return;
             const r = parseInt(document.getElementById('rows-input').value) || 10;
             const c = parseInt(document.getElementById('columns-input').value) || 10;
             this.generateNewGrid(r, c);
         };
 
-        document.getElementById('load-easy-button').onclick = () => this.loadPredefinedPuzzle("Easy");
-        document.getElementById('load-medium-button').onclick = () => this.loadPredefinedPuzzle("Medium");
-        document.getElementById('load-hard-button').onclick = () => this.loadPredefinedPuzzle("Hard");
+        document.getElementById('load-easy-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Easy");
+        document.getElementById('load-medium-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Medium");
+        document.getElementById('load-hard-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Hard");
 
         document.getElementById('number-entry-button').onclick = () => this.modes.toggle('number');
         document.getElementById('letter-entry-button').onclick = () => this.modes.toggle('letter');
         document.getElementById('drag-mode-button').onclick = () => this.modes.toggle('drag');
         
-        // NEW: Symmetry Toggle
         const symBtn = document.getElementById('symmetry-button');
         if (symBtn) symBtn.onclick = () => this.modes.toggleSymmetry();
 
@@ -65,7 +66,7 @@ export class CrosswordSolver {
     }
 
     handleMouseDown(e, r, c) {
-        if (this.modes.currentMode !== 'drag') return;
+        if (this.isSolving || this.modes.currentMode !== 'drag') return;
         this.isDragging = true;
         this.gridManager.toggleToBlack = (this.grid[r][c] !== "#");
         this.toggleCell(r, c);
@@ -80,26 +81,27 @@ export class CrosswordSolver {
     }
 
     toggleCell(r, c) {
+        if (this.isSolving) return;
         const rows = this.grid.length;
         const cols = this.grid[0].length;
         const targetVal = this.gridManager.toggleToBlack ? "#" : " ";
 
-        // Set clicked cell
         this.grid[r][c] = targetVal;
 
-        // Apply Rotational Symmetry
         if (this.modes.isSymmetryEnabled) {
             const mirrorR = rows - 1 - r;
             const mirrorC = cols - 1 - c;
             this.grid[mirrorR][mirrorC] = targetVal;
         }
 
-        const { slots } = this.constraintManager.buildDataStructures(this.grid);
-        this.slots = slots;
+        // Rebuild slot structures immediately after grid changes
+        this.constraintManager.buildDataStructures(this.grid);
+        this.slots = this.constraintManager.slots;
         this.gridManager.syncGridToDOM(this.grid, this.slots);
     }
 
     handleCellClick(e, r, c) {
+        if (this.isSolving) return;
         const mode = this.modes.currentMode;
         if (mode === 'number') {
             this.gridManager.addNumberToCell(this.grid, r, c);
@@ -130,64 +132,90 @@ export class CrosswordSolver {
 
     render() {
         const container = document.getElementById('grid-container');
-        const { slots } = this.constraintManager.buildDataStructures(this.grid);
-        this.slots = slots;
+        this.constraintManager.buildDataStructures(this.grid);
+        this.slots = this.constraintManager.slots;
         this.gridManager.render(this.grid, container, this);
         this.display.updateWordLists(this.slots, {}, (word) => this.popups.show(word));
     }
 
     async handleSolve() {
-        this.display.updateStatus("Preparing solver...");
-        const start = performance.now();
+        if (this.isSolving) return;
+        this.isSolving = true;
         
-        const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
-        this.slots = slots;
-        
-        const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
-        for (const len of uniqueLengths) {
-            if (!this.wordLengthCache[len]) {
-                this.wordLengthCache[len] = await this.wordProvider.getWordsOfLength(len);
+        const solveBtn = document.getElementById('solve-crossword-button');
+        if (solveBtn) solveBtn.disabled = true;
+
+        try {
+            this.display.updateStatus("Analyzing grid constraints...");
+            const start = performance.now();
+            
+            // 1. Finalize slot structures and extract pre-filled letters
+            const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
+            this.slots = slots;
+            
+            // 2. Load missing word lengths into cache
+            const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
+            for (const len of uniqueLengths) {
+                if (!this.wordLengthCache[len]) {
+                    this.wordLengthCache[len] = await this.wordProvider.getWordsOfLength(len);
+                }
             }
-        }
 
-        this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
-        const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache, this.grid);
-        const allowReuse = document.getElementById('allow-reuse-toggle')?.checked || false;
-        const visualize = document.getElementById('visualize-solve-toggle')?.checked || false;
+            // 3. Pre-calculate search heuristics
+            this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
+            const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache, this.grid);
+            
+            const allowReuse = document.getElementById('allow-reuse-toggle')?.checked || false;
+            const visualize = document.getElementById('visualize-solve-toggle')?.checked || false;
 
-        this.display.updateStatus(visualize ? "Solving visually..." : "Solving...");
+            this.display.updateStatus(visualize ? "Solving visually..." : "Solving...");
 
-        // Hook for visual updates
-        if (visualize) {
-            this.solver.onUpdateCallback = (slotId, word) => {
-                const slot = this.slots[slotId];
-                slot.positions.forEach((pos, i) => {
-                    const [r, c] = pos;
-                    this.grid[r][c] = word[i] || " ";
-                });
+            // 4. Set up Visualization callback
+            if (visualize) {
+                this.solver.onUpdateCallback = (slotId, word) => {
+                    const slot = this.slots[slotId];
+                    if (!slot) return;
+                    slot.positions.forEach((pos, i) => {
+                        const [r, c] = pos;
+                        // Directly update DOM to avoid overhead of full sync during visualization
+                        const td = this.cells[`${r},${c}`];
+                        if (td) {
+                            const letterSpan = td.querySelector('.cell-letter') || td;
+                            letterSpan.textContent = word[i] || "";
+                            td.style.backgroundColor = word ? "#e3f2fd" : "white"; // Highlight active search
+                        }
+                    });
+                };
+            } else {
+                this.solver.onUpdateCallback = null;
+            }
+
+            // 5. Execute search
+            const result = await this.solver.backtrackingSolve(
+                this.slots, 
+                domains, 
+                this.constraintManager.constraints, 
+                this.letterFrequencies, 
+                cellContents,
+                { allowReuse, visualize }
+            );
+
+            const end = performance.now();
+            if (result.success) {
+                this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
+                this.applySolutionToGrid(this.slots, result.solution);
+                this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
+            } else {
+                this.display.updateStatus("No solution found.");
+                // Restore original grid state on failure
                 this.gridManager.syncGridToDOM(this.grid, this.slots);
-            };
-        } else {
-            this.solver.onUpdateCallback = null;
-        }
-
-        // Use 'await' because we are making the solver engine async for visualization
-        const result = await this.solver.backtrackingSolve(
-            this.slots, 
-            domains, 
-            this.constraintManager.constraints, 
-            this.letterFrequencies, 
-            cellContents,
-            { allowReuse, visualize }
-        );
-
-        const end = performance.now();
-        if (result.success) {
-            this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
-            this.display.updateWordLists(this.slots, result.solution, (word) => this.popups.show(word));
-            this.applySolutionToGrid(this.slots, result.solution);
-        } else {
-            this.display.updateStatus("No solution found.");
+            }
+        } catch (err) {
+            console.error(err);
+            this.display.updateStatus("Solver Error: " + err.message);
+        } finally {
+            this.isSolving = false;
+            if (solveBtn) solveBtn.disabled = false;
         }
     }
 
@@ -206,9 +234,14 @@ export class CrosswordSolver {
     async handleSearch(val) {
         const query = val.trim();
         if (!query || query.length < 2) return;
-        const words = await this.wordProvider.getWordsOfLength(query.length);
-        const regex = new RegExp(`^${query.replace(/\?/g, '.').toUpperCase()}$`);
-        const matches = words.filter(w => regex.test(w)).slice(0, 50);
-        this.display.updateSearchResults(matches, (selected) => this.popups.show(selected));
+        
+        try {
+            const words = await this.wordProvider.getWordsOfLength(query.length);
+            const regex = new RegExp(`^${query.replace(/\?/g, '.').toUpperCase()}$`);
+            const matches = words.filter(w => regex.test(w)).slice(0, 50);
+            this.display.updateSearchResults(matches, (selected) => this.popups.show(selected));
+        } catch (e) {
+            console.warn("Search failed", e);
+        }
     }
 }

@@ -1,4 +1,4 @@
-// ui/GridManager.js
+// grid/GridManager.js
 export class GridManager {
     constructor(cellsMap) {
         this.cells = cellsMap; // Shared map of "r,c" -> <td> elements
@@ -7,9 +7,16 @@ export class GridManager {
 
     /**
      * Initial full render of the table.
+     * Clears previous references to prevent memory leaks.
      */
     render(grid, container, coordinator) {
         container.innerHTML = '';
+        
+        // CRITICAL: Clear the shared cells map so we don't reference old DOM nodes
+        for (const key in this.cells) {
+            delete this.cells[key];
+        }
+
         const table = document.createElement('table');
         table.id = 'crossword-grid';
         table.style.borderCollapse = 'collapse';
@@ -39,7 +46,10 @@ export class GridManager {
         // Final sync to show current numbers/letters
         this.syncGridToDOM(grid, coordinator.slots || {});
         
-        window.addEventListener('mouseup', () => coordinator.handleMouseUp());
+        // We use a named function or a specific cleanup if we were destroying the app, 
+        // but for now, we just ensure the global listener is active.
+        window.onmouseup = () => coordinator.handleMouseUp();
+        
         container.appendChild(table);
     }
 
@@ -58,10 +68,12 @@ export class GridManager {
     }
 
     /**
-     * UPDATED: Specifically handles the "Layered" display of numbers and letters.
+     * Handles the layered display of numbers and letters.
      */
     updateCellDisplay(td, value, slotNumber = null) {
-        td.innerHTML = ''; // Clear existing content
+        // We use a fragment or selective updates if performance becomes an issue during visualization,
+        // but innerHTML = '' is safe for now.
+        td.innerHTML = ''; 
 
         if (value === "#") {
             td.style.backgroundColor = '#000';
@@ -70,7 +82,7 @@ export class GridManager {
 
         td.style.backgroundColor = '#fff';
 
-        // 1. Add the Clue Number (if applicable)
+        // 1. Add the Clue Number (Top-Left)
         if (slotNumber) {
             const numSpan = document.createElement('span');
             numSpan.textContent = slotNumber;
@@ -80,13 +92,16 @@ export class GridManager {
             numSpan.style.fontSize = '10px';
             numSpan.style.fontWeight = 'normal';
             numSpan.style.color = '#555';
+            numSpan.className = 'cell-number';
             td.appendChild(numSpan);
         }
 
-        // 2. Add the Letter (if value is a letter and not just a placeholder number)
-        if (value && /[A-Z]/.test(value)) {
+        // 2. Add the Letter (Center)
+        // If the value is a single letter, display it. 
+        // Note: we ignore placeholder digits that might be in the raw grid array.
+        if (value && /^[A-Z]$/i.test(value)) {
             const letterSpan = document.createElement('span');
-            letterSpan.textContent = value;
+            letterSpan.textContent = value.toUpperCase();
             letterSpan.style.display = 'block';
             letterSpan.style.marginTop = '4px';
             td.appendChild(letterSpan);
@@ -94,11 +109,9 @@ export class GridManager {
     }
 
     /**
-     * UPDATED: Generates a mapping of coordinates to numbers so the 
-     * UI knows where to put clue numbers without using the cell's main value.
+     * Synchronizes the internal grid state to the visible DOM cells.
      */
     syncGridToDOM(grid, slots = {}) {
-        // Create a lookup for which cells need a number label
         const numberMap = {};
         Object.values(slots).forEach(slot => {
             const [r, c] = slot.positions[0];
@@ -115,7 +128,9 @@ export class GridManager {
         }
     }
 
-    // ... (rest of the shift/index logic from your version)
+    /**
+     * Shifts existing manual numbers to make room for a new one.
+     */
     _shiftNumbers(grid, threshold, delta) {
         for (let r = 0; r < grid.length; r++) {
             for (let c = 0; c < grid[0].length; c++) {
@@ -127,31 +142,49 @@ export class GridManager {
         }
     }
 
+    /**
+     * Gets all manually placed numbers in the grid sorted by value.
+     */
     _getNumberPositions(grid) {
         const pos = [];
         for (let r = 0; r < grid.length; r++) {
             for (let c = 0; c < grid[0].length; c++) {
-                if (/\d/.test(grid[r][c])) pos.push({ n: parseInt(grid[r][c]), r, c });
+                const val = parseInt(grid[r][c], 10);
+                if (!isNaN(val)) {
+                    pos.push({ n: val, r, c });
+                }
             }
         }
         return pos.sort((a, b) => a.n - b.n);
     }
 
+    /**
+     * Calculates what the index of a new manual number should be based on its 
+     * coordinates relative to existing numbers.
+     */
     _calculateNewNumberIndex(r, c, positions) {
         let index = 0;
         for (let i = 0; i < positions.length; i++) {
-            if (r < positions[i].r || (r === positions[i].r && c < positions[i].c)) break;
+            // Numbers in crosswords generally follow reading order: row then column
+            if (r < positions[i].r || (r === positions[i].r && c < positions[i].c)) {
+                break;
+            }
             index = i + 1;
         }
         return index + 1;
     }
 
+    /**
+     * Public method for coordinator to add a manual number.
+     */
     addNumberToCell(grid, row, col) {
         const positions = this._getNumberPositions(grid);
+        
+        // If cell already has a number, we don't add a new one (could implement removal logic later)
+        if (!isNaN(parseInt(grid[row][col], 10))) return;
+
         const newNum = this._calculateNewNumberIndex(row, col, positions);
         this._shiftNumbers(grid, newNum, 1);
         grid[row][col] = newNum.toString();
-        // Since we modified numbers, we need the coordinator to rebuild slots 
-        // if we want the clue numbers to update instantly.
     }
 }
