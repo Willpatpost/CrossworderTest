@@ -1,6 +1,6 @@
 // CrosswordSolver.js
 import { WordListProvider } from './providers/WordListProvider.js';
-import { WiktionaryDefinitionsProvider } from './providers/WiktionaryDefinitionsProvider.js';
+import { DefinitionsProvider } from './providers/DefinitionsProvider.js';
 import { SolverEngine } from './solver/SolverEngine.js';
 import { ConstraintManager } from './solver/ConstraintManager.js';
 import { GridManager } from './grid/GridManager.js';
@@ -13,7 +13,7 @@ import { GridUtils } from './utils/GridUtils.js';
 export class CrosswordSolver {
     constructor() {
         this.wordProvider = new WordListProvider();
-        this.defProvider = new WiktionaryDefinitionsProvider();
+        this.defProvider = new DefinitionsProvider();
         this.solver = new SolverEngine();
         this.constraintManager = new ConstraintManager();
         
