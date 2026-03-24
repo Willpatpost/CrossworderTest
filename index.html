@@ -6,17 +6,20 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Custom Crossword Generator</title>
+    <title>CROSSWORDER</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div class="main-container">
-        <header>
-            <h1>Custom Crossword Generator</h1>
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>CROSSWORDER</h1>
+            <button id="theme-toggle-button" class="btn secondary-btn" aria-label="Toggle Dark Mode">
+                🌓 Toggle Theme
+            </button>
         </header>
 
         <section class="settings-section">
-            <h2>Settings</h2>
+            <h2>Grid Settings</h2>
             <div class="settings-controls">
                 <label for="rows-input">Rows:</label>
                 <input
@@ -25,7 +28,7 @@
                     name="rows-input"
                     min="5"
                     max="25"
-                    value="10"
+                    value="15"
                 />
 
                 <label for="columns-input">Columns:</label>
@@ -35,7 +38,7 @@
                     name="columns-input"
                     min="5"
                     max="25"
-                    value="10"
+                    value="15"
                 />
 
                 <button id="generate-grid-button" class="btn primary-btn">
@@ -64,17 +67,20 @@
                     placeholder="Search (use ? for wildcards, e.g. C??T)..."
                     aria-label="Word Search Input"
                 />
-                <div id="search-dropdown"></div>
-                <div id="matches-count"></div>
             </div>
+            <div id="search-dropdown"></div>
+            <div id="matches-count"></div>
         </section>
 
         <section class="predefined-puzzles-section">
-            <h2>Predefined Puzzles</h2>
+            <h2>Puzzles & Archives</h2>
             <div class="predefined-puzzles-controls">
                 <button id="load-easy-button" class="btn secondary-btn">Easy</button>
                 <button id="load-medium-button" class="btn secondary-btn">Medium</button>
                 <button id="load-hard-button" class="btn secondary-btn">Hard</button>
+                <button id="random-puzzle-button" class="btn primary-btn" style="background-color: #17a2b8; color: white;">
+                    Load Random Classic
+                </button>
             </div>
         </section>
 
@@ -87,7 +93,7 @@
                 <button id="auto-number-button" class="btn secondary-btn">Auto Number</button>
                 <button id="symmetry-button" class="btn success-btn">Symmetry: ON</button>
                 
-                <button id="play-mode-button" class="btn" style="background-color: #6f42c1; color: white;">
+                <button id="play-mode-button" class="btn" style="background-color: #6f42c1; color: white; font-weight: bold;">
                     Enter Play Mode
                 </button>
             </div>
@@ -135,7 +141,7 @@
         </section>
 
         <footer>
-            <p>© Willpatpost Crossword Generator</p>
+            <p>© Willpatpost CROSSWORDER</p>
         </footer>
     </div>
 
