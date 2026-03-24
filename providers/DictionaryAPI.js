@@ -1,35 +1,42 @@
 // providers/DictionaryAPI.js
 export class DictionaryAPI {
-    constructor() {
-        this.fallbackCache = {};
+  constructor() {
+    this.fallbackCache = new Map();
+  }
+
+  async fetchFallback(word) {
+    if (this.fallbackCache.has(word)) return this.fallbackCache.get(word);
+
+    try {
+      const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+
+      const data = await resp.json();
+      const transformed = this._transform(data);
+      this.fallbackCache.set(word, transformed);
+      return transformed;
+    } catch (e) {
+      return null;
     }
+  }
 
-    async fetchFallbackDefinition(word) {
-        if (this.fallbackCache[word]) return this.fallbackCache[word];
-
-        const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error(`API returned status ${resp.status}`);
-        
-        const data = await resp.json();
-        this.fallbackCache[word] = data;
-        return data;
-    }
-
-    transformFallbackData(data) {
-        const result = [];
-        if (!Array.isArray(data)) return result;
-
-        for (const entry of data) {
-            if (!entry.meanings) continue;
-            for (const meaning of entry.meanings) {
-                const pos = meaning.partOfSpeech || 'unknown';
-                const defList = (meaning.definitions || []).map(d => d.definition || '');
-                if (defList.length > 0) {
-                    result.push({ pos, definitions: defList });
-                }
-            }
+  _transform(data) {
+    if (!Array.isArray(data)) return [];
+    const results = [];
+    
+    for (const entry of data) {
+      for (const meaning of (entry.meanings || [])) {
+        for (const def of (meaning.definitions || [])) {
+          results.push({
+            clue: def.definition,
+            source: "WEB",
+            date: "",
+            attribution: "(DictionaryAPI)"
+          });
         }
-        return result;
+      }
     }
+    return results;
+  }
 }

@@ -1,6 +1,7 @@
 // CrosswordSolver.js
 import { WordListProvider } from './providers/WordListProvider.js';
-import { WiktionaryDefinitionsProvider } from './providers/WiktionaryDefinitionsProvider.js';
+import { DefinitionsProvider } from './providers/DefinitionsProvider.js';
+import { DictionaryAPI } from './providers/DictionaryAPI.js';
 import { SolverEngine } from './solver/SolverEngine.js';
 import { ConstraintManager } from './solver/ConstraintManager.js';
 import { GridManager } from './grid/GridManager.js';
@@ -12,31 +13,49 @@ import { GridUtils } from './utils/GridUtils.js';
 
 export class CrosswordSolver {
     constructor() {
+        // Data Providers
         this.wordProvider = new WordListProvider();
-        this.defProvider = new WiktionaryDefinitionsProvider();
+        this.Defs = new DefinitionsProvider();
+        this.fallbackApi = new DictionaryAPI();
+        
+        // Core Engine
         this.solver = new SolverEngine();
         this.constraintManager = new ConstraintManager();
         
+        // UI & Grid state
         this.cells = {}; 
         this.gridManager = new GridManager(this.cells);
         this.display = new DisplayManager();
         this.modes = new ModeManager();
-        this.popups = new PopupManager(this.defProvider);
+        this.popups = new PopupManager(this.Defs, this.fallbackApi);
 
+        // State Variables
         this.grid = [];
         this.slots = {}; 
         this.wordLengthCache = {};
         this.letterFrequencies = {};
         this.isDragging = false;
         this.isSolving = false; 
-        this.activeWorker = null; // Track the worker for cancellation
+        this.activeWorker = null; 
         
-        // NEW: Store the generated solution for Play Mode validation
         this.currentSolution = null; 
+        this.puzzleIndex = []; // Stores the 86k puzzle index
     }
 
     async init() {
         this.setupEventListeners();
+        
+        // Load the massive classic puzzle index asynchronously 
+        try {
+            const resp = await fetch('data/nyt_puzzles/puzzle_index.json');
+            if (resp.ok) {
+                this.puzzleIndex = await resp.json();
+                this.display.updateStatus(`Loaded ${this.puzzleIndex.length} classic puzzles to index.`);
+            }
+        } catch (e) {
+            console.warn("Could not load puzzle_index.json. Random puzzle feature will be disabled.", e);
+        }
+
         this.loadPredefinedPuzzle("Easy");
         this.display.updateStatus("System Ready.");
     }
@@ -52,6 +71,10 @@ export class CrosswordSolver {
         document.getElementById('load-easy-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Easy");
         document.getElementById('load-medium-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Medium");
         document.getElementById('load-hard-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Hard");
+        
+        // NEW: Random Puzzle loader
+        const randomBtn = document.getElementById('random-puzzle-button');
+        if (randomBtn) randomBtn.onclick = () => !this.isSolving && this.loadRandomPuzzle();
 
         document.getElementById('number-entry-button').onclick = () => this.modes.toggle('number');
         document.getElementById('letter-entry-button').onclick = () => this.modes.toggle('letter');
@@ -69,7 +92,6 @@ export class CrosswordSolver {
         const searchInput = document.getElementById('word-search-input');
         if (searchInput) searchInput.oninput = () => this.handleSearch(searchInput.value);
 
-        // NEW: Play Mode Listeners
         const playBtn = document.getElementById('play-mode-button');
         if (playBtn) playBtn.onclick = () => this.handlePlayModeToggle();
 
@@ -85,32 +107,54 @@ export class CrosswordSolver {
         window.onmouseup = () => this.handleMouseUp();
     }
 
-    // NEW: Handle the transition between Builder and Player states
+    // Handles transition between Builder and Player states
     handlePlayModeToggle() {
+        // If we don't have a solution saved, but the grid has letters, extract them as the solution
         if (!this.currentSolution) {
-            this.display.updateStatus("Please generate a solution first before playing!");
-            return;
+            this.currentSolution = this.extractSolutionFromGrid();
         }
 
         const isNowPlaying = this.modes.togglePlayMode();
         
         if (isNowPlaying) {
             this.display.updateStatus("Entered Play Mode. Good luck!");
-            // In the next step, we will clear the physical grid here so the user can type
+            this.blankGridForPlayMode();
         } else {
             this.display.updateStatus("Returned to Builder Mode.");
-            // Restore the solved grid visually
             this.applySolutionToGrid(this.slots, this.currentSolution);
         }
 
-        // Trigger the updated DisplayManager to swap Words for Clues
         this.display.updateWordLists(
             this.slots, 
             this.currentSolution, 
             (word) => { if (!this.modes.isPlayMode) this.popups.show(word); },
-            this.defProvider,
+            this.Defs, // Updated provider
             this.modes.isPlayMode
         );
+    }
+
+    extractSolutionFromGrid() {
+        const solution = {};
+        for (const slotId in this.slots) {
+            const slot = this.slots[slotId];
+            let word = "";
+            slot.positions.forEach(([r, c]) => {
+                word += this.grid[r][c] || " ";
+            });
+            solution[slotId] = word;
+        }
+        return solution;
+    }
+
+    blankGridForPlayMode() {
+        for (let r = 0; r < this.grid.length; r++) {
+            for (let c = 0; c < this.grid[0].length; c++) {
+                if (this.grid[r][c] !== "#") {
+                    this.grid[r][c] = " ";
+                }
+            }
+        }
+        this.gridManager.syncGridToDOM(this.grid, this.slots);
     }
 
     handleCancel() {
@@ -161,15 +205,14 @@ export class CrosswordSolver {
         this.constraintManager.buildDataStructures(this.grid);
         this.slots = this.constraintManager.slots;
         this.gridManager.syncGridToDOM(this.grid, this.slots);
-        this.currentSolution = null; // Reset solution if grid geometry changes
+        this.currentSolution = null; 
     }
 
     handleCellClick(e, r, c) {
         if (this.isSolving) return;
         
-        // NEW: Prevent builder clicks while in play mode
         if (this.modes.isPlayMode) {
-            // We will add grid selection/typing logic here later
+            // Future logic for selecting a slot and typing in play mode
             return;
         }
 
@@ -182,7 +225,7 @@ export class CrosswordSolver {
             if (letter !== null) {
                 this.grid[r][c] = letter.trim().toUpperCase().charAt(0) || " ";
                 this.gridManager.syncGridToDOM(this.grid, this.slots);
-                this.currentSolution = null; // Reset solution on manual edit
+                this.currentSolution = null; 
             }
         } else if (mode === 'default') {
             this.toggleCell(r, c);
@@ -204,18 +247,61 @@ export class CrosswordSolver {
         }
     }
 
+    // NEW: Load a random parsed XD puzzle
+    async loadRandomPuzzle() {
+        if (this.puzzleIndex.length === 0) {
+            this.display.updateStatus("Puzzle index is empty or still loading.");
+            return;
+        }
+        
+        const randomEntry = this.puzzleIndex[Math.floor(Math.random() * this.puzzleIndex.length)];
+        this.display.updateStatus(`Loading: ${randomEntry.title || randomEntry.id}...`);
+
+        try {
+            const resp = await fetch(`data/nyt_puzzles/${randomEntry.file}`);
+            const puzzleData = await resp.json();
+            
+            this.importXdGrid(puzzleData.grid);
+            this.display.updateStatus(`Loaded ${randomEntry.title} (${randomEntry.author}, ${randomEntry.date})`);
+            
+        } catch (e) {
+            this.display.updateStatus("Failed to load puzzle data.");
+            console.error(e);
+        }
+    }
+
+    // NEW: Parses array of strings from XD json into our 2D array
+    importXdGrid(gridStrings) {
+        if (!gridStrings || gridStrings.length === 0) return;
+        
+        const rows = gridStrings.length;
+        const cols = gridStrings[0].length;
+        
+        this.grid = [];
+        for (let r = 0; r < rows; r++) {
+            const rowArr = [];
+            for (let c = 0; c < cols; c++) {
+                const char = gridStrings[r][c];
+                rowArr.push(char === '.' ? '#' : char.toUpperCase()); 
+            }
+            this.grid.push(rowArr);
+        }
+        
+        this.currentSolution = null;
+        this.render();
+    }
+
     render() {
         const container = document.getElementById('grid-container');
         this.constraintManager.buildDataStructures(this.grid);
         this.slots = this.constraintManager.slots;
         this.gridManager.render(this.grid, container, this);
         
-        // Ensure we pass the new arguments so it doesn't break
         this.display.updateWordLists(
             this.slots, 
             this.currentSolution || {}, 
             (word) => this.popups.show(word),
-            this.defProvider,
+            this.Defs,
             this.modes.isPlayMode
         );
     }
@@ -304,9 +390,7 @@ export class CrosswordSolver {
 
             const end = performance.now();
             if (result.success) {
-                // NEW: Store the solution!
                 this.currentSolution = result.solution;
-
                 this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
                 this.applySolutionToGrid(this.slots, result.solution);
                 
@@ -314,7 +398,7 @@ export class CrosswordSolver {
                     this.slots, 
                     result.solution, 
                     (word) => this.popups.show(word),
-                    this.defProvider,
+                    this.Defs,
                     this.modes.isPlayMode
                 );
             } else {

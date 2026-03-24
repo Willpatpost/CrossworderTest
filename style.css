@@ -1,6 +1,79 @@
-/* style.css */
+/* ===============================
+   1. DESIGN TOKENS
+================================ */
+:root {
+    --bg-body: #f0f2f5;
+    --bg-section: #ffffff;
 
-/* Reset some default styles */
+    --text-main: #333;
+    --text-header: #222;
+    --text-muted: #666;
+
+    --border-color: #d0d0d0;
+
+    --grid-bg: #444;
+    --cell-bg: #ffffff;
+    --cell-text: #000;
+    --cell-block: #222;
+    --cell-number: #777;
+
+    --highlight-active: #ffe082;
+    --highlight-word: #fff8c6;
+    --cell-updating: #e3f2fd;
+
+    --primary: #0069d9;
+    --primary-hover: #0053ba;
+
+    --secondary: #17a2b8;
+    --secondary-hover: #138496;
+
+    --success: #28a745;
+    --danger: #dc3545;
+    --accent: #17a2b8;
+    --play: #6f42c1;
+
+    --status-bg: #f8f9fa;
+    --status-text: #222;
+
+    --dropdown-bg: #fff;
+    --dropdown-hover: #f1f1f1;
+
+    --cell-size: 36px;
+}
+
+/* ===============================
+   DARK MODE
+================================ */
+body.dark-mode {
+    --bg-body: #121212;
+    --bg-section: #1e1e1e;
+
+    --text-main: #e0e0e0;
+    --text-header: #ffffff;
+    --text-muted: #aaaaaa;
+
+    --border-color: #444;
+
+    --grid-bg: #000;
+    --cell-bg: #2c2c2c;
+    --cell-text: #fff;
+    --cell-block: #000;
+    --cell-number: #aaa;
+
+    --highlight-active: #5c4d00;
+    --highlight-word: #3d3b20;
+    --cell-updating: #1a237e;
+
+    --status-bg: #000;
+    --status-text: #9efc9e;
+
+    --dropdown-bg: #252525;
+    --dropdown-hover: #333;
+}
+
+/* ===============================
+   2. RESET
+================================ */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -8,376 +81,348 @@
 }
 
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f0f2f5;
-    color: #333;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg-body);
+    color: var(--text-main);
     line-height: 1.6;
+    transition: background 0.25s ease, color 0.25s ease;
 }
 
-.main-container {
-    max-width: 1200px;
+/* ===============================
+   3. LAYOUT
+================================ */
+.app-container {
+    max-width: 1300px;
     margin: 0 auto;
     padding: 20px;
 }
 
-/* Header */
-header {
-    text-align: center;
+.section {
+    background: var(--bg-section);
+    padding: 20px;
     margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.08);
 }
 
-header h1 {
-    font-size: 2.5em;
-    color: #222;
+/* Headers */
+h2, h3 {
+    color: var(--text-header);
+    margin-bottom: 12px;
 }
 
-/* Common Section Styling */
-.settings-section,
-.word-lookup-section,
-.predefined-puzzles-section,
-.mode-controls-section,
-.middle-content-section,
-.controls-section {
-    background-color: #ffffff;
-    padding: 15px 20px;
-    margin-bottom: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+h2 {
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 6px;
 }
 
-.settings-section h2,
-.word-lookup-section h2,
-.predefined-puzzles-section h2,
-.mode-controls-section h2,
-.middle-content-section h3,
-.word-lists-container h3 {
-    margin-bottom: 10px;
-    color: #333;
-}
-
-/* Settings Controls, Predefined Puzzles, Mode Controls */
-.settings-controls,
-.predefined-puzzles-controls,
-.mode-controls,
-.word-lists-container {
+/* ===============================
+   HEADER
+================================ */
+.header-bar {
     display: flex;
-    flex-wrap: wrap;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    margin-bottom: 25px;
 }
 
-.settings-controls label {
-    margin-right: 5px;
-    font-weight: bold;
+.app-title {
+    font-size: 2.4rem;
+    letter-spacing: 1px;
 }
 
-.settings-controls input {
-    width: 60px;
-    padding: 5px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+/* ===============================
+   INPUTS
+================================ */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
-/* Buttons */
+input {
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-section);
+    color: var(--text-main);
+    transition: all 0.2s ease;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(0,105,217,0.2);
+}
+
+/* ===============================
+   BUTTON SYSTEM
+================================ */
 .btn {
-    padding: 8px 15px;
+    padding: 10px 16px;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 1em;
-    transition: background-color 0.3s ease;
+    font-weight: 600;
+    transition: all 0.2s ease;
 }
 
-.primary-btn {
-    background-color: #0069d9;
-    color: #ffffff;
+.btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
 }
 
-.primary-btn:hover {
-    background-color: #0053ba;
+.btn:active {
+    transform: translateY(1px);
 }
 
-.secondary-btn {
-    background-color: #17a2b8;
-    color: #ffffff;
-}
+.primary-btn { background: var(--primary); color: #fff; }
+.primary-btn:hover { background: var(--primary-hover); }
 
-.secondary-btn:hover {
-    background-color: #138496;
+.secondary-btn { background: var(--secondary); color: #fff; }
+.secondary-btn:hover { background: var(--secondary-hover); }
+
+.success-btn { background: var(--success); color: #fff; }
+.danger-btn { background: var(--danger); color: #fff; }
+
+.play-btn {
+    background: var(--play);
+    color: #fff;
+    font-weight: bold;
 }
 
 .mode-btn {
-    background-color: #0069d9;
-    color: #ffffff;
-}
-
-.mode-btn:hover {
-    background-color: #0053ba;
-}
-
-.mode-label {
-    margin-top: 10px;
-    font-size: 1em;
-    color: #555;
+    background: var(--primary);
+    color: #fff;
 }
 
 .solve-btn {
-    background-color: #28a745;
-    color: #ffffff;
+    background: var(--success);
+    color: #fff;
     width: 100%;
-    padding: 12px;
-    font-size: 1.1em;
+    font-size: 1.1rem;
+    padding: 14px;
 }
 
-.solve-btn:hover {
-    background-color: #218838;
+.btn-active {
+    outline: 2px solid var(--highlight-active);
+    transform: scale(1.05);
 }
 
-/* Grid Container */
-.grid-container {
+/* ===============================
+   GROUPS
+================================ */
+.settings-controls,
+.mode-controls,
+.button-group {
     display: flex;
-    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
     align-items: center;
-    margin: 20px 0;
 }
 
-.grid-container table {
-    border-collapse: collapse;
-}
-
-.grid-container td {
-    border: 1px solid #ccc; /* Grid line color */
-    width: 30px;
-    height: 30px;
-    text-align: center;
-    vertical-align: middle;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.grid-container td:hover {
-    background-color: #e2e6ea;
-}
-
-/* Status Display */
-.status-display-container {
-    flex: 1;
-    margin-right: 20px;
-}
-
-.status-display-container h3 {
-    margin-bottom: 10px;
-}
-
-#status-display {
-    width: 100%;
-    height: 300px; /* Matches the "Down" words box height */
-    padding: 10px;
-    resize: none;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #f8f9fa;
-    color: #222;
-    font-size: 14px;
-    overflow-y: auto;
-}
-
-/* Word Lists Container */
-.word-lists-container {
+.toggle-group {
     display: flex;
-    flex-direction: column;
+    gap: 15px;
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    border-radius: 8px;
+}
+
+/* ===============================
+   MAIN CONTENT
+================================ */
+.main-content {
+    display: grid;
+    grid-template-columns: 0.8fr 2.5fr 1.2fr;
     gap: 20px;
 }
 
-.word-list {
-    flex: 1;
-}
-
-.word-list h3 {
-    margin-bottom: 10px;
-}
-
-/* New style for our clickable word list display (replaces textarea) */
-.word-list-display {
+/* ===============================
+   STATUS PANEL
+================================ */
+.status-panel textarea {
     width: 100%;
-    min-height: 150px;
-    max-height: 150px; /* or more if you want a taller box */
+    height: 350px;
     padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #f8f9fa;
-    color: #222;
-    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--status-bg);
+    color: var(--status-text);
+    font-family: monospace;
+    font-size: 13px;
+}
+
+/* ===============================
+   GRID
+================================ */
+.grid-container {
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    background: var(--grid-bg);
+    border-radius: 10px;
+    overflow: auto;
+}
+
+.crossword-table {
+    border-spacing: 2px;
+}
+
+/* Base cell */
+.grid-cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    background: var(--cell-bg);
+    color: var(--cell-text);
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Letter */
+.cell-letter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: calc(var(--cell-size) * 0.55);
+    font-weight: bold;
+}
+
+/* Block cell */
+.grid-cell.block {
+    background: var(--cell-block);
+}
+
+/* Hover */
+.grid-cell:hover {
+    filter: brightness(0.96);
+}
+
+/* Number */
+.cell-number {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 10px;
+    color: var(--cell-number);
+}
+
+/* Highlights */
+.highlight-active {
+    background: var(--highlight-active) !important;
+    color: #000 !important;
+}
+
+.highlight-word {
+    background: var(--highlight-word) !important;
+}
+
+.cell-updating {
+    background: var(--cell-updating) !important;
+}
+
+/* ===============================
+   CLUES
+================================ */
+.word-list-display {
+    height: 350px;
     overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--status-bg);
 }
 
-/* Controls Section */
-.controls-section {
-    text-align: center;
-    margin-bottom: 20px;
+.clue-item {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.15s ease;
 }
 
-/* Footer */
-footer {
-    text-align: center;
-    padding: 10px 0;
-    color: #555;
-    font-size: 0.9em;
+.clue-item:hover {
+    background: var(--dropdown-hover);
 }
 
-/* Word Lookup Section */
-.word-lookup-section {
-    margin-top: 20px;
-}
-
-/* Search Container for Word Lookup */
+/* ===============================
+   SEARCH
+================================ */
 .search-container {
     position: relative;
 }
 
-/* Style for the Search Input */
-.search-container input#word-search-input {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-/* Dropdown for Search Results */
-#search-dropdown {
+.search-dropdown {
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
-    background-color: #fff;
-    border: 1px solid #ccc;
-    border-top: none;
+    background: var(--dropdown-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     max-height: 200px;
     overflow-y: auto;
     z-index: 1000;
-    display: none; /* Hidden by default, revealed on input */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-#search-dropdown div {
-    padding: 8px;
+.search-dropdown div {
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
     cursor: pointer;
-    border-bottom: 1px solid #eee;
 }
 
-/* Hover effect for each search result */
-#search-dropdown div:hover {
-    background-color: #f1f1f1;
+.search-dropdown div:hover {
+    background: var(--dropdown-hover);
 }
 
-/* Matches count display */
-#matches-count {
-    margin-top: 5px;
-    font-size: 0.9em;
-    color: #555;
+/* ===============================
+   UTILITIES
+================================ */
+.hidden {
+    display: none !important;
 }
 
-/* Responsive Design */
-@media (min-width: 768px) {
-    .middle-content-section {
-        display: flex;
-        gap: 20px;
-    }
+.mode-label {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
 
-    .status-display-container,
-    .word-lists-container {
-        flex: 1;
+/* ===============================
+   FOOTER
+================================ */
+.footer {
+    text-align: center;
+    margin-top: 30px;
+    color: var(--text-muted);
+}
+
+/* ===============================
+   RESPONSIVE
+================================ */
+@media (max-width: 1100px) {
+    .main-content {
+        grid-template-columns: 1fr;
     }
 
     .grid-container {
-        flex: 2;
+        order: -1;
+    }
+
+    :root {
+        --cell-size: 30px;
     }
 }
 
-@media (max-width: 767px) {
-    .settings-controls,
-    .predefined-puzzles-controls,
-    .mode-controls {
+@media (max-width: 600px) {
+    :root {
+        --cell-size: 24px;
+    }
+
+    .settings-controls {
         flex-direction: column;
-        align-items: flex-start;
+        align-items: stretch;
     }
-
-    .word-lists-container {
-        flex-direction: column;
-    }
-
-    .grid-container table {
-        width: 100%;
-        max-width: 300px;
-    }
-
-    /* Adjust status display height for smaller screens */
-    #status-display {
-        height: 200px;
-    }
-}
-
-/* Styling for the Toggle Switches (Allow Reuse / Visualize) */
-.toggle-container {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin: 10px 0;
-    font-size: 0.9em;
-}
-
-.toggle-container input[type="checkbox"] {
-    width: auto;
-    cursor: pointer;
-}
-
-/* Specific button colors for Symmetry & Mode states */
-#symmetry-button {
-    background-color: #28a745; /* Green by default */
-    color: white;
-    font-weight: bold;
-}
-
-/* Active/Exit states for Mode buttons (handled via JS, but good to have here) */
-.btn-active {
-    background-color: #dc3545 !important; /* Red for 'Exit Mode' */
-}
-
-/* Grid Cell Numbering (The small numbers in the top-left of cells) */
-.grid-container td {
-    position: relative;
-}
-
-.cell-number {
-    position: absolute;
-    top: 1px;
-    left: 1px;
-    font-size: 9px;
-    color: #555;
-    pointer-events: none; /* Ensure clicks pass through to the TD */
-}
-
-/* Visual Solve Flicker - Optional: highlights cells being changed */
-.cell-updating {
-    background-color: #fff3cd !important;
-    transition: background-color 0.1s;
-}
-
-/* Add this if you haven't already to support the 'success-btn' class */
-.success-btn {
-    background-color: #28a745;
-    color: white;
-}
-
-.highlight-active {
-    background-color: #ffda6a !important; /* Bright yellow for focused cell */
-}
-
-.highlight-word {
-    background-color: #fff9c4 !important; /* Light yellow for the rest of the word */
-}
-
-.block {
-    background-color: #333 !important;
 }
