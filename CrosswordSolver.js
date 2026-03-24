@@ -47,7 +47,7 @@ export class CrosswordSolver {
         
         // Load the massive classic puzzle index asynchronously 
         try {
-            const resp = await fetch('data/puzzles/puzzle_index.json');
+            const resp = await fetch('data/nyt_puzzles/puzzle_index.json');
             if (resp.ok) {
                 this.puzzleIndex = await resp.json();
                 this.display.updateStatus(`Loaded ${this.puzzleIndex.length} classic puzzles to index.`);
@@ -258,7 +258,7 @@ export class CrosswordSolver {
         this.display.updateStatus(`Loading: ${randomEntry.title || randomEntry.id}...`);
 
         try {
-            const resp = await fetch(`data/puzzles/${randomEntry.file}`);
+            const resp = await fetch(`data/nyt_puzzles/${randomEntry.file}`);
             const puzzleData = await resp.json();
             
             this.importXdGrid(puzzleData.grid);
