@@ -1,10 +1,7 @@
-/* style.css */
-
 /* ===============================
    1. DESIGN TOKENS
 ================================ */
 :root {
-    /* Colors */
     --bg-body: #f0f2f5;
     --bg-section: #ffffff;
 
@@ -14,19 +11,16 @@
 
     --border-color: #d0d0d0;
 
-    /* Grid */
     --grid-bg: #444;
-    --cell-bg: #fff;
+    --cell-bg: #ffffff;
     --cell-text: #000;
-    --cell-block: #333;
+    --cell-block: #222;
     --cell-number: #777;
 
-    /* Highlights */
     --highlight-active: #ffe082;
     --highlight-word: #fff8c6;
     --cell-updating: #e3f2fd;
 
-    /* Buttons */
     --primary: #0069d9;
     --primary-hover: #0053ba;
 
@@ -38,15 +32,13 @@
     --accent: #17a2b8;
     --play: #6f42c1;
 
-    /* Components */
     --status-bg: #f8f9fa;
     --status-text: #222;
 
     --dropdown-bg: #fff;
     --dropdown-hover: #f1f1f1;
 
-    /* Sizing */
-    --cell-size: 35px;
+    --cell-size: 36px;
 }
 
 /* ===============================
@@ -93,7 +85,7 @@ body {
     background: var(--bg-body);
     color: var(--text-main);
     line-height: 1.6;
-    transition: background 0.3s, color 0.3s;
+    transition: background 0.25s ease, color 0.25s ease;
 }
 
 /* ===============================
@@ -110,9 +102,10 @@ body {
     padding: 20px;
     margin-bottom: 20px;
     border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.08);
 }
 
+/* Headers */
 h2, h3 {
     color: var(--text-header);
     margin-bottom: 12px;
@@ -120,7 +113,7 @@ h2, h3 {
 
 h2 {
     border-bottom: 2px solid var(--border-color);
-    padding-bottom: 5px;
+    padding-bottom: 6px;
 }
 
 /* ===============================
@@ -134,12 +127,12 @@ h2 {
 }
 
 .app-title {
-    font-size: 2.5rem;
+    font-size: 2.4rem;
     letter-spacing: 1px;
 }
 
 /* ===============================
-   4. FORM ELEMENTS
+   INPUTS
 ================================ */
 .input-group {
     display: flex;
@@ -153,10 +146,13 @@ input {
     border: 1px solid var(--border-color);
     background: var(--bg-section);
     color: var(--text-main);
+    transition: all 0.2s ease;
 }
 
 input:focus {
-    outline: 2px solid var(--primary);
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(0,105,217,0.2);
 }
 
 /* ===============================
@@ -173,6 +169,7 @@ input:focus {
 
 .btn:hover {
     transform: translateY(-1px);
+    filter: brightness(1.05);
 }
 
 .btn:active {
@@ -187,8 +184,6 @@ input:focus {
 
 .success-btn { background: var(--success); color: #fff; }
 .danger-btn { background: var(--danger); color: #fff; }
-
-.accent-btn { background: var(--accent); color: #fff; }
 
 .play-btn {
     background: var(--play);
@@ -209,14 +204,13 @@ input:focus {
     padding: 14px;
 }
 
-/* Active state */
 .btn-active {
     outline: 2px solid var(--highlight-active);
     transform: scale(1.05);
 }
 
 /* ===============================
-   GROUPS / FLEX
+   GROUPS
 ================================ */
 .settings-controls,
 .mode-controls,
@@ -227,11 +221,6 @@ input:focus {
     align-items: center;
 }
 
-.mode-group {
-    display: flex;
-    gap: 8px;
-}
-
 .toggle-group {
     display: flex;
     gap: 15px;
@@ -240,14 +229,8 @@ input:focus {
     border-radius: 8px;
 }
 
-.toggle-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
 /* ===============================
-   MAIN CONTENT LAYOUT
+   MAIN CONTENT
 ================================ */
 .main-content {
     display: grid;
@@ -270,13 +253,6 @@ input:focus {
     font-size: 13px;
 }
 
-.game-stats {
-    margin-top: 10px;
-    padding: 10px;
-    border-radius: 6px;
-    background: var(--bg-body);
-}
-
 /* ===============================
    GRID
 ================================ */
@@ -285,44 +261,56 @@ input:focus {
     justify-content: center;
     padding: 20px;
     background: var(--grid-bg);
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: auto;
 }
 
-.grid-container table {
-    border-spacing: 1px;
+.crossword-table {
+    border-spacing: 2px;
 }
 
-.grid-container td {
+/* Base cell */
+.grid-cell {
     width: var(--cell-size);
     height: var(--cell-size);
     background: var(--cell-bg);
     color: var(--cell-text);
-    text-align: center;
-    vertical-align: middle;
-    font-weight: bold;
-    font-size: calc(var(--cell-size) * 0.55);
     position: relative;
     cursor: pointer;
+    user-select: none;
 }
 
-.grid-container td:hover {
-    filter: brightness(0.95);
+/* Letter */
+.cell-letter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: calc(var(--cell-size) * 0.55);
+    font-weight: bold;
 }
 
-.grid-container td.block {
+/* Block cell */
+.grid-cell.block {
     background: var(--cell-block);
 }
 
+/* Hover */
+.grid-cell:hover {
+    filter: brightness(0.96);
+}
+
+/* Number */
 .cell-number {
     position: absolute;
     top: 2px;
-    left: 3px;
+    left: 4px;
     font-size: 10px;
     color: var(--cell-number);
 }
 
-/* States */
+/* Highlights */
 .highlight-active {
     background: var(--highlight-active) !important;
     color: #000 !important;
@@ -330,7 +318,6 @@ input:focus {
 
 .highlight-word {
     background: var(--highlight-word) !important;
-    color: #000 !important;
 }
 
 .cell-updating {
@@ -338,7 +325,7 @@ input:focus {
 }
 
 /* ===============================
-   CLUES PANEL
+   CLUES
 ================================ */
 .word-list-display {
     height: 350px;
@@ -352,6 +339,7 @@ input:focus {
     padding: 8px 10px;
     border-bottom: 1px solid var(--border-color);
     cursor: pointer;
+    transition: background 0.15s ease;
 }
 
 .clue-item:hover {
@@ -376,6 +364,7 @@ input:focus {
     max-height: 200px;
     overflow-y: auto;
     z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 .search-dropdown div {
@@ -386,16 +375,6 @@ input:focus {
 
 .search-dropdown div:hover {
     background: var(--dropdown-hover);
-}
-
-/* ===============================
-   PLAY CONTROLS
-================================ */
-.play-controls {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-top: 10px;
 }
 
 /* ===============================
@@ -439,7 +418,7 @@ input:focus {
 
 @media (max-width: 600px) {
     :root {
-        --cell-size: 25px;
+        --cell-size: 24px;
     }
 
     .settings-controls {
