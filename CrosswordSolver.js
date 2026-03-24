@@ -1,6 +1,6 @@
 // CrosswordSolver.js
 import { WordListProvider } from './providers/WordListProvider.js';
-import { LocalDefinitionsProvider } from './providers/LocalDefinitionsProvider.js';
+import { DefinitionsProvider } from './providers/DefinitionsProvider.js';
 import { DictionaryAPI } from './providers/DictionaryAPI.js';
 import { SolverEngine } from './solver/SolverEngine.js';
 import { ConstraintManager } from './solver/ConstraintManager.js';
@@ -15,7 +15,7 @@ export class CrosswordSolver {
     constructor() {
         // Data Providers
         this.wordProvider = new WordListProvider();
-        this.localDefs = new LocalDefinitionsProvider();
+        this.Defs = new DefinitionsProvider();
         this.fallbackApi = new DictionaryAPI();
         
         // Core Engine
@@ -27,7 +27,7 @@ export class CrosswordSolver {
         this.gridManager = new GridManager(this.cells);
         this.display = new DisplayManager();
         this.modes = new ModeManager();
-        this.popups = new PopupManager(this.localDefs, this.fallbackApi);
+        this.popups = new PopupManager(this.Defs, this.fallbackApi);
 
         // State Variables
         this.grid = [];
@@ -128,7 +128,7 @@ export class CrosswordSolver {
             this.slots, 
             this.currentSolution, 
             (word) => { if (!this.modes.isPlayMode) this.popups.show(word); },
-            this.localDefs, // Updated provider
+            this.Defs, // Updated provider
             this.modes.isPlayMode
         );
     }
@@ -301,7 +301,7 @@ export class CrosswordSolver {
             this.slots, 
             this.currentSolution || {}, 
             (word) => this.popups.show(word),
-            this.localDefs,
+            this.Defs,
             this.modes.isPlayMode
         );
     }
@@ -398,7 +398,7 @@ export class CrosswordSolver {
                     this.slots, 
                     result.solution, 
                     (word) => this.popups.show(word),
-                    this.localDefs,
+                    this.Defs,
                     this.modes.isPlayMode
                 );
             } else {
