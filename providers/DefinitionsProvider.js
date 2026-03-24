@@ -1,5 +1,5 @@
 // providers/DefinitionsProvider.js
-export class LocalDefinitionsProvider {
+export class DefinitionsProvider {
   constructor({ basePath = "data/defs_by_length" } = {}) {
     this.basePath = basePath;
     this._cache = new Map();
