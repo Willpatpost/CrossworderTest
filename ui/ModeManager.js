@@ -3,15 +3,14 @@ export class ModeManager {
     constructor() {
         this.currentMode = 'default';
         this.modes = ['number', 'letter', 'drag'];
-        this.isSymmetryEnabled = true; // Default to true as it's standard for crosswords
+        this.isSymmetryEnabled = true; 
         this.isPlayMode = false;
     }
 
     /**
-     * Toggles between standard editor modes (letter, number, drag).
+     * Toggles between standard editor modes.
      */
     toggle(modeType) {
-        // If we are in play mode, we don't allow switching editor modes
         if (this.isPlayMode) return this.currentMode;
 
         if (this.currentMode === modeType) {
@@ -25,17 +24,12 @@ export class ModeManager {
 
     /**
      * Toggles the Play Mode state.
-     * This acts as a high-level toggle that hides builder tools and shows game tools.
+     * Note: View switching is handled by main.js, 
+     * this handles the logic state.
      */
     togglePlayMode() {
         this.isPlayMode = !this.isPlayMode;
-        
-        if (this.isPlayMode) {
-            this.currentMode = 'play';
-        } else {
-            this.currentMode = 'default';
-        }
-
+        this.currentMode = this.isPlayMode ? 'play' : 'default';
         this._updateUI();
         return this.isPlayMode;
     }
@@ -48,59 +42,46 @@ export class ModeManager {
     }
 
     _updateUI() {
+        // 1. Update the descriptive mode label
         const label = document.getElementById('mode-label');
         if (label) {
-            label.textContent = `Mode: ${this.currentMode.charAt(0).toUpperCase() + this.currentMode.slice(1)}`;
+            const displayMode = this.currentMode === 'default' ? 'Toggle Black Squares' : this.currentMode;
+            label.textContent = `Mode: ${displayMode.charAt(0).toUpperCase() + displayMode.slice(1)}`;
         }
 
-        // 1. Update standard editor mode buttons
+        // 2. Update Editor Mode Buttons (Drag, Letter, Number)
         this.modes.forEach(m => {
             const btn = document.getElementById(`${m}-entry-button`) || document.getElementById(`${m}-mode-button`);
             if (btn) {
                 const isActive = this.currentMode === m;
-                btn.style.backgroundColor = isActive ? "#dc3545" : "#0069d9";
-                btn.textContent = isActive ? `Exit ${m.charAt(0).toUpperCase() + m.slice(1)} Mode` : `${m.charAt(0).toUpperCase() + m.slice(1)} Mode`;
+                // Using classList instead of inline styles for cleaner theme support
+                if (isActive) {
+                    btn.classList.add('btn-active');
+                    btn.style.backgroundColor = "var(--danger)";
+                } else {
+                    btn.classList.remove('btn-active');
+                    btn.style.backgroundColor = "var(--primary)";
+                }
                 
-                // Disable editor modes while playing
                 btn.disabled = this.isPlayMode;
                 btn.style.opacity = this.isPlayMode ? "0.5" : "1";
             }
         });
 
-        // 2. Update Symmetry button
+        // 3. Update Symmetry button
         const symBtn = document.getElementById('symmetry-button');
         if (symBtn) {
-            symBtn.style.backgroundColor = this.isSymmetryEnabled ? "#28a745" : "#6c757d";
+            symBtn.style.backgroundColor = this.isSymmetryEnabled ? "var(--success)" : "var(--secondary)";
             symBtn.textContent = `Symmetry: ${this.isSymmetryEnabled ? "ON" : "OFF"}`;
             symBtn.disabled = this.isPlayMode;
+            symBtn.style.opacity = this.isPlayMode ? "0.5" : "1";
         }
 
-        // 3. Update Play Mode Button specifically
-        const playBtn = document.getElementById('play-mode-button');
-        if (playBtn) {
-            playBtn.textContent = this.isPlayMode ? "Exit Play Mode" : "Enter Play Mode";
-            playBtn.style.backgroundColor = this.isPlayMode ? "#dc3545" : "#6f42c1";
-        }
-
-        // 4. Toggle Visibility of Section Groups
-        const builderControls = [
-            document.getElementById('solve-crossword-button'),
-            document.querySelector('.settings-section'),
-            document.querySelector('.word-lookup-section'),
-            document.querySelector('.predefined-puzzles-section')
-        ];
-
-        const playControls = document.getElementById('play-controls');
+        // 4. Update Solver Progress / Game Stats Visibility
         const gameStats = document.getElementById('game-stats');
-
-        if (this.isPlayMode) {
-            builderControls.forEach(el => { if (el) el.style.display = 'none'; });
-            if (playControls) playControls.style.display = 'flex';
-            if (gameStats) gameStats.style.display = 'block';
-        } else {
-            builderControls.forEach(el => { if (el) el.style.display = 'block'; });
-            if (playControls) playControls.style.display = 'none';
-            if (gameStats) gameStats.style.display = 'none';
+        if (gameStats) {
+            // We show stats in both modes now, but differently
+            gameStats.classList.toggle('hidden', false); 
         }
     }
 }

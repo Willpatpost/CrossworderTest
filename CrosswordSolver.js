@@ -18,11 +18,11 @@ export class CrosswordSolver {
         this.Defs = new DefinitionsProvider();
         this.fallbackApi = new DictionaryAPI();
         
-        // Core Engine
+        // Core Logic
         this.solver = new SolverEngine();
         this.constraintManager = new ConstraintManager();
         
-        // UI & Grid state
+        // UI & Grid State
         this.cells = {}; 
         this.gridManager = new GridManager(this.cells);
         this.display = new DisplayManager();
@@ -39,13 +39,16 @@ export class CrosswordSolver {
         this.activeWorker = null; 
         
         this.currentSolution = null; 
-        this.puzzleIndex = []; // Stores the 86k puzzle index
+        this.puzzleIndex = []; // Stores the NYT puzzle index metadata
     }
 
+    /**
+     * Entry point: Initializes event listeners and loads default puzzle
+     */
     async init() {
         this.setupEventListeners();
         
-        // Load the massive classic puzzle index asynchronously 
+        // Load the massive classic puzzle index (NYT archive)
         try {
             const resp = await fetch('data/nyt_puzzles/puzzle_index.json');
             if (resp.ok) {
@@ -53,14 +56,16 @@ export class CrosswordSolver {
                 this.display.updateStatus(`Loaded ${this.puzzleIndex.length} classic puzzles to index.`);
             }
         } catch (e) {
-            console.warn("Could not load puzzle_index.json. Random puzzle feature will be disabled.", e);
+            console.warn("Could not load puzzle_index.json. Random puzzle feature disabled.", e);
         }
 
+        // Start with the default "Easy" puzzle layout
         this.loadPredefinedPuzzle("Easy");
         this.display.updateStatus("System Ready.");
     }
 
     setupEventListeners() {
+        // Grid Generation
         document.getElementById('generate-grid-button').onclick = () => {
             this.abortActiveSolve();
             const r = parseInt(document.getElementById('rows-input').value) || 10;
@@ -68,6 +73,7 @@ export class CrosswordSolver {
             this.generateNewGrid(r, c);
         };
 
+        // Puzzle Loading
         document.getElementById('load-easy-button').onclick = () => { this.abortActiveSolve(); this.loadPredefinedPuzzle("Easy"); };
         document.getElementById('load-medium-button').onclick = () => { this.abortActiveSolve(); this.loadPredefinedPuzzle("Medium"); };
         document.getElementById('load-hard-button').onclick = () => { this.abortActiveSolve(); this.loadPredefinedPuzzle("Hard"); };
@@ -75,6 +81,7 @@ export class CrosswordSolver {
         const randomBtn = document.getElementById('random-puzzle-button');
         if (randomBtn) randomBtn.onclick = () => { this.abortActiveSolve(); this.loadRandomPuzzle(); };
 
+        // Editor Modes
         document.getElementById('number-entry-button').onclick = () => this.modes.toggle('number');
         document.getElementById('letter-entry-button').onclick = () => this.modes.toggle('letter');
         document.getElementById('drag-mode-button').onclick = () => this.modes.toggle('drag');
@@ -82,31 +89,36 @@ export class CrosswordSolver {
         const symBtn = document.getElementById('symmetry-button');
         if (symBtn) symBtn.onclick = () => this.modes.toggleSymmetry();
 
+        // Solver Controls
         document.getElementById('auto-number-button').onclick = () => this.render();
         document.getElementById('solve-crossword-button').onclick = () => this.handleSolve();
         
         const cancelBtn = document.getElementById('cancel-solve-button');
         if (cancelBtn) cancelBtn.onclick = () => this.abortActiveSolve(true);
 
+        // Word Search
         const searchInput = document.getElementById('word-search-input');
         if (searchInput) searchInput.oninput = () => this.handleSearch(searchInput.value);
 
+        // Play Mode / Game Buttons
         const playBtn = document.getElementById('play-mode-button');
         if (playBtn) playBtn.onclick = () => this.handlePlayModeToggle();
 
         const checkGridBtn = document.getElementById('check-grid-button');
-        if (checkGridBtn) checkGridBtn.onclick = () => console.log("Check Grid clicked - To be implemented");
+        if (checkGridBtn) checkGridBtn.onclick = () => console.log("Check Grid: To be implemented");
 
         const revealWordBtn = document.getElementById('reveal-word-button');
-        if (revealWordBtn) revealWordBtn.onclick = () => console.log("Reveal Word clicked - To be implemented");
+        if (revealWordBtn) revealWordBtn.onclick = () => console.log("Reveal Word: To be implemented");
 
         const revealPuzzleBtn = document.getElementById('reveal-puzzle-button');
-        if (revealPuzzleBtn) revealPuzzleBtn.onclick = () => console.log("Reveal Puzzle clicked - To be implemented");
+        if (revealPuzzleBtn) revealPuzzleBtn.onclick = () => console.log("Reveal Puzzle: To be implemented");
 
         window.onmouseup = () => this.handleMouseUp();
     }
 
-    // NEW: Centralized Worker Lifecycle Management
+    /**
+     * Terminates any running worker and resets UI solve state
+     */
     abortActiveSolve(isManualCancel = false) {
         if (this.activeWorker) {
             this.activeWorker.terminate();
@@ -128,11 +140,13 @@ export class CrosswordSolver {
         }
     }
 
-    // Handles transition between Builder and Player states
+    /**
+     * Transitions between Builder (Editing) and Play (Solving) modes
+     */
     handlePlayModeToggle() {
         if (this.isSolving) this.abortActiveSolve();
 
-        // If we don't have a solution saved, but the grid has letters, extract them as the solution
+        // If no solution is cached, capture current grid state as the "correct" solution
         if (!this.currentSolution) {
             this.currentSolution = this.extractSolutionFromGrid();
         }
@@ -147,6 +161,7 @@ export class CrosswordSolver {
             this.applySolutionToGrid(this.slots, this.currentSolution);
         }
 
+        // Refresh Clue Lists
         this.display.updateWordLists(
             this.slots, 
             this.currentSolution, 
@@ -180,9 +195,11 @@ export class CrosswordSolver {
         this.gridManager.syncGridToDOM(this.grid, this.slots);
     }
 
+    // --- Grid Interaction Handlers ---
+
     handleMouseDown(e, r, c) {
         if (this.modes.currentMode !== 'drag') return;
-        this.abortActiveSolve(); // Interrupt solve if user clicks the grid
+        this.abortActiveSolve(); 
         this.isDragging = true;
         this.gridManager.toggleToBlack = (this.grid[r][c] !== "#");
         this.toggleCell(r, c);
@@ -217,7 +234,6 @@ export class CrosswordSolver {
 
     handleCellClick(e, r, c) {
         if (this.isSolving) this.abortActiveSolve();
-        
         if (this.modes.isPlayMode) return;
 
         const mode = this.modes.currentMode;
@@ -235,6 +251,8 @@ export class CrosswordSolver {
             this.toggleCell(r, c);
         }
     }
+
+    // --- Data Loading ---
 
     generateNewGrid(rows, cols) {
         this.grid = Array.from({ length: rows }, () => Array(cols).fill(" "));
@@ -263,10 +281,8 @@ export class CrosswordSolver {
         try {
             const resp = await fetch(`data/nyt_puzzles/${randomEntry.file}`);
             const puzzleData = await resp.json();
-            
             this.importXdGrid(puzzleData.grid);
             this.display.updateStatus(`Loaded ${randomEntry.title} (${randomEntry.author}, ${randomEntry.date})`);
-            
         } catch (e) {
             this.display.updateStatus("Failed to load puzzle data.");
             console.error(e);
@@ -275,7 +291,6 @@ export class CrosswordSolver {
 
     importXdGrid(gridStrings) {
         if (!gridStrings || gridStrings.length === 0) return;
-        
         const rows = gridStrings.length;
         const cols = gridStrings[0].length;
         
@@ -308,11 +323,10 @@ export class CrosswordSolver {
         );
     }
 
+    // --- Solver Logic ---
+
     async handleSolve() {
-        // If they click solve while it's already running, restart it cleanly.
-        if (this.isSolving) {
-            this.abortActiveSolve();
-        }
+        if (this.isSolving) this.abortActiveSolve();
         
         const solveBtn = document.getElementById('solve-crossword-button');
         const cancelBtn = document.getElementById('cancel-solve-button');
@@ -328,6 +342,7 @@ export class CrosswordSolver {
             const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
             this.slots = slots;
             
+            // Warm up word length cache
             const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
             for (const len of uniqueLengths) {
                 if (!this.wordLengthCache[len]) {
@@ -345,8 +360,6 @@ export class CrosswordSolver {
 
             const result = await new Promise((resolve, reject) => {
                 this.activeWorker = new Worker('./solver/SolverWorker.js', { type: 'module' });
-                
-                // UI Throttling setup
                 let lastVisualUpdate = performance.now();
 
                 this.activeWorker.onmessage = (e) => {
@@ -354,10 +367,9 @@ export class CrosswordSolver {
 
                     if (type === 'UPDATE') {
                         const now = performance.now();
-                        // Throttle to ~30fps to prevent DOM lockup
+                        // Throttle UI updates to 30FPS
                         if (now - lastVisualUpdate > 32) {
                             lastVisualUpdate = now;
-                            
                             const { slotId, word } = payload;
                             const slot = this.slots[slotId];
                             if (!slot) return;
@@ -381,9 +393,7 @@ export class CrosswordSolver {
                     }
                 };
 
-                this.activeWorker.onerror = (err) => {
-                    reject(err);
-                };
+                this.activeWorker.onerror = (err) => reject(err);
 
                 this.activeWorker.postMessage({
                     type: 'START_SOLVE',
@@ -416,13 +426,12 @@ export class CrosswordSolver {
                 this.gridManager.syncGridToDOM(this.grid, this.slots);
             }
         } catch (err) {
-            // Only log if it wasn't an intentional abort
             if (this.isSolving) {
                 console.error(err);
                 this.display.updateStatus("Solver Error: " + err.message);
             }
         } finally {
-            this.abortActiveSolve(); // Clean up gracefully
+            this.abortActiveSolve(); 
         }
     }
 
@@ -438,10 +447,11 @@ export class CrosswordSolver {
         this.gridManager.syncGridToDOM(this.grid, slots);
     }
 
+    // --- Search Logic ---
+
     async handleSearch(val) {
         const query = val.trim().toUpperCase();
-        // Remove all characters except A-Z and the '?' wildcard to prevent regex crashes
-        const safeQuery = query.replace(/[^A-Z?]/g, ''); 
+        const safeQuery = query.replace(/[^A-Z?]/g, ''); // Sanitization
         
         if (!safeQuery || safeQuery.length < 2) {
             this.display.updateSearchResults([], () => {});

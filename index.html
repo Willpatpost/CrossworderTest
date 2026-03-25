@@ -12,201 +12,173 @@
 
 <body>
     <div class="app-container">
-
-        <header class="header-bar">
-            <h1 class="app-title">CROSSWORDER</h1>
-            <button 
-                id="theme-toggle-button" 
-                class="btn secondary-btn"
-                type="button"
-                aria-label="Toggle dark mode"
-            >
-                🌓 Toggle Theme
-            </button>
-        </header>
-
-        <section class="section settings-section">
-            <h2>Grid Settings</h2>
-
-            <div class="settings-controls">
-                <div class="input-group">
-                    <label for="rows-input">Rows</label>
-                    <input
-                        type="number"
-                        id="rows-input"
-                        name="rows-input"
-                        min="5"
-                        max="25"
-                        value="15"
-                    />
-                </div>
-
-                <div class="input-group">
-                    <label for="columns-input">Columns</label>
-                    <input
-                        type="number"
-                        id="columns-input"
-                        name="columns-input"
-                        min="5"
-                        max="25"
-                        value="15"
-                    />
-                </div>
-
-                <button 
-                    id="generate-grid-button" 
-                    class="btn primary-btn"
-                    type="button"
-                >
-                    Generate Grid
-                </button>
-
-                <fieldset class="toggle-group">
-                    <legend>Options</legend>
-
-                    <label class="toggle-container">
-                        <input type="checkbox" id="allow-reuse-toggle" />
-                        <span>Allow Word Reuse</span>
-                    </label>
-
-                    <label class="toggle-container">
-                        <input type="checkbox" id="visualize-solve-toggle" checked />
-                        <span>Visualize Solve</span>
-                    </label>
-                </fieldset>
+        
+        <nav class="navbar">
+            <div class="nav-left">
+                <h1 class="nav-logo">CROSSWORDER</h1>
             </div>
-        </section>
-
-        <section class="section word-lookup-section">
-            <h2>Word Lookup</h2>
-
-            <div class="search-container">
-                <input
-                    type="text"
-                    id="word-search-input"
-                    placeholder="Search (use ? for wildcards, e.g. C??T)"
-                    aria-label="Search words with wildcards"
-                    autocomplete="off"
-                />
-                <div id="search-dropdown" class="search-dropdown"></div>
+            <div class="nav-center">
+                <button class="nav-btn active" id="nav-home" data-target="home-screen">Home</button>
+                <button class="nav-btn" id="nav-editor" data-target="editor-screen">Editor</button>
+                <button class="nav-btn" id="nav-play" data-target="play-screen">Play</button>
             </div>
-
-            <div id="matches-count" class="matches-count"></div>
-        </section>
-
-        <section class="section predefined-puzzles-section">
-            <h2>Puzzles & Archives</h2>
-
-            <div class="button-group">
-                <button id="load-easy-button" class="btn secondary-btn" type="button">Easy</button>
-                <button id="load-medium-button" class="btn secondary-btn" type="button">Medium</button>
-                <button id="load-hard-button" class="btn secondary-btn" type="button">Hard</button>
-
+            <div class="nav-right">
                 <button 
-                    id="random-puzzle-button" 
-                    class="btn accent-btn"
+                    id="theme-toggle-button" 
+                    class="btn secondary-btn"
                     type="button"
+                    aria-label="Toggle dark mode"
                 >
-                    Random Classic
+                    🌓 Theme
                 </button>
             </div>
-        </section>
+        </nav>
 
-        <section class="section mode-section">
-            <h2>Editor & Play Controls</h2>
+        <main id="home-screen" class="view-section">
+            <section class="hero-banner">
+                <h1>Welcome to Crossworder</h1>
+                <p>A professional-grade suite for crossword construction and competitive play.</p>
+            </section>
 
-            <div class="mode-controls">
-
-                <div class="mode-group">
-                    <button id="drag-mode-button" class="btn mode-btn" type="button">Drag</button>
-                    <button id="letter-entry-button" class="btn mode-btn" type="button">Letter</button>
-                    <button id="number-entry-button" class="btn mode-btn" type="button">Number</button>
+            <div class="home-grid">
+                <div class="info-card">
+                    <h3>About the App</h3>
+                    <p>Crossworder uses a Constraint Satisfaction Problem (CSP) solver to help you find words that fit perfectly into your grid intersections.</p>
                 </div>
 
-                <div class="mode-group">
-                    <button id="auto-number-button" class="btn secondary-btn" type="button">Auto Number</button>
-                    <button id="symmetry-button" class="btn success-btn" type="button">Symmetry: ON</button>
-                </div>
-
-                <div class="mode-group">
-                    <button 
-                        id="play-mode-button" 
-                        class="btn play-btn"
-                        type="button"
-                    >
-                        Enter Play Mode
-                    </button>
-                </div>
-
-            </div>
-
-            <div id="mode-label" class="mode-label">
-                Mode: Default (Toggle Black Squares)
-            </div>
-        </section>
-
-        <section class="section main-content">
-
-            <div class="status-panel">
-                <h3>Status</h3>
-
-                <textarea 
-                    id="status-display" 
-                    readonly
-                    aria-label="Solver status log"
-                ></textarea>
-
-                <div id="game-stats" class="game-stats hidden">
-                    <strong>Progress:</strong>
-                    <span id="solve-progress">0%</span>
+                <div class="info-card">
+                    <h3>Directions</h3>
+                    <ul>
+                        <li><strong>Editor:</strong> Draw your grid, toggle symmetry, and use the solver to fill your slots.</li>
+                        <li><strong>Play:</strong> Test your knowledge! Navigate with arrow keys and use the toolbar to check your progress.</li>
+                    </ul>
                 </div>
             </div>
+        </main>
 
-            <div 
-                class="grid-container" 
-                id="grid-container"
-                aria-label="Crossword grid"
-            ></div>
+        <main id="editor-screen" class="view-section hidden">
+            <section class="section settings-section">
+                <h2>Grid Settings</h2>
+                <div class="settings-controls">
+                    <div class="input-group">
+                        <label for="rows-input">Rows</label>
+                        <input type="number" id="rows-input" min="5" max="25" value="15" />
+                    </div>
+                    <div class="input-group">
+                        <label for="columns-input">Cols</label>
+                        <input type="number" id="columns-input" min="5" max="25" value="15" />
+                    </div>
+                    <button id="generate-grid-button" class="btn primary-btn">Generate Grid</button>
 
-            <div class="clues-panel">
-                <div class="word-list">
-                    <h3>Across</h3>
-                    <div id="across-display" class="word-list-display"></div>
+                    <fieldset class="toggle-group">
+                        <legend>Options</legend>
+                        <label class="toggle-container">
+                            <input type="checkbox" id="allow-reuse-toggle" />
+                            <span>Allow Word Reuse</span>
+                        </label>
+                        <label class="toggle-container">
+                            <input type="checkbox" id="visualize-solve-toggle" checked />
+                            <span>Visualize Solve</span>
+                        </label>
+                    </fieldset>
                 </div>
+            </section>
 
-                <div class="word-list">
-                    <h3>Down</h3>
-                    <div id="down-display" class="word-list-display"></div>
+            <section class="section word-lookup-section">
+                <h2>Word Lookup</h2>
+                <div class="search-container">
+                    <input type="text" id="word-search-input" placeholder="Search (use ? for wildcards, e.g. C??T)" autocomplete="off" />
+                    <div id="search-dropdown" class="search-dropdown"></div>
+                </div>
+                <div id="matches-count" class="matches-count"></div>
+            </section>
+
+            <section class="section mode-section">
+                <h2>Editor Controls</h2>
+                <div class="mode-controls">
+                    <div class="mode-group">
+                        <button id="drag-mode-button" class="btn mode-btn">Drag</button>
+                        <button id="letter-entry-button" class="btn mode-btn">Letter</button>
+                        <button id="number-entry-button" class="btn mode-btn">Number</button>
+                    </div>
+                    <div class="mode-group">
+                        <button id="auto-number-button" class="btn secondary-btn">Auto Number</button>
+                        <button id="symmetry-button" class="btn success-btn">Symmetry: ON</button>
+                    </div>
+                    <div class="mode-group">
+                        <button id="solve-crossword-button" class="btn solve-btn">Solve & Generate Clues</button>
+                        <button id="cancel-solve-button" class="btn danger-btn hidden">Cancel Solve</button>
+                    </div>
+                </div>
+                <div id="mode-label" class="mode-label">Mode: Default (Toggle Black Squares)</div>
+            </section>
+
+            <section class="section predefined-puzzles-section">
+                <h2>Quick Load</h2>
+                <div class="button-group">
+                    <button id="load-easy-button" class="btn secondary-btn">Easy</button>
+                    <button id="load-medium-button" class="btn secondary-btn">Medium</button>
+                    <button id="load-hard-button" class="btn secondary-btn">Hard</button>
+                    <button id="random-puzzle-button" class="btn accent-btn">Random Classic</button>
+                </div>
+            </section>
+        </main>
+
+        <main id="play-screen" class="view-section hidden">
+            <div class="nyt-toolbar">
+                <div class="toolbar-left">
+                    <div id="timer" class="timer">0:00</div>
+                </div>
+                <div class="toolbar-right">
+                    <div class="dropdown-wrapper">
+                        <button class="toolbar-btn" id="check-menu-btn">Check ▼</button>
+                        <div class="toolbar-dropdown hidden" id="check-dropdown">
+                            <button id="check-square-btn">Square</button>
+                            <button id="check-word-btn">Word</button>
+                            <button id="check-puzzle-btn">Puzzle</button>
+                        </div>
+                    </div>
+                    <div class="dropdown-wrapper">
+                        <button class="toolbar-btn" id="reveal-menu-btn">Reveal ▼</button>
+                        <div class="toolbar-dropdown hidden" id="reveal-dropdown">
+                            <button id="reveal-square-btn">Square</button>
+                            <button id="reveal-word-btn">Word</button>
+                            <button id="reveal-puzzle-btn">Puzzle</button>
+                        </div>
+                    </div>
+                    <button class="toolbar-btn" id="clear-btn">Clear</button>
+                    <button class="toolbar-btn icon-btn" id="pause-btn">⏸</button>
                 </div>
             </div>
 
-        </section>
+            <div id="play-main-content" class="main-content">
+                </div>
+        </main>
 
-        <section class="section controls-section">
+        <div id="shared-assets" class="hidden">
+            <section class="section main-content" id="game-container">
+                <div class="status-panel">
+                    <h3>Status</h3>
+                    <textarea id="status-display" readonly aria-label="Solver status log"></textarea>
+                    <div id="game-stats" class="game-stats hidden">
+                        <strong>Progress:</strong> <span id="solve-progress">0%</span>
+                    </div>
+                </div>
 
-            <button 
-                id="solve-crossword-button" 
-                class="btn solve-btn"
-                type="button"
-            >
-                Solve & Generate Clues
-            </button>
+                <div class="grid-container" id="grid-container" aria-label="Crossword grid"></div>
 
-            <button 
-                id="cancel-solve-button" 
-                class="btn danger-btn hidden"
-                type="button"
-            >
-                Cancel Solve
-            </button>
-
-            <div id="play-controls" class="play-controls hidden">
-                <button id="check-grid-button" class="btn secondary-btn" type="button">Check</button>
-                <button id="reveal-word-button" class="btn secondary-btn" type="button">Reveal Word</button>
-                <button id="reveal-puzzle-button" class="btn danger-btn" type="button">Reveal All</button>
-            </div>
-
-        </section>
+                <div class="clues-panel">
+                    <div class="word-list">
+                        <h3>Across</h3>
+                        <div id="across-display" class="word-list-display"></div>
+                    </div>
+                    <div class="word-list">
+                        <h3>Down</h3>
+                        <div id="down-display" class="word-list-display"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
 
         <footer class="footer">
             <p>© Willpatpost CROSSWORDER</p>

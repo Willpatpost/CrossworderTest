@@ -1,3 +1,5 @@
+/* style.css */
+
 /* ===============================
    1. DESIGN TOKENS
 ================================ */
@@ -39,6 +41,7 @@
     --dropdown-hover: #f1f1f1;
 
     --cell-size: 36px;
+    --nav-height: 60px;
 }
 
 /* ===============================
@@ -72,7 +75,7 @@ body.dark-mode {
 }
 
 /* ===============================
-   2. RESET
+   2. RESET & BASE
 ================================ */
 * {
     box-sizing: border-box;
@@ -86,343 +89,356 @@ body {
     color: var(--text-main);
     line-height: 1.6;
     transition: background 0.25s ease, color 0.25s ease;
+    min-height: 100vh;
 }
 
 /* ===============================
-   3. LAYOUT
+   3. NAVIGATION BAR
 ================================ */
-.app-container {
-    max-width: 1300px;
-    margin: 0 auto;
-    padding: 20px;
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-section);
+    padding: 0 2rem;
+    height: var(--nav-height);
+    border-bottom: 2px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
+.nav-logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--primary);
+}
+
+.nav-center {
+    display: flex;
+    gap: 10px;
+}
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    padding: 8px 16px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+    color: var(--text-main);
+    background: var(--dropdown-hover);
+}
+
+.nav-btn.active {
+    color: var(--primary);
+    background: rgba(0, 105, 217, 0.1);
+}
+
+/* ===============================
+   4. VIEW MANAGEMENT
+================================ */
+.view-section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ===============================
+   5. HOME SCREEN
+================================ */
+.hero-banner {
+    text-align: center;
+    padding: 60px 20px;
+    background: linear-gradient(135deg, var(--primary), var(--play));
+    color: white;
+    border-radius: 12px;
+    margin-bottom: 30px;
+}
+
+.hero-banner h1 {
+    font-size: 3rem;
+    margin-bottom: 10px;
+}
+
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.info-card {
+    background: var(--bg-section);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.info-card h3 {
+    margin-bottom: 15px;
+    color: var(--primary);
+}
+
+.info-card ul {
+    list-style-position: inside;
+    color: var(--text-muted);
+}
+
+.info-card li {
+    margin-bottom: 8px;
+}
+
+/* ===============================
+   6. EDITOR & GENERAL SECTIONS
+================================ */
 .section {
     background: var(--bg-section);
     padding: 20px;
     margin-bottom: 20px;
     border-radius: 12px;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.08);
-}
-
-/* Headers */
-h2, h3 {
-    color: var(--text-header);
-    margin-bottom: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
 
 h2 {
-    border-bottom: 2px solid var(--border-color);
-    padding-bottom: 6px;
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    color: var(--text-header);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
 }
 
-/* ===============================
-   HEADER
-================================ */
-.header-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 25px;
-}
-
-.app-title {
-    font-size: 2.4rem;
-    letter-spacing: 1px;
-}
-
-/* ===============================
-   INPUTS
-================================ */
-.input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-input {
-    padding: 8px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-section);
-    color: var(--text-main);
-    transition: all 0.2s ease;
-}
-
-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(0,105,217,0.2);
-}
-
-/* ===============================
-   BUTTON SYSTEM
-================================ */
-.btn {
-    padding: 10px 16px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.2s ease;
-}
-
-.btn:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.05);
-}
-
-.btn:active {
-    transform: translateY(1px);
-}
-
-.primary-btn { background: var(--primary); color: #fff; }
-.primary-btn:hover { background: var(--primary-hover); }
-
-.secondary-btn { background: var(--secondary); color: #fff; }
-.secondary-btn:hover { background: var(--secondary-hover); }
-
-.success-btn { background: var(--success); color: #fff; }
-.danger-btn { background: var(--danger); color: #fff; }
-
-.play-btn {
-    background: var(--play);
-    color: #fff;
-    font-weight: bold;
-}
-
-.mode-btn {
-    background: var(--primary);
-    color: #fff;
-}
-
-.solve-btn {
-    background: var(--success);
-    color: #fff;
-    width: 100%;
-    font-size: 1.1rem;
-    padding: 14px;
-}
-
-.btn-active {
-    outline: 2px solid var(--highlight-active);
-    transform: scale(1.05);
-}
-
-/* ===============================
-   GROUPS
-================================ */
-.settings-controls,
-.mode-controls,
-.button-group {
+.settings-controls, .mode-controls, .button-group {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    align-items: center;
 }
 
-.toggle-group {
+.input-group {
     display: flex;
-    gap: 15px;
+    align-items: center;
+    gap: 10px;
+}
+
+input[type="number"], input[type="text"] {
+    padding: 8px;
     border: 1px solid var(--border-color);
-    padding: 10px;
-    border-radius: 8px;
+    border-radius: 4px;
+    background: var(--bg-body);
+    color: var(--text-main);
 }
 
 /* ===============================
-   MAIN CONTENT
+   7. NYT MINI TOOLBAR (PLAY)
+================================ */
+.nyt-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-section);
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.timer {
+    font-size: 1.4rem;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.toolbar-right {
+    display: flex;
+    gap: 8px;
+    position: relative;
+}
+
+.toolbar-btn {
+    background: white;
+    border: 1px solid #ccc;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.toolbar-btn:hover {
+    background: #f0f0f0;
+}
+
+/* Toolbar Dropdowns */
+.dropdown-wrapper {
+    position: relative;
+}
+
+.toolbar-dropdown {
+    position: absolute;
+    top: 110%;
+    right: 0;
+    background: var(--bg-section);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    z-index: 100;
+    min-width: 120px;
+    display: flex;
+    flex-direction: column;
+}
+
+.toolbar-dropdown button {
+    padding: 10px 15px;
+    background: none;
+    border: none;
+    text-align: left;
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.toolbar-dropdown button:hover {
+    background: var(--dropdown-hover);
+}
+
+/* ===============================
+   8. MAIN GAME AREA (SHARED)
 ================================ */
 .main-content {
     display: grid;
-    grid-template-columns: 0.8fr 2.5fr 1.2fr;
+    grid-template-columns: 250px 1fr 300px;
     gap: 20px;
+    align-items: start;
 }
 
-/* ===============================
-   STATUS PANEL
-================================ */
-.status-panel textarea {
-    width: 100%;
-    height: 350px;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--status-bg);
-    color: var(--status-text);
-    font-family: monospace;
-    font-size: 13px;
-}
-
-/* ===============================
-   GRID
-================================ */
 .grid-container {
+    background: var(--grid-bg);
+    padding: 15px;
+    border-radius: 4px;
     display: flex;
     justify-content: center;
-    padding: 20px;
-    background: var(--grid-bg);
-    border-radius: 10px;
-    overflow: auto;
 }
 
 .crossword-table {
+    border-collapse: separate;
     border-spacing: 2px;
 }
 
-/* Base cell */
 .grid-cell {
     width: var(--cell-size);
     height: var(--cell-size);
     background: var(--cell-bg);
-    color: var(--cell-text);
     position: relative;
     cursor: pointer;
     user-select: none;
 }
 
-/* Letter */
-.cell-letter {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    font-size: calc(var(--cell-size) * 0.55);
-    font-weight: bold;
-}
-
-/* Block cell */
 .grid-cell.block {
     background: var(--cell-block);
 }
 
-/* Hover */
-.grid-cell:hover {
-    filter: brightness(0.96);
-}
-
-/* Number */
 .cell-number {
     position: absolute;
-    top: 2px;
-    left: 4px;
-    font-size: 10px;
+    top: 1px;
+    left: 2px;
+    font-size: 9px;
     color: var(--cell-number);
+    z-index: 2;
 }
 
-/* Highlights */
-.highlight-active {
-    background: var(--highlight-active) !important;
-    color: #000 !important;
-}
-
-.highlight-word {
-    background: var(--highlight-word) !important;
-}
-
-.cell-updating {
-    background: var(--cell-updating) !important;
+.cell-letter {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    font-size: 20px;
+    font-weight: 600;
+    text-transform: uppercase;
 }
 
 /* ===============================
-   CLUES
+   9. STATUS & CLUES
 ================================ */
-.word-list-display {
-    height: 350px;
-    overflow-y: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
+.status-panel textarea {
+    width: 100%;
+    height: 200px;
     background: var(--status-bg);
-}
-
-.clue-item {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border-color);
-    cursor: pointer;
-    transition: background 0.15s ease;
-}
-
-.clue-item:hover {
-    background: var(--dropdown-hover);
-}
-
-/* ===============================
-   SEARCH
-================================ */
-.search-container {
-    position: relative;
-}
-
-.search-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--dropdown-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    max-height: 200px;
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.search-dropdown div {
+    color: var(--status-text);
+    font-family: monospace;
+    font-size: 12px;
     padding: 10px;
-    border-bottom: 1px solid var(--border-color);
+    border: 1px solid var(--border-color);
+    resize: none;
+}
+
+.clues-panel {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 20px;
+    height: 600px;
+}
+
+.word-list-display {
+    background: var(--bg-section);
+    border: 1px solid var(--border-color);
+    height: 250px;
+    overflow-y: auto;
+}
+
+/* ===============================
+   10. BUTTON STYLES
+================================ */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
     cursor: pointer;
 }
 
-.search-dropdown div:hover {
-    background: var(--dropdown-hover);
-}
+.primary-btn { background: var(--primary); color: white; }
+.secondary-btn { background: var(--secondary); color: white; }
+.danger-btn { background: var(--danger); color: white; }
+.success-btn { background: var(--success); color: white; }
+.solve-btn { background: var(--success); color: white; padding: 12px; width: 100%; }
 
 /* ===============================
-   UTILITIES
-================================ */
-.hidden {
-    display: none !important;
-}
-
-.mode-label {
-    margin-top: 10px;
-    font-size: 0.9rem;
-    color: var(--text-muted);
-}
-
-/* ===============================
-   FOOTER
+   11. FOOTER
 ================================ */
 .footer {
     text-align: center;
-    margin-top: 30px;
+    padding: 40px;
     color: var(--text-muted);
+    font-size: 0.9rem;
 }
 
 /* ===============================
-   RESPONSIVE
+   12. RESPONSIVE
 ================================ */
-@media (max-width: 1100px) {
+@media (max-width: 1000px) {
     .main-content {
         grid-template-columns: 1fr;
     }
-
-    .grid-container {
-        order: -1;
-    }
-
-    :root {
-        --cell-size: 30px;
-    }
-}
-
-@media (max-width: 600px) {
-    :root {
-        --cell-size: 24px;
-    }
-
-    .settings-controls {
-        flex-direction: column;
-        align-items: stretch;
+    
+    .status-panel, .clues-panel {
+        order: 2;
     }
 }

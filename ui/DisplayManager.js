@@ -23,8 +23,7 @@ export class DisplayManager {
 
     /**
      * Renders word lists. 
-     * In Play Mode: Shows clues from our local database.
-     * In Builder Mode: Shows the current word or blanks.
+     * Handles the transition between "Word Building" and "Clue Solving".
      */
     async updateWordLists(slots, solution = {}, onWordClick, definitionsProvider = null, isPlayMode = false) {
         if (!this.acrossDisplay || !this.downDisplay) return;
@@ -46,57 +45,41 @@ export class DisplayManager {
                 const item = document.createElement('div');
                 item.className = 'word-list-item';
                 item.dataset.slotId = slot.id;
-                
-                // Base Container Styling
-                Object.assign(item.style, {
-                    padding: '8px 12px',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid #eee',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px'
-                });
 
                 // 1. Number and Clue/Word Container
                 const header = document.createElement('div');
-                header.style.display = 'flex';
-                header.style.alignItems = 'baseline';
-                header.style.gap = '6px';
+                header.className = 'clue-header';
 
                 const num = document.createElement('strong');
-                num.textContent = `${slot.number}.`;
-                num.style.minWidth = '25px';
+                num.className = 'clue-number';
+                num.textContent = slot.number;
                 
                 const mainContent = document.createElement('span');
-                mainContent.style.flex = '1';
+                mainContent.className = 'clue-text';
 
-                // 2. Attribution Badge (for Play Mode)
+                // 2. Attribution Badge
                 const badge = document.createElement('small');
-                badge.style.color = '#888';
-                badge.style.fontSize = '0.75rem';
-                badge.style.marginLeft = 'auto';
+                badge.className = 'clue-attribution';
 
                 if (isPlayMode && word && definitionsProvider) {
                     try {
                         const results = await definitionsProvider.lookup(word);
                         if (results && results.length > 0) {
-                            // Display the first clue found in our merged DB
+                            // Pick the first historical clue
                             const bestMatch = results[0];
                             mainContent.textContent = bestMatch.clue;
-                            badge.textContent = bestMatch.attribution;
+                            badge.textContent = bestMatch.source;
                         } else {
                             mainContent.textContent = "No clue found for this word.";
-                            mainContent.style.fontStyle = 'italic';
-                            mainContent.style.color = '#999';
+                            mainContent.classList.add('muted-text');
                         }
                     } catch (e) {
                         mainContent.textContent = "[Error fetching clue]";
                     }
                 } else {
-                    // Builder mode logic
+                    // Builder mode logic: Show the word or dots
                     mainContent.textContent = word || ".".repeat(slot.length);
-                    mainContent.style.fontFamily = 'monospace';
-                    mainContent.style.letterSpacing = '1px';
+                    mainContent.classList.add('builder-word');
                 }
 
                 header.appendChild(num);
@@ -105,9 +88,7 @@ export class DisplayManager {
                 if (badge.textContent) item.appendChild(badge);
 
                 // UI Interactivity
-                item.onmouseover = () => item.style.backgroundColor = '#f0f7ff';
-                item.onmouseout = () => item.style.backgroundColor = 'transparent';
-                item.onclick = () => onWordClick(word || slot.id);
+                item.onclick = () => onWordClick(slot);
 
                 container.appendChild(item);
             }
@@ -118,32 +99,28 @@ export class DisplayManager {
     }
 
     /**
-     * Search result dropdown logic for the sidebar search tool.
+     * Sidebar search result dropdown logic
      */
     updateSearchResults(matches, onSelect) {
         if (!this.dropdown) return;
 
         this.dropdown.innerHTML = '';
         if (matches.length === 0) {
-            this.dropdown.style.display = 'none';
+            this.dropdown.classList.add('hidden');
             if (this.matchesCount) this.matchesCount.textContent = "No matches found.";
             return;
         }
 
-        this.dropdown.style.display = 'block';
+        this.dropdown.classList.remove('hidden');
         if (this.matchesCount) this.matchesCount.textContent = `Found ${matches.length} matches.`;
 
         matches.forEach(word => {
             const item = document.createElement('div');
+            item.className = 'search-result-item';
             item.textContent = word;
-            item.style.padding = '8px';
-            item.style.cursor = 'pointer';
-
-            item.onmouseover = () => item.style.backgroundColor = '#f1f1f1';
-            item.onmouseout = () => item.style.backgroundColor = '#fff';
             
             item.onclick = () => {
-                this.dropdown.style.display = 'none';
+                this.dropdown.classList.add('hidden');
                 onSelect(word);
             };
 
@@ -151,14 +128,17 @@ export class DisplayManager {
         });
     }
 
+    /**
+     * Highlights the current clue in the sidebar 
+     * and scrolls it into view.
+     */
     highlightSlotInList(slotId) {
         const allItems = document.querySelectorAll('.word-list-item');
-        allItems.forEach(el => el.style.borderLeft = 'none');
+        allItems.forEach(el => el.classList.remove('active-clue'));
         
         const target = document.querySelector(`.word-list-item[data-slot-id="${slotId}"]`);
         if (target) {
-            target.style.borderLeft = '4px solid #007bff';
-            target.style.backgroundColor = '#eef6ff';
+            target.classList.add('active-clue');
             target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
     }
