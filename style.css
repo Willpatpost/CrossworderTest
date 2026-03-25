@@ -538,3 +538,114 @@ input[type="text"] {
     border-top: 1px solid var(--border-color);
     font-size: 0.9rem;
 }
+
+/* ===============================
+   15. POPUP / MODAL
+================================ */
+.popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(2px);
+}
+
+.popup-modal {
+    width: min(560px, 100%);
+    max-height: 80vh;
+    overflow-y: auto;
+    background: var(--bg-section);
+    color: var(--text-main);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+    padding: 24px;
+    border: 1px solid var(--border-color);
+}
+
+.popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.popup-title {
+    margin: 0;
+    color: var(--text-header);
+}
+
+.popup-close-btn {
+    border: none;
+    background: var(--primary);
+    color: white;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.popup-close-btn:hover {
+    background: var(--primary-hover);
+}
+
+.popup-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.popup-entry {
+    padding-bottom: 10px;
+}
+
+.popup-entry-bordered {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.popup-clue {
+    margin: 0 0 6px 0;
+    font-size: 1.05rem;
+    line-height: 1.45;
+}
+
+.popup-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.popup-source {
+    font-size: 0.75rem;
+    color: var(--primary);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.popup-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.popup-empty {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.popup-footer {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+}
+
+.popup-footer-source {
+    color: var(--text-muted);
+}

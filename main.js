@@ -1,12 +1,11 @@
 // main.js
 import { CrosswordSolver } from './CrosswordSolver.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initializeTheme();
 
-    // Initialize app
     const app = new CrosswordSolver();
-    app.init();
+    await app.init();
 
     setupNavigation(app);
     setupThemeToggle();
@@ -14,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ===============================
-   THEME INITIALIZATION (FIXED)
+   THEME INITIALIZATION
 ================================ */
 function initializeTheme() {
     const savedTheme = localStorage.getItem('theme');
@@ -24,7 +23,7 @@ function initializeTheme() {
 }
 
 /* ===============================
-   NAVIGATION (SIMPLIFIED + FIXED)
+   NAVIGATION
 ================================ */
 function setupNavigation(app) {
     const navButtons = document.querySelectorAll('.nav-btn');
@@ -32,42 +31,42 @@ function setupNavigation(app) {
     const logo = document.getElementById('nav-logo');
 
     const switchView = (targetId) => {
-        // Update active nav button
-        navButtons.forEach(btn => {
+        // Update nav button active state
+        navButtons.forEach((btn) => {
             btn.classList.toggle('active', btn.dataset.target === targetId);
         });
 
-        // Show/hide views
-        views.forEach(view => {
+        // Show/hide sections
+        views.forEach((view) => {
             view.classList.toggle('hidden', view.id !== targetId);
         });
 
-        // Handle Play Mode toggle cleanly
+        // Route play/editor transitions through the orchestrator
         if (targetId === 'play-screen') {
             if (!app.modes?.isPlayMode) {
-                app.modes?.togglePlayMode();
+                app.enterPlayMode();
             }
         } else {
             if (app.modes?.isPlayMode) {
-                app.modes?.togglePlayMode();
+                app.exitPlayMode();
             }
         }
     };
 
-    // Nav button clicks
-    navButtons.forEach(btn => {
+    navButtons.forEach((btn) => {
         btn.addEventListener('click', () => {
             switchView(btn.dataset.target);
         });
     });
 
-    // Logo click → Home
     if (logo) {
-        logo.addEventListener('click', () => switchView('home-screen'));
+        logo.addEventListener('click', () => {
+            switchView('home-screen');
+        });
 
-        // Accessibility (keyboard)
         logo.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
                 switchView('home-screen');
             }
         });
@@ -75,7 +74,7 @@ function setupNavigation(app) {
 }
 
 /* ===============================
-   NYT TOOLBAR (CLEANED)
+   NYT TOOLBAR
 ================================ */
 function setupNYTToolbar() {
     const checkBtn = document.getElementById('check-menu-btn');
@@ -84,14 +83,20 @@ function setupNYTToolbar() {
     const revealDropdown = document.getElementById('reveal-dropdown');
 
     const closeAll = () => {
-        document.querySelectorAll('.toolbar-dropdown')
-            .forEach(d => d.classList.add('hidden'));
+        document.querySelectorAll('.toolbar-dropdown').forEach((dropdown) => {
+            dropdown.classList.add('hidden');
+        });
     };
 
     const toggleDropdown = (dropdown) => {
-        const isHidden = dropdown.classList.contains('hidden');
+        if (!dropdown) return;
+
+        const wasHidden = dropdown.classList.contains('hidden');
         closeAll();
-        if (isHidden) dropdown.classList.remove('hidden');
+
+        if (wasHidden) {
+            dropdown.classList.remove('hidden');
+        }
     };
 
     checkBtn?.addEventListener('click', (e) => {
