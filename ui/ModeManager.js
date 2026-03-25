@@ -1,87 +1,126 @@
 // ui/ModeManager.js
+
 export class ModeManager {
     constructor() {
-        this.currentMode = 'default';
-        this.modes = ['number', 'letter', 'drag'];
-        this.isSymmetryEnabled = true; 
+        this.currentMode = 'none'; // none | drag | letter | play
+        this.editorModes = ['drag', 'letter'];
+
+        this.isSymmetryEnabled = true;
         this.isPlayMode = false;
     }
 
-    /**
-     * Toggles between standard editor modes.
-     */
-    toggle(modeType) {
+    /* ===============================
+       MODE SWITCHING
+    =============================== */
+
+    setMode(mode) {
         if (this.isPlayMode) return this.currentMode;
 
-        if (this.currentMode === modeType) {
-            this.currentMode = 'default';
-        } else {
-            this.currentMode = modeType;
-        }
+        // Toggle behavior
+        this.currentMode = (this.currentMode === mode) ? 'none' : mode;
+
         this._updateUI();
         return this.currentMode;
     }
 
-    /**
-     * Toggles the Play Mode state.
-     * Note: View switching is handled by main.js, 
-     * this handles the logic state.
-     */
-    togglePlayMode() {
-        this.isPlayMode = !this.isPlayMode;
-        this.currentMode = this.isPlayMode ? 'play' : 'default';
+    /* ===============================
+       PLAY MODE
+    =============================== */
+
+    setPlayMode(enabled) {
+        this.isPlayMode = enabled;
+        this.currentMode = enabled ? 'play' : 'none';
+
         this._updateUI();
         return this.isPlayMode;
     }
 
+    togglePlayMode() {
+        return this.setPlayMode(!this.isPlayMode);
+    }
+
+    /* ===============================
+       SYMMETRY
+    =============================== */
+
     toggleSymmetry() {
         if (this.isPlayMode) return this.isSymmetryEnabled;
+
         this.isSymmetryEnabled = !this.isSymmetryEnabled;
         this._updateUI();
+
         return this.isSymmetryEnabled;
     }
 
-    _updateUI() {
-        // 1. Update the descriptive mode label
-        const label = document.getElementById('mode-label');
-        if (label) {
-            const displayMode = this.currentMode === 'default' ? 'Toggle Black Squares' : this.currentMode;
-            label.textContent = `Mode: ${displayMode.charAt(0).toUpperCase() + displayMode.slice(1)}`;
-        }
+    /* ===============================
+       UI UPDATES (CLEAN + CLASS-BASED)
+    =============================== */
 
-        // 2. Update Editor Mode Buttons (Drag, Letter, Number)
-        this.modes.forEach(m => {
-            const btn = document.getElementById(`${m}-entry-button`) || document.getElementById(`${m}-mode-button`);
-            if (btn) {
-                const isActive = this.currentMode === m;
-                // Using classList instead of inline styles for cleaner theme support
-                if (isActive) {
-                    btn.classList.add('btn-active');
-                    btn.style.backgroundColor = "var(--danger)";
-                } else {
-                    btn.classList.remove('btn-active');
-                    btn.style.backgroundColor = "var(--primary)";
-                }
-                
-                btn.disabled = this.isPlayMode;
-                btn.style.opacity = this.isPlayMode ? "0.5" : "1";
-            }
+    _updateUI() {
+        this._updateModeLabel();
+        this._updateModeButtons();
+        this._updateSymmetryButton();
+        this._updateGlobalStates();
+    }
+
+    /* ---------- Mode Label ---------- */
+
+    _updateModeLabel() {
+        const label = document.getElementById('mode-label');
+        if (!label) return;
+
+        let text = 'Toggle Black Squares';
+
+        if (this.currentMode === 'drag') text = 'Drag';
+        if (this.currentMode === 'letter') text = 'Letter';
+        if (this.currentMode === 'play') text = 'Play Mode';
+
+        label.textContent = `Mode: ${text}`;
+    }
+
+    /* ---------- Mode Buttons ---------- */
+
+    _updateModeButtons() {
+        this.editorModes.forEach(mode => {
+            const btn = document.getElementById(`${mode}-mode-button`);
+            if (!btn) return;
+
+            const isActive = this.currentMode === mode;
+
+            btn.classList.toggle('active-mode', isActive);
+            btn.disabled = this.isPlayMode;
+        });
+    }
+
+    /* ---------- Symmetry ---------- */
+
+    _updateSymmetryButton() {
+        const btn = document.getElementById('symmetry-button');
+        if (!btn) return;
+
+        btn.textContent = `Symmetry: ${this.isSymmetryEnabled ? 'ON' : 'OFF'}`;
+
+        btn.classList.toggle('symmetry-on', this.isSymmetryEnabled);
+        btn.classList.toggle('symmetry-off', !this.isSymmetryEnabled);
+
+        btn.disabled = this.isPlayMode;
+    }
+
+    /* ---------- Global UI States ---------- */
+
+    _updateGlobalStates() {
+        document.body.classList.toggle('is-playing', this.isPlayMode);
+
+        // Optional: dim editor controls during play
+        const editorControls = document.querySelectorAll('#editor-screen .btn');
+        editorControls.forEach(btn => {
+            btn.disabled = this.isPlayMode;
         });
 
-        // 3. Update Symmetry button
-        const symBtn = document.getElementById('symmetry-button');
-        if (symBtn) {
-            symBtn.style.backgroundColor = this.isSymmetryEnabled ? "var(--success)" : "var(--secondary)";
-            symBtn.textContent = `Symmetry: ${this.isSymmetryEnabled ? "ON" : "OFF"}`;
-            symBtn.disabled = this.isPlayMode;
-            symBtn.style.opacity = this.isPlayMode ? "0.5" : "1";
-        }
-
-        // 4. Update Solver Progress / Game Stats Visibility
+        // Solver stats always visible now (clean behavior)
         const gameStats = document.getElementById('game-stats');
         if (gameStats) {
-            // We show stats in both modes now, but differently
-            gameStats.classList.toggle('hidden', false); 
+            gameStats.classList.remove('hidden');
         }
     }
 }

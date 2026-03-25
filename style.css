@@ -75,12 +75,16 @@ body.dark-mode {
 }
 
 /* ===============================
-   2. RESET & BASE
+   2. RESET & BASE LAYOUT
 ================================ */
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+}
+
+html, body {
+    height: 100%;
 }
 
 body {
@@ -89,11 +93,21 @@ body {
     color: var(--text-main);
     line-height: 1.6;
     transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* App Layout (Sticky Footer System) */
+.app-container {
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
 }
 
+#app-main {
+    flex: 1;
+}
+
 /* ===============================
-   3. NAVIGATION BAR
+   3. NAVBAR
 ================================ */
 .navbar {
     display: flex;
@@ -113,6 +127,11 @@ body {
     font-weight: 800;
     letter-spacing: -1px;
     color: var(--primary);
+    cursor: pointer;
+}
+
+.nav-logo:hover {
+    opacity: 0.8;
 }
 
 .nav-center {
@@ -128,7 +147,7 @@ body {
     font-weight: 600;
     color: var(--text-muted);
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 6px;
     transition: all 0.2s ease;
 }
 
@@ -143,26 +162,26 @@ body {
 }
 
 /* ===============================
-   4. VIEW MANAGEMENT
+   4. VIEW SECTIONS
 ================================ */
 .view-section {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 24px;
     animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 .hidden {
     display: none !important;
 }
 
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* ===============================
-   5. HOME SCREEN
+   5. HOME
 ================================ */
 .hero-banner {
     text-align: center;
@@ -174,7 +193,7 @@ body {
 }
 
 .hero-banner h1 {
-    font-size: 3rem;
+    font-size: 2.8rem;
     margin-bottom: 10px;
 }
 
@@ -191,22 +210,8 @@ body {
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
-.info-card h3 {
-    margin-bottom: 15px;
-    color: var(--primary);
-}
-
-.info-card ul {
-    list-style-position: inside;
-    color: var(--text-muted);
-}
-
-.info-card li {
-    margin-bottom: 8px;
-}
-
 /* ===============================
-   6. EDITOR & GENERAL SECTIONS
+   6. SECTIONS (EDITOR)
 ================================ */
 .section {
     background: var(--bg-section);
@@ -221,10 +226,12 @@ h2 {
     margin-bottom: 15px;
     color: var(--text-header);
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 5px;
+    padding-bottom: 6px;
 }
 
-.settings-controls, .mode-controls, .button-group {
+.settings-controls,
+.mode-controls,
+.button-group {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
@@ -233,27 +240,113 @@ h2 {
 .input-group {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
-input[type="number"], input[type="text"] {
+/* ===============================
+   7. BUTTON SYSTEM (FIXED)
+================================ */
+.btn {
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+}
+
+/* Primary */
+.primary-btn {
+    background: var(--primary);
+}
+.primary-btn:hover {
+    background: var(--primary-hover);
+}
+
+/* Secondary */
+.secondary-btn {
+    background: var(--secondary);
+}
+.secondary-btn:hover {
+    background: var(--secondary-hover);
+}
+
+/* Success */
+.success-btn {
+    background: var(--success);
+}
+
+/* Danger */
+.danger-btn {
+    background: var(--danger);
+}
+
+/* Accent */
+.accent-btn {
+    background: var(--accent);
+}
+
+/* Solve */
+.solve-btn {
+    background: var(--play);
+}
+
+/* Mode Buttons */
+.mode-btn {
+    background: var(--bg-body);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
+.mode-btn:hover {
+    background: var(--dropdown-hover);
+}
+
+/* Active editor mode */
+.active-mode {
+    outline: 2px solid var(--primary);
+    background: var(--primary);
+    color: white;
+}
+
+/* Symmetry states */
+.symmetry-on {
+    background: var(--success);
+}
+
+.symmetry-off {
+    background: var(--secondary);
+}
+
+/* Disabled consistency */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ===============================
+   8. INPUTS
+================================ */
+input[type="number"],
+input[type="text"] {
     padding: 8px;
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--bg-body);
     color: var(--text-main);
 }
 
 /* ===============================
-   7. NYT MINI TOOLBAR (PLAY)
+   9. PLAY TOOLBAR
 ================================ */
 .nyt-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     background: var(--bg-section);
-    padding: 10px 20px;
-    border-radius: 8px;
+    padding: 12px 20px;
+    border-radius: 10px;
     margin-bottom: 20px;
     border: 1px solid var(--border-color);
 }
@@ -267,26 +360,23 @@ input[type="number"], input[type="text"] {
 .toolbar-right {
     display: flex;
     gap: 8px;
-    position: relative;
 }
 
 .toolbar-btn {
-    background: white;
-    border: 1px solid #ccc;
+    background: var(--bg-body);
+    border: 1px solid var(--border-color);
     padding: 6px 14px;
     border-radius: 20px;
     font-weight: 700;
     font-size: 0.75rem;
-    text-transform: uppercase;
     cursor: pointer;
-    transition: 0.2s;
 }
 
 .toolbar-btn:hover {
-    background: #f0f0f0;
+    background: var(--dropdown-hover);
 }
 
-/* Toolbar Dropdowns */
+/* Dropdown */
 .dropdown-wrapper {
     position: relative;
 }
@@ -300,19 +390,15 @@ input[type="number"], input[type="text"] {
     border-radius: 8px;
     box-shadow: 0 8px 16px rgba(0,0,0,0.15);
     z-index: 100;
-    min-width: 120px;
     display: flex;
     flex-direction: column;
 }
 
 .toolbar-dropdown button {
     padding: 10px 15px;
-    background: none;
     border: none;
-    text-align: left;
-    color: var(--text-main);
+    background: none;
     cursor: pointer;
-    font-size: 0.9rem;
 }
 
 .toolbar-dropdown button:hover {
@@ -320,19 +406,21 @@ input[type="number"], input[type="text"] {
 }
 
 /* ===============================
-   8. MAIN GAME AREA (SHARED)
+   10. MAIN GAME LAYOUT
 ================================ */
 .main-content {
     display: grid;
-    grid-template-columns: 250px 1fr 300px;
+    grid-template-columns: 260px 1fr 300px;
     gap: 20px;
-    align-items: start;
 }
 
+/* ===============================
+   11. GRID
+================================ */
 .grid-container {
     background: var(--grid-bg);
     padding: 15px;
-    border-radius: 4px;
+    border-radius: 6px;
     display: flex;
     justify-content: center;
 }
@@ -340,15 +428,16 @@ input[type="number"], input[type="text"] {
 .crossword-table {
     border-collapse: separate;
     border-spacing: 2px;
+    border: 2px solid var(--grid-bg);
 }
 
 .grid-cell {
     width: var(--cell-size);
     height: var(--cell-size);
     background: var(--cell-bg);
+    border: 1px solid #aaa;
     position: relative;
     cursor: pointer;
-    user-select: none;
 }
 
 .grid-cell.block {
@@ -357,11 +446,10 @@ input[type="number"], input[type="text"] {
 
 .cell-number {
     position: absolute;
-    top: 1px;
-    left: 2px;
+    top: 2px;
+    left: 3px;
     font-size: 9px;
     color: var(--cell-number);
-    z-index: 2;
 }
 
 .cell-letter {
@@ -371,121 +459,82 @@ input[type="number"], input[type="text"] {
     height: 100%;
     font-size: 20px;
     font-weight: 600;
-    text-transform: uppercase;
 }
 
 /* ===============================
-   9. STATUS & CLUES (Enhanced)
+   12. CLUES
 ================================ */
-.clues-panel h3 {
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    color: var(--primary);
-    margin-bottom: 8px;
-    letter-spacing: 1px;
-}
-
 .word-list-display {
-    background: var(--bg-section);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    height: 300px;
+    height: 320px;
     overflow-y: auto;
-    padding: 5px;
 }
 
-/* Individual Clue Item Styling */
 .word-list-item {
-    display: flex;
     padding: 8px 12px;
     border-bottom: 1px solid var(--bg-body);
     cursor: pointer;
-    font-size: 0.95rem;
-    transition: background 0.2s;
 }
 
 .word-list-item:hover {
     background: var(--dropdown-hover);
 }
 
-.word-list-item .clue-number {
-    font-weight: 800;
-    margin-right: 10px;
-    min-width: 25px;
-}
-
-.word-list-item .clue-text {
-    flex: 1;
-}
-
-/* ===============================
-   13. PLAY MODE SPECIFICS (NEW)
-================================ */
-
-/* Highlight the active cell you are typing in */
-.grid-cell.active-cell {
-    background-color: var(--highlight-active) !important;
-}
-
-/* Highlight the entire word associated with the active cell */
-.grid-cell.active-word {
-    background-color: var(--highlight-word) !important;
-}
-
-/* Play Mode specific letter styling */
-.is-playing .cell-letter {
-    color: #2c3e50;
-    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
-}
-
-/* Error/Check States */
-.grid-cell.correct {
-    background-color: #e8f5e9; /* Light green */
-}
-
-.grid-cell.incorrect {
-    position: relative;
-}
-
-/* Red slash for incorrect letters (classic crossword style) */
-.grid-cell.incorrect::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(to top right, transparent 45%, var(--danger) 48%, var(--danger) 52%, transparent 55%);
-    pointer-events: none;
-}
-
-/* Highlight the clue in the sidebar that matches the selected word on the grid */
 .word-list-item.selected-clue {
-    background-color: var(--highlight-word);
+    background: var(--highlight-word);
     border-left: 4px solid var(--play);
 }
 
-/* Make the grid feel more "NYT" - thicker borders and clearer letters */
-.crossword-table {
-    border: 2px solid var(--grid-bg);
-    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+/* ===============================
+   13. STATES
+================================ */
+.grid-cell.active-cell {
+    background: var(--highlight-active);
 }
 
-.grid-cell {
-    border: 1px solid #aaa;
-    transition: background-color 0.1s ease;
+.grid-cell.active-word {
+    background: var(--highlight-word);
 }
 
-/* Visual solver updates (blue pulse) */
-.grid-cell.solving-active {
-    background-color: var(--cell-updating) !important;
+.grid-cell.correct {
+    background: #e8f5e9;
 }
 
-/* Responsive adjustments for the Clue Panel */
-@media (max-width: 1000px) {
-    .clues-panel {
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: none;
-        height: auto;
-    }
+.grid-cell.incorrect::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top right, transparent 45%, var(--danger) 50%, transparent 55%);
+}
+
+/* Better loading state */
+.muted-text {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Builder mode word preview */
+.builder-word {
+    letter-spacing: 2px;
+    font-family: monospace;
+}
+
+/* Clue source badge */
+.clue-source {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ===============================
+   14. FOOTER (STICKY)
+================================ */
+.footer {
+    text-align: center;
+    padding: 12px;
+    background: var(--bg-section);
+    border-top: 1px solid var(--border-color);
+    font-size: 0.9rem;
 }

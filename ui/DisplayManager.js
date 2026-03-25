@@ -1,4 +1,5 @@
 // ui/DisplayManager.js
+
 export class DisplayManager {
     constructor() {
         this.statusDisplay = document.getElementById('status-display');
@@ -8,138 +9,204 @@ export class DisplayManager {
         this.matchesCount = document.getElementById('matches-count');
     }
 
+    /* ===============================
+       STATUS LOG
+    =============================== */
+
     updateStatus(message, append = false) {
         if (!this.statusDisplay) return;
-        const timestamp = new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' });
+
+        const timestamp = new Date().toLocaleTimeString([], {
+            hour12: false,
+            minute: '2-digit',
+            second: '2-digit'
+        });
+
         const text = `[${timestamp}] ${message}\n`;
-        
-        if (append) {
-            this.statusDisplay.value += text;
-        } else {
-            this.statusDisplay.value = text;
-        }
+
+        this.statusDisplay.value = append
+            ? this.statusDisplay.value + text
+            : text;
+
         this.statusDisplay.scrollTop = this.statusDisplay.scrollHeight;
     }
 
-    /**
-     * Renders word lists. 
-     * Handles the transition between "Word Building" and "Clue Solving".
-     */
-    async updateWordLists(slots, solution = {}, onWordClick, definitionsProvider = null, isPlayMode = false) {
+    /* ===============================
+       WORD LIST RENDERING (FAST + CLEAN)
+    =============================== */
+
+    async updateWordLists(
+        slots,
+        solution = {},
+        onWordClick,
+        definitionsProvider = null,
+        isPlayMode = false
+    ) {
         if (!this.acrossDisplay || !this.downDisplay) return;
 
-        this.acrossDisplay.innerHTML = '';
-        this.downDisplay.innerHTML = '';
+        const acrossSlots = this._getSortedSlots(slots, 'across');
+        const downSlots = this._getSortedSlots(slots, 'down');
 
-        const acrossSlots = Object.values(slots)
-            .filter(s => s.direction === 'across')
-            .sort((a, b) => a.number - b.number);
-            
-        const downSlots = Object.values(slots)
-            .filter(s => s.direction === 'down')
-            .sort((a, b) => a.number - b.number);
+        // Render immediately (fast UI)
+        this._renderSlotList(acrossSlots, this.acrossDisplay, solution, onWordClick, isPlayMode);
+        this._renderSlotList(downSlots, this.downDisplay, solution, onWordClick, isPlayMode);
 
-        const renderList = async (slotsArr, container) => {
-            for (const slot of slotsArr) {
-                const word = solution[slot.id];
-                const item = document.createElement('div');
-                item.className = 'word-list-item';
-                item.dataset.slotId = slot.id;
-
-                // 1. Number and Clue/Word Container
-                const header = document.createElement('div');
-                header.className = 'clue-header';
-
-                const num = document.createElement('strong');
-                num.className = 'clue-number';
-                num.textContent = slot.number;
-                
-                const mainContent = document.createElement('span');
-                mainContent.className = 'clue-text';
-
-                // 2. Attribution Badge
-                const badge = document.createElement('small');
-                badge.className = 'clue-attribution';
-
-                if (isPlayMode && word && definitionsProvider) {
-                    try {
-                        const results = await definitionsProvider.lookup(word);
-                        if (results && results.length > 0) {
-                            // Pick the first historical clue
-                            const bestMatch = results[0];
-                            mainContent.textContent = bestMatch.clue;
-                            badge.textContent = bestMatch.source;
-                        } else {
-                            mainContent.textContent = "No clue found for this word.";
-                            mainContent.classList.add('muted-text');
-                        }
-                    } catch (e) {
-                        mainContent.textContent = "[Error fetching clue]";
-                    }
-                } else {
-                    // Builder mode logic: Show the word or dots
-                    mainContent.textContent = word || ".".repeat(slot.length);
-                    mainContent.classList.add('builder-word');
-                }
-
-                header.appendChild(num);
-                header.appendChild(mainContent);
-                item.appendChild(header);
-                if (badge.textContent) item.appendChild(badge);
-
-                // UI Interactivity
-                item.onclick = () => onWordClick(slot);
-
-                container.appendChild(item);
-            }
-        };
-
-        await renderList(acrossSlots, this.acrossDisplay);
-        await renderList(downSlots, this.downDisplay);
+        // Then hydrate clues async (non-blocking)
+        if (isPlayMode && definitionsProvider) {
+            this._hydrateClues([...acrossSlots, ...downSlots], solution, definitionsProvider);
+        }
     }
 
-    /**
-     * Sidebar search result dropdown logic
-     */
+    _getSortedSlots(slots, direction) {
+        return Object.values(slots)
+            .filter(s => s.direction === direction)
+            .sort((a, b) => a.number - b.number);
+    }
+
+    _renderSlotList(slotsArr, container, solution, onWordClick, isPlayMode) {
+        container.innerHTML = '';
+
+        const fragment = document.createDocumentFragment();
+
+        slotsArr.forEach(slot => {
+            const word = solution[slot.id];
+
+            const item = document.createElement('div');
+            item.className = 'word-list-item';
+            item.dataset.slotId = slot.id;
+
+            const number = document.createElement('span');
+            number.className = 'clue-number';
+            number.textContent = slot.number;
+
+            const text = document.createElement('span');
+            text.className = 'clue-text';
+
+            // Instant render (no waiting)
+            if (isPlayMode) {
+                text.textContent = 'Loading clue...';
+                text.classList.add('muted-text');
+            } else {
+                text.textContent = word || '•'.repeat(slot.length);
+                text.classList.add('builder-word');
+            }
+
+            item.appendChild(number);
+            item.appendChild(text);
+
+            item.addEventListener('click', () => onWordClick(slot));
+
+            fragment.appendChild(item);
+        });
+
+        container.appendChild(fragment);
+    }
+
+    /* ===============================
+       ASYNC CLUE HYDRATION (FAST)
+    =============================== */
+
+    async _hydrateClues(slots, solution, definitionsProvider) {
+        const promises = slots.map(async (slot) => {
+            const word = solution[slot.id];
+            if (!word) return;
+
+            try {
+                const results = await definitionsProvider.lookup(word);
+                return { slotId: slot.id, result: results?.[0] };
+            } catch {
+                return { slotId: slot.id, error: true };
+            }
+        });
+
+        const results = await Promise.all(promises);
+
+        results.forEach(({ slotId, result, error }) => {
+            const item = document.querySelector(`.word-list-item[data-slot-id="${slotId}"]`);
+            if (!item) return;
+
+            const text = item.querySelector('.clue-text');
+
+            if (error) {
+                text.textContent = '[Error loading clue]';
+                return;
+            }
+
+            if (!result) {
+                text.textContent = 'No clue found';
+                text.classList.add('muted-text');
+                return;
+            }
+
+            text.textContent = result.clue;
+
+            // Optional source badge
+            if (result.source) {
+                const badge = document.createElement('span');
+                badge.className = 'clue-source';
+                badge.textContent = result.source;
+                item.appendChild(badge);
+            }
+        });
+    }
+
+    /* ===============================
+       SEARCH DROPDOWN
+    =============================== */
+
     updateSearchResults(matches, onSelect) {
         if (!this.dropdown) return;
 
         this.dropdown.innerHTML = '';
-        if (matches.length === 0) {
+
+        if (!matches.length) {
             this.dropdown.classList.add('hidden');
-            if (this.matchesCount) this.matchesCount.textContent = "No matches found.";
+            if (this.matchesCount) {
+                this.matchesCount.textContent = 'No matches found';
+            }
             return;
         }
 
         this.dropdown.classList.remove('hidden');
-        if (this.matchesCount) this.matchesCount.textContent = `Found ${matches.length} matches.`;
+
+        if (this.matchesCount) {
+            this.matchesCount.textContent = `${matches.length} match${matches.length > 1 ? 'es' : ''}`;
+        }
+
+        const fragment = document.createDocumentFragment();
 
         matches.forEach(word => {
             const item = document.createElement('div');
             item.className = 'search-result-item';
             item.textContent = word;
-            
-            item.onclick = () => {
+
+            item.addEventListener('click', () => {
                 this.dropdown.classList.add('hidden');
                 onSelect(word);
-            };
+            });
 
-            this.dropdown.appendChild(item);
+            fragment.appendChild(item);
         });
+
+        this.dropdown.appendChild(fragment);
     }
 
-    /**
-     * Highlights the current clue in the sidebar 
-     * and scrolls it into view.
-     */
+    /* ===============================
+       ACTIVE CLUE HIGHLIGHT
+    =============================== */
+
     highlightSlotInList(slotId) {
-        const allItems = document.querySelectorAll('.word-list-item');
-        allItems.forEach(el => el.classList.remove('active-clue'));
-        
+        document.querySelectorAll('.word-list-item')
+            .forEach(el => el.classList.remove('selected-clue'));
+
         const target = document.querySelector(`.word-list-item[data-slot-id="${slotId}"]`);
+
         if (target) {
-            target.classList.add('active-clue');
-            target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            target.classList.add('selected-clue');
+            target.scrollIntoView({
+                block: 'nearest',
+                behavior: 'smooth'
+            });
         }
     }
 }
