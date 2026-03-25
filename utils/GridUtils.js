@@ -1,50 +1,139 @@
 // utils/GridUtils.js
+
 export const GridUtils = {
-    /**
-     * Checks if a cell is the start of an ACROSS word.
-     * Matches the logic from your OG autoNumberGrid.
-     */
+    /* ===============================
+       BASIC CELL / GRID HELPERS
+    =============================== */
+
+    isInBounds(grid, r, c) {
+        return (
+            Array.isArray(grid) &&
+            r >= 0 &&
+            c >= 0 &&
+            r < grid.length &&
+            c < (grid[0]?.length ?? 0)
+        );
+    },
+
+    isBlock(grid, r, c) {
+        if (!this.isInBounds(grid, r, c)) return false;
+        return grid[r][c] === '#';
+    },
+
+    isFillableCell(grid, r, c) {
+        if (!this.isInBounds(grid, r, c)) return false;
+        return grid[r][c] !== '#';
+    },
+
+    normalizeCellValue(value) {
+        if (value === '#') return '#';
+        if (typeof value === 'string' && /^[A-Z]$/i.test(value)) {
+            return value.toUpperCase();
+        }
+        return '';
+    },
+
+    /* ===============================
+       SLOT START DETECTION
+    =============================== */
+
     isStartOfAcrossSlot(grid, r, c) {
-        if (!grid[r] || grid[r][c] === '#' || grid[r][c] === undefined) return false;
-        // Start of row or preceded by a block
-        const isStart = (c === 0 || grid[r][c - 1] === '#');
-        // Has at least one white space to the right
-        const hasSpace = (c + 1 < grid[0].length && grid[r][c + 1] !== '#');
-        return isStart && hasSpace;
+        if (!this.isFillableCell(grid, r, c)) return false;
+
+        const startsAtLeftEdge = c === 0;
+        const precededByBlock = !startsAtLeftEdge && this.isBlock(grid, r, c - 1);
+        const hasCellToRight = this.isInBounds(grid, r, c + 1);
+        const rightIsFillable = hasCellToRight && this.isFillableCell(grid, r, c + 1);
+
+        return (startsAtLeftEdge || precededByBlock) && rightIsFillable;
     },
 
-    /**
-     * Checks if a cell is the start of a DOWN word.
-     * Matches the logic from your OG autoNumberGrid.
-     */
     isStartOfDownSlot(grid, r, c) {
-        if (!grid[r] || grid[r][c] === '#' || grid[r][c] === undefined) return false;
-        // Top of column or preceded by a block
-        const isStart = (r === 0 || grid[r - 1][c] === '#');
-        // Has at least one white space below
-        const hasSpace = (r + 1 < grid.length && grid[r + 1][c] !== '#');
-        return isStart && hasSpace;
+        if (!this.isFillableCell(grid, r, c)) return false;
+
+        const startsAtTopEdge = r === 0;
+        const precededByBlock = !startsAtTopEdge && this.isBlock(grid, r - 1, c);
+        const hasCellBelow = this.isInBounds(grid, r + 1, c);
+        const belowIsFillable = hasCellBelow && this.isFillableCell(grid, r + 1, c);
+
+        return (startsAtTopEdge || precededByBlock) && belowIsFillable;
     },
 
-    /**
-     * THE MISSING LINK: Restores the statistical sorting logic.
-     * Maps to OG: calculateLetterFrequenciesFromLoadedCache()
-     */
+    /* ===============================
+       SLOT POSITION HELPERS
+    =============================== */
+
+    getAcrossSlotPositions(grid, r, c) {
+        if (!this.isStartOfAcrossSlot(grid, r, c)) return [];
+
+        const positions = [];
+        let col = c;
+
+        while (this.isInBounds(grid, r, col) && this.isFillableCell(grid, r, col)) {
+            positions.push([r, col]);
+            col++;
+        }
+
+        return positions;
+    },
+
+    getDownSlotPositions(grid, r, c) {
+        if (!this.isStartOfDownSlot(grid, r, c)) return [];
+
+        const positions = [];
+        let row = r;
+
+        while (this.isInBounds(grid, row, c) && this.isFillableCell(grid, row, c)) {
+            positions.push([row, c]);
+            row++;
+        }
+
+        return positions;
+    },
+
+    getSlotPositions(grid, r, c, direction) {
+        if (direction === 'across') {
+            return this.getAcrossSlotPositions(grid, r, c);
+        }
+
+        if (direction === 'down') {
+            return this.getDownSlotPositions(grid, r, c);
+        }
+
+        return [];
+    },
+
+    extractWordFromPositions(grid, positions) {
+        return positions
+            .map(([r, c]) => this.normalizeCellValue(grid[r][c]))
+            .join('');
+    },
+
+    /* ===============================
+       GRID ANALYSIS
+    =============================== */
+
     calculateLetterFrequencies(wordLengthCache) {
         const frequencies = {};
         let totalChars = 0;
 
         for (const len in wordLengthCache) {
             const words = wordLengthCache[len];
+            if (!Array.isArray(words)) continue;
+
             for (const word of words) {
-                for (const char of word) {
+                if (typeof word !== 'string') continue;
+
+                for (const char of word.toUpperCase()) {
+                    if (!/^[A-Z]$/.test(char)) continue;
                     frequencies[char] = (frequencies[char] || 0) + 1;
                     totalChars++;
                 }
             }
         }
 
-        // Convert to relative probabilities (0.0 to 1.0)
+        if (totalChars === 0) return {};
+
         for (const char in frequencies) {
             frequencies[char] /= totalChars;
         }

@@ -13,317 +13,476 @@ import { GridUtils } from './utils/GridUtils.js';
 
 export class CrosswordSolver {
     constructor() {
-        // Data Providers
+        /* ===============================
+           DATA PROVIDERS
+        =============================== */
         this.wordProvider = new WordListProvider();
-        this.Defs = new DefinitionsProvider();
+        this.definitions = new DefinitionsProvider();
         this.fallbackApi = new DictionaryAPI();
-        
-        // Core Engine
+
+        /* ===============================
+           CORE LOGIC
+        =============================== */
         this.solver = new SolverEngine();
         this.constraintManager = new ConstraintManager();
-        
-        // UI & Grid state
-        this.cells = {}; 
+
+        /* ===============================
+           UI + GRID
+        =============================== */
+        this.cells = {};
         this.gridManager = new GridManager(this.cells);
         this.display = new DisplayManager();
         this.modes = new ModeManager();
-        this.popups = new PopupManager(this.Defs, this.fallbackApi);
+        this.popups = new PopupManager(this.definitions, this.fallbackApi);
 
-        // State Variables
+        /* ===============================
+           APP STATE
+        =============================== */
         this.grid = [];
-        this.slots = {}; 
+        this.slots = {};
         this.wordLengthCache = {};
         this.letterFrequencies = {};
+
         this.isDragging = false;
-        this.isSolving = false; 
-        this.activeWorker = null; 
-        
-        this.currentSolution = null; 
-        this.puzzleIndex = []; // Stores the 86k puzzle index
+        this.dragPaintValue = '#';
+
+        this.isSolving = false;
+        this.activeWorker = null;
+
+        this.currentSolution = null;
+        this.puzzleIndex = [];
     }
+
+    /* ===============================
+       INIT
+    =============================== */
 
     async init() {
         this.setupEventListeners();
-        
-        // Load the massive classic puzzle index asynchronously 
+
         try {
             const resp = await fetch('data/nyt_puzzles/puzzle_index.json');
             if (resp.ok) {
                 this.puzzleIndex = await resp.json();
-                this.display.updateStatus(`Loaded ${this.puzzleIndex.length} classic puzzles to index.`);
+                this.display.updateStatus(
+                    `Loaded ${this.puzzleIndex.length} classic puzzles to index.`
+                );
             }
-        } catch (e) {
-            console.warn("Could not load puzzle_index.json. Random puzzle feature will be disabled.", e);
+        } catch (error) {
+            console.warn(
+                'Could not load puzzle_index.json. Random puzzle feature disabled.',
+                error
+            );
         }
 
-        this.loadPredefinedPuzzle("Easy");
-        this.display.updateStatus("System Ready.");
+        this.loadPredefinedPuzzle('Easy');
+        this.display.updateStatus('System ready.', true);
     }
+
+    /* ===============================
+       EVENT LISTENERS
+    =============================== */
 
     setupEventListeners() {
-        document.getElementById('generate-grid-button').onclick = () => {
-            if (this.isSolving) return;
-            const r = parseInt(document.getElementById('rows-input').value) || 10;
-            const c = parseInt(document.getElementById('columns-input').value) || 10;
-            this.generateNewGrid(r, c);
-        };
+        this._bindClick('generate-grid-button', () => {
+            this.abortActiveSolve();
+            const rows = parseInt(document.getElementById('rows-input')?.value, 10) || 15;
+            const cols = parseInt(document.getElementById('columns-input')?.value, 10) || 15;
+            this.generateNewGrid(rows, cols);
+        });
 
-        document.getElementById('load-easy-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Easy");
-        document.getElementById('load-medium-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Medium");
-        document.getElementById('load-hard-button').onclick = () => !this.isSolving && this.loadPredefinedPuzzle("Hard");
-        
-        // NEW: Random Puzzle loader
-        const randomBtn = document.getElementById('random-puzzle-button');
-        if (randomBtn) randomBtn.onclick = () => !this.isSolving && this.loadRandomPuzzle();
+        this._bindClick('load-easy-button', () => {
+            this.abortActiveSolve();
+            this.loadPredefinedPuzzle('Easy');
+        });
 
-        document.getElementById('number-entry-button').onclick = () => this.modes.toggle('number');
-        document.getElementById('letter-entry-button').onclick = () => this.modes.toggle('letter');
-        document.getElementById('drag-mode-button').onclick = () => this.modes.toggle('drag');
-        
-        const symBtn = document.getElementById('symmetry-button');
-        if (symBtn) symBtn.onclick = () => this.modes.toggleSymmetry();
+        this._bindClick('load-medium-button', () => {
+            this.abortActiveSolve();
+            this.loadPredefinedPuzzle('Medium');
+        });
 
-        document.getElementById('auto-number-button').onclick = () => this.render();
-        document.getElementById('solve-crossword-button').onclick = () => this.handleSolve();
-        
-        const cancelBtn = document.getElementById('cancel-solve-button');
-        if (cancelBtn) cancelBtn.onclick = () => this.handleCancel();
+        this._bindClick('load-hard-button', () => {
+            this.abortActiveSolve();
+            this.loadPredefinedPuzzle('Hard');
+        });
+
+        this._bindClick('random-puzzle-button', () => {
+            this.abortActiveSolve();
+            this.loadRandomPuzzle();
+        });
+
+        this._bindClick('drag-mode-button', () => {
+            this.modes.setMode('drag');
+        });
+
+        this._bindClick('letter-entry-button', () => {
+            this.modes.setMode('letter');
+        });
+
+        this._bindClick('symmetry-button', () => {
+            this.modes.toggleSymmetry();
+        });
+
+        this._bindClick('auto-number-button', () => {
+            this.render();
+            this.display.updateStatus('Grid numbering refreshed.', true);
+        });
+
+        this._bindClick('solve-crossword-button', () => {
+            this.handleSolve();
+        });
+
+        this._bindClick('cancel-solve-button', () => {
+            this.abortActiveSolve(true);
+        });
 
         const searchInput = document.getElementById('word-search-input');
-        if (searchInput) searchInput.oninput = () => this.handleSearch(searchInput.value);
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                this.handleSearch(searchInput.value);
+            });
+        }
 
-        const playBtn = document.getElementById('play-mode-button');
-        if (playBtn) playBtn.onclick = () => this.handlePlayModeToggle();
+        this._bindClick('check-square-btn', () => this.handleCheckSquare());
+        this._bindClick('check-word-btn', () => this.handleCheckWord());
+        this._bindClick('check-puzzle-btn', () => this.handleCheckPuzzle());
 
-        const checkGridBtn = document.getElementById('check-grid-button');
-        if (checkGridBtn) checkGridBtn.onclick = () => console.log("Check Grid clicked - To be implemented");
+        this._bindClick('reveal-square-btn', () => this.handleRevealSquare());
+        this._bindClick('reveal-word-btn', () => this.handleRevealWord());
+        this._bindClick('reveal-puzzle-btn', () => this.handleRevealPuzzle());
 
-        const revealWordBtn = document.getElementById('reveal-word-button');
-        if (revealWordBtn) revealWordBtn.onclick = () => console.log("Reveal Word clicked - To be implemented");
+        this._bindClick('clear-btn', () => this.handleClearPlayGrid());
+        this._bindClick('pause-btn', () => {
+            this.display.updateStatus('Pause functionality is not implemented yet.', true);
+        });
 
-        const revealPuzzleBtn = document.getElementById('reveal-puzzle-button');
-        if (revealPuzzleBtn) revealPuzzleBtn.onclick = () => console.log("Reveal Puzzle clicked - To be implemented");
-
-        window.onmouseup = () => this.handleMouseUp();
+        window.addEventListener('mouseup', () => this.handleMouseUp());
     }
 
-    // Handles transition between Builder and Player states
-    handlePlayModeToggle() {
-        // If we don't have a solution saved, but the grid has letters, extract them as the solution
+    _bindClick(id, handler) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', handler);
+    }
+
+    /* ===============================
+       WORKER / SOLVE STATE
+    =============================== */
+
+    abortActiveSolve(isManualCancel = false) {
+        if (this.activeWorker) {
+            this.activeWorker.terminate();
+            this.activeWorker = null;
+        }
+
+        const wasSolving = this.isSolving;
+        this.isSolving = false;
+
+        const solveBtn = document.getElementById('solve-crossword-button');
+        const cancelBtn = document.getElementById('cancel-solve-button');
+
+        if (solveBtn) solveBtn.disabled = false;
+        if (cancelBtn) cancelBtn.classList.add('hidden');
+
+        if (wasSolving && isManualCancel) {
+            this.display.updateStatus('Solve operation cancelled by user.', true);
+            this.gridManager.syncGridToDOM(this.grid, this.slots);
+        }
+    }
+
+    /* ===============================
+       PLAY MODE TRANSITIONS
+    =============================== */
+
+    enterPlayMode() {
+        if (this.isSolving) this.abortActiveSolve();
+
         if (!this.currentSolution) {
             this.currentSolution = this.extractSolutionFromGrid();
         }
 
-        const isNowPlaying = this.modes.togglePlayMode();
-        
-        if (isNowPlaying) {
-            this.display.updateStatus("Entered Play Mode. Good luck!");
-            this.blankGridForPlayMode();
-        } else {
-            this.display.updateStatus("Returned to Builder Mode.");
+        this.modes.setPlayMode(true);
+        this.blankGridForPlayMode();
+        this.refreshWordList();
+        this.display.updateStatus('Entered play mode. Good luck!', true);
+    }
+
+    exitPlayMode() {
+        if (this.isSolving) this.abortActiveSolve();
+
+        this.modes.setPlayMode(false);
+
+        if (this.currentSolution) {
             this.applySolutionToGrid(this.slots, this.currentSolution);
         }
 
-        this.display.updateWordLists(
-            this.slots, 
-            this.currentSolution, 
-            (word) => { if (!this.modes.isPlayMode) this.popups.show(word); },
-            this.Defs, // Updated provider
-            this.modes.isPlayMode
-        );
+        this.refreshWordList();
+        this.display.updateStatus('Returned to editor mode.', true);
     }
 
     extractSolutionFromGrid() {
         const solution = {};
+
         for (const slotId in this.slots) {
             const slot = this.slots[slotId];
-            let word = "";
+            let word = '';
+
             slot.positions.forEach(([r, c]) => {
-                word += this.grid[r][c] || " ";
+                const val = this.grid[r][c];
+                word += (typeof val === 'string' && /^[A-Z]$/i.test(val)) ? val.toUpperCase() : ' ';
             });
+
             solution[slotId] = word;
         }
+
         return solution;
     }
 
     blankGridForPlayMode() {
         for (let r = 0; r < this.grid.length; r++) {
             for (let c = 0; c < this.grid[0].length; c++) {
-                if (this.grid[r][c] !== "#") {
-                    this.grid[r][c] = " ";
+                if (this.grid[r][c] !== '#') {
+                    this.grid[r][c] = '';
                 }
             }
         }
+
         this.gridManager.syncGridToDOM(this.grid, this.slots);
     }
 
-    handleCancel() {
-        if (this.activeWorker) {
-            this.activeWorker.terminate();
-            this.activeWorker = null;
-            this.isSolving = false;
-            
-            const solveBtn = document.getElementById('solve-crossword-button');
-            const cancelBtn = document.getElementById('cancel-solve-button');
-            if (solveBtn) solveBtn.disabled = false;
-            if (cancelBtn) cancelBtn.style.display = 'none';
-            
-            this.display.updateStatus("Solve operation cancelled by user.");
-            this.gridManager.syncGridToDOM(this.grid, this.slots);
-        }
-    }
+    /* ===============================
+       EDITOR GRID INTERACTION
+    =============================== */
 
-    handleMouseDown(e, r, c) {
-        if (this.isSolving || this.modes.currentMode !== 'drag') return;
+    handleMouseDown(_event, r, c) {
+        if (this.modes.isPlayMode) return;
+        if (this.modes.currentMode !== 'drag') return;
+        if (!this._isInBounds(r, c)) return;
+
+        this.abortActiveSolve();
+
         this.isDragging = true;
-        this.gridManager.toggleToBlack = (this.grid[r][c] !== "#");
-        this.toggleCell(r, c);
+        this.dragPaintValue = this.grid[r][c] === '#' ? '' : '#';
+
+        this.paintCell(r, c, this.dragPaintValue);
     }
 
-    handleMouseOver(e, r, c) {
-        if (this.isDragging) this.toggleCell(r, c);
+    handleMouseOver(_event, r, c) {
+        if (!this.isDragging) return;
+        if (this.modes.isPlayMode) return;
+        if (this.modes.currentMode !== 'drag') return;
+        if (!this._isInBounds(r, c)) return;
+
+        this.paintCell(r, c, this.dragPaintValue);
     }
 
     handleMouseUp() {
         this.isDragging = false;
     }
 
-    toggleCell(r, c) {
-        if (this.isSolving) return;
-        const rows = this.grid.length;
-        const cols = this.grid[0].length;
-        const targetVal = this.gridManager.toggleToBlack ? "#" : " ";
+    handleCellClick(_event, r, c) {
+        if (this.isSolving) this.abortActiveSolve();
+        if (this.modes.isPlayMode) return;
+        if (!this._isInBounds(r, c)) return;
 
-        this.grid[r][c] = targetVal;
+        const mode = this.modes.currentMode;
 
-        if (this.modes.isSymmetryEnabled) {
-            const mirrorR = rows - 1 - r;
-            const mirrorC = cols - 1 - c;
-            this.grid[mirrorR][mirrorC] = targetVal;
-        }
-
-        this.constraintManager.buildDataStructures(this.grid);
-        this.slots = this.constraintManager.slots;
-        this.gridManager.syncGridToDOM(this.grid, this.slots);
-        this.currentSolution = null; 
-    }
-
-    handleCellClick(e, r, c) {
-        if (this.isSolving) return;
-        
-        if (this.modes.isPlayMode) {
-            // Future logic for selecting a slot and typing in play mode
+        if (mode === 'letter') {
+            this.handleLetterEntry(r, c);
             return;
         }
 
-        const mode = this.modes.currentMode;
-        if (mode === 'number') {
-            this.gridManager.addNumberToCell(this.grid, r, c);
-            this.render(); 
-        } else if (mode === 'letter') {
-            const letter = prompt("Enter Letter:");
-            if (letter !== null) {
-                this.grid[r][c] = letter.trim().toUpperCase().charAt(0) || " ";
-                this.gridManager.syncGridToDOM(this.grid, this.slots);
-                this.currentSolution = null; 
-            }
-        } else if (mode === 'default') {
-            this.toggleCell(r, c);
+        if (mode === 'drag') {
+            return;
         }
+
+        this.paintCell(r, c, this.grid[r][c] === '#' ? '' : '#');
     }
 
+    handleLetterEntry(r, c) {
+        if (this.grid[r][c] === '#') return;
+
+        const input = window.prompt('Enter a letter:');
+        if (input === null) return;
+
+        const letter = input.trim().toUpperCase().charAt(0);
+
+        if (!letter) {
+            this.grid[r][c] = '';
+        } else if (/^[A-Z]$/.test(letter)) {
+            this.grid[r][c] = letter;
+        } else {
+            this.display.updateStatus('Please enter a single letter A-Z.', true);
+            return;
+        }
+
+        this.rebuildGridState();
+        this.gridManager.syncGridToDOM(this.grid, this.slots);
+        this.refreshWordList();
+        this.currentSolution = null;
+    }
+
+    paintCell(r, c, value) {
+        if (!this._isInBounds(r, c)) return;
+
+        const nextValue = value === '#' ? '#' : '';
+
+        this.grid[r][c] = nextValue;
+
+        if (this.modes.isSymmetryEnabled) {
+            const mirrorR = this.grid.length - 1 - r;
+            const mirrorC = this.grid[0].length - 1 - c;
+            this.grid[mirrorR][mirrorC] = nextValue;
+        }
+
+        this.rebuildGridState();
+        this.gridManager.syncGridToDOM(this.grid, this.slots);
+        this.refreshWordList();
+        this.currentSolution = null;
+    }
+
+    /* ===============================
+       DATA LOADING
+    =============================== */
+
     generateNewGrid(rows, cols) {
-        this.grid = Array.from({ length: rows }, () => Array(cols).fill(" "));
+        this.grid = Array.from({ length: rows }, () => Array(cols).fill(''));
         this.currentSolution = null;
         this.render();
+        this.display.updateStatus(`Generated ${rows}×${cols} grid.`, true);
     }
 
     loadPredefinedPuzzle(name) {
         const puzzle = predefinedPuzzles.find(p => p.name === name);
-        if (puzzle) {
-            this.grid = JSON.parse(JSON.stringify(puzzle.grid));
-            this.currentSolution = null;
-            this.render();
-        }
+        if (!puzzle) return;
+
+        this.grid = JSON.parse(JSON.stringify(puzzle.grid)).map(row =>
+            row.map(cell => (cell === ' ' ? '' : cell))
+        );
+
+        this.currentSolution = null;
+        this.render();
+        this.display.updateStatus(`Loaded ${name} puzzle.`, true);
     }
 
-    // NEW: Load a random parsed XD puzzle
     async loadRandomPuzzle() {
-        if (this.puzzleIndex.length === 0) {
-            this.display.updateStatus("Puzzle index is empty or still loading.");
+        if (!this.puzzleIndex.length) {
+            this.display.updateStatus('Puzzle index is empty or still loading.', true);
             return;
         }
-        
+
         const randomEntry = this.puzzleIndex[Math.floor(Math.random() * this.puzzleIndex.length)];
-        this.display.updateStatus(`Loading: ${randomEntry.title || randomEntry.id}...`);
+        this.display.updateStatus(`Loading ${randomEntry.title || randomEntry.id}...`, true);
 
         try {
             const resp = await fetch(`data/nyt_puzzles/${randomEntry.file}`);
+            if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+            }
+
             const puzzleData = await resp.json();
-            
             this.importXdGrid(puzzleData.grid);
-            this.display.updateStatus(`Loaded ${randomEntry.title} (${randomEntry.author}, ${randomEntry.date})`);
-            
-        } catch (e) {
-            this.display.updateStatus("Failed to load puzzle data.");
-            console.error(e);
+
+            this.display.updateStatus(
+                `Loaded ${randomEntry.title} (${randomEntry.author}, ${randomEntry.date}).`,
+                true
+            );
+        } catch (error) {
+            console.error(error);
+            this.display.updateStatus('Failed to load puzzle data.', true);
         }
     }
 
-    // NEW: Parses array of strings from XD json into our 2D array
     importXdGrid(gridStrings) {
-        if (!gridStrings || gridStrings.length === 0) return;
-        
-        const rows = gridStrings.length;
-        const cols = gridStrings[0].length;
-        
-        this.grid = [];
-        for (let r = 0; r < rows; r++) {
-            const rowArr = [];
-            for (let c = 0; c < cols; c++) {
-                const char = gridStrings[r][c];
-                rowArr.push(char === '.' ? '#' : char.toUpperCase()); 
-            }
-            this.grid.push(rowArr);
-        }
-        
+        if (!Array.isArray(gridStrings) || !gridStrings.length) return;
+
+        this.grid = gridStrings.map(row =>
+            [...row].map(char => {
+                if (char === '.') return '#';
+                if (/^[A-Z]$/i.test(char)) return char.toUpperCase();
+                return '';
+            })
+        );
+
         this.currentSolution = null;
         this.render();
     }
 
+    /* ===============================
+       RENDER / REFRESH
+    =============================== */
+
+    rebuildGridState() {
+        const { slots } = this.constraintManager.buildDataStructures(this.grid);
+        this.slots = slots;
+    }
+
     render() {
         const container = document.getElementById('grid-container');
-        this.constraintManager.buildDataStructures(this.grid);
-        this.slots = this.constraintManager.slots;
+        if (!container) return;
+
+        this.rebuildGridState();
         this.gridManager.render(this.grid, container, this);
-        
+        this.refreshWordList();
+    }
+
+    refreshWordList() {
+        const wordClickHandler = (slot) => {
+            if (this.modes.isPlayMode) {
+                const [r, c] = slot.positions[0];
+                this.gridManager.selectedCell = { r, c };
+                this.gridManager.selectedDirection = slot.direction;
+                this.gridManager._updateHighlights(this);
+                return;
+            }
+
+            const word = this.currentSolution?.[slot.id] || this._extractSlotWord(slot);
+            this.popups.show(word);
+        };
+
         this.display.updateWordLists(
-            this.slots, 
-            this.currentSolution || {}, 
-            (word) => this.popups.show(word),
-            this.Defs,
+            this.slots,
+            this.currentSolution || {},
+            wordClickHandler,
+            this.definitions,
             this.modes.isPlayMode
         );
     }
 
+    _extractSlotWord(slot) {
+        return slot.positions
+            .map(([r, c]) => {
+                const val = this.grid[r][c];
+                return /^[A-Z]$/i.test(val) ? val.toUpperCase() : '';
+            })
+            .join('');
+    }
+
+    /* ===============================
+       SOLVER
+    =============================== */
+
     async handleSolve() {
-        if (this.isSolving) return;
-        
+        if (this.isSolving) {
+            this.abortActiveSolve();
+        }
+
         const solveBtn = document.getElementById('solve-crossword-button');
         const cancelBtn = document.getElementById('cancel-solve-button');
-        
+
         this.isSolving = true;
         if (solveBtn) solveBtn.disabled = true;
-        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        if (cancelBtn) cancelBtn.classList.remove('hidden');
 
         try {
-            this.display.updateStatus("Analyzing grid constraints...");
+            this.display.updateStatus('Analyzing grid constraints...');
+
             const start = performance.now();
-            
+
             const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
             this.slots = slots;
-            
-            const uniqueLengths = [...new Set(Object.values(this.slots).map(s => s.length))];
+
+            const uniqueLengths = [...new Set(Object.values(this.slots).map(slot => slot.length))];
             for (const len of uniqueLengths) {
                 if (!this.wordLengthCache[len]) {
                     this.wordLengthCache[len] = await this.wordProvider.getWordsOfLength(len);
@@ -331,49 +490,61 @@ export class CrosswordSolver {
             }
 
             this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
-            const domains = this.constraintManager.setupDomains(this.slots, this.wordLengthCache, this.grid);
-            
-            const allowReuse = document.getElementById('allow-reuse-toggle')?.checked || false;
-            const visualize = document.getElementById('visualize-solve-toggle')?.checked || false;
+            const domains = this.constraintManager.setupDomains(
+                this.slots,
+                this.wordLengthCache,
+                this.grid
+            );
 
-            this.display.updateStatus(visualize ? "Solving visually..." : "Solving...");
+            const allowReuse =
+                document.getElementById('allow-reuse-toggle')?.checked || false;
+            const visualize =
+                document.getElementById('visualize-solve-toggle')?.checked || false;
+
+            this.display.updateStatus(visualize ? 'Solving visually...' : 'Solving...', true);
 
             const result = await new Promise((resolve, reject) => {
                 this.activeWorker = new Worker('./solver/SolverWorker.js', { type: 'module' });
+                let lastVisualUpdate = performance.now();
 
                 this.activeWorker.onmessage = (e) => {
                     const { type, payload } = e.data;
 
                     if (type === 'UPDATE') {
+                        const now = performance.now();
+                        if (now - lastVisualUpdate < 32) return;
+                        lastVisualUpdate = now;
+
                         const { slotId, word } = payload;
                         const slot = this.slots[slotId];
                         if (!slot) return;
-                        
-                        slot.positions.forEach((pos, i) => {
-                            const [r, c] = pos;
-                            const td = this.cells[`${r},${c}`];
-                            if (td) {
-                                const letterSpan = td.querySelector('.cell-letter') || td;
-                                letterSpan.textContent = word[i] || "";
-                                td.style.backgroundColor = word ? "#e3f2fd" : "white";
-                            }
+
+                        requestAnimationFrame(() => {
+                            slot.positions.forEach(([r, c], i) => {
+                                const td = this.cells[`${r},${c}`];
+                                if (!td) return;
+
+                                const span = td.querySelector('.cell-letter');
+                                if (span) span.textContent = word?.[i] || '';
+
+                                td.classList.add('solving-active');
+                                window.setTimeout(() => {
+                                    td.classList.remove('solving-active');
+                                }, 120);
+                            });
                         });
-                    } else if (type === 'RESULT') {
-                        this.activeWorker.terminate();
-                        this.activeWorker = null;
+                    }
+
+                    if (type === 'RESULT') {
                         resolve(payload);
-                    } else if (type === 'ERROR') {
-                        this.activeWorker.terminate();
-                        this.activeWorker = null;
+                    }
+
+                    if (type === 'ERROR') {
                         reject(new Error(payload));
                     }
                 };
 
-                this.activeWorker.onerror = (err) => {
-                    if (this.activeWorker) this.activeWorker.terminate();
-                    this.activeWorker = null;
-                    reject(err);
-                };
+                this.activeWorker.onerror = (err) => reject(err);
 
                 this.activeWorker.postMessage({
                     type: 'START_SOLVE',
@@ -389,32 +560,28 @@ export class CrosswordSolver {
             });
 
             const end = performance.now();
+
             if (result.success) {
                 this.currentSolution = result.solution;
-                this.display.updateStatus(`Solved in ${((end - start) / 1000).toFixed(2)}s!`);
                 this.applySolutionToGrid(this.slots, result.solution);
-                
-                this.display.updateWordLists(
-                    this.slots, 
-                    result.solution, 
-                    (word) => this.popups.show(word),
-                    this.Defs,
-                    this.modes.isPlayMode
+
+                this.display.updateStatus(
+                    `Solved in ${((end - start) / 1000).toFixed(2)}s!`,
+                    true
                 );
+
+                this.refreshWordList();
             } else {
-                this.display.updateStatus("No solution found.");
+                this.display.updateStatus('No solution found.', true);
                 this.gridManager.syncGridToDOM(this.grid, this.slots);
             }
-        } catch (err) {
+        } catch (error) {
             if (this.isSolving) {
-                console.error(err);
-                this.display.updateStatus("Solver Error: " + err.message);
+                console.error(error);
+                this.display.updateStatus(`Solver error: ${error.message}`, true);
             }
         } finally {
-            this.isSolving = false;
-            this.activeWorker = null;
-            if (solveBtn) solveBtn.disabled = false;
-            if (cancelBtn) cancelBtn.style.display = 'none';
+            this.abortActiveSolve();
         }
     }
 
@@ -422,25 +589,178 @@ export class CrosswordSolver {
         for (const slotId in solution) {
             const word = solution[slotId];
             const slot = slots[slotId];
-            slot.positions.forEach((pos, i) => {
-                const [r, c] = pos;
-                this.grid[r][c] = word[i];
+            if (!slot) continue;
+
+            slot.positions.forEach(([r, c], i) => {
+                this.grid[r][c] = word?.[i] || '';
             });
         }
+
         this.gridManager.syncGridToDOM(this.grid, slots);
     }
 
-    async handleSearch(val) {
-        const query = val.trim();
-        if (!query || query.length < 2) return;
-        
-        try {
-            const words = await this.wordProvider.getWordsOfLength(query.length);
-            const regex = new RegExp(`^${query.replace(/\?/g, '.').toUpperCase()}$`);
-            const matches = words.filter(w => regex.test(w)).slice(0, 50);
-            this.display.updateSearchResults(matches, (selected) => this.popups.show(selected));
-        } catch (e) {
-            console.warn("Search failed", e);
+    /* ===============================
+       PLAY TOOLS
+    =============================== */
+
+    handleCheckSquare() {
+        if (!this.modes.isPlayMode || !this.currentSolution) return;
+
+        const selected = this.gridManager.selectedCell;
+        if (!selected) return;
+
+        const { r, c } = selected;
+        const expected = this._getSolutionLetterAt(r, c);
+        const actual = (this.grid[r][c] || '').toUpperCase();
+
+        const td = this.cells[`${r},${c}`];
+        if (!td || this.grid[r][c] === '#') return;
+
+        td.classList.remove('correct', 'incorrect');
+        td.classList.add(actual && actual === expected ? 'correct' : 'incorrect');
+    }
+
+    handleCheckWord() {
+        if (!this.modes.isPlayMode || !this.currentSolution) return;
+
+        const slot = this.gridManager._getActiveSlot(this);
+        if (!slot) return;
+
+        slot.positions.forEach(([r, c]) => {
+            const expected = this._getSolutionLetterAt(r, c);
+            const actual = (this.grid[r][c] || '').toUpperCase();
+            const td = this.cells[`${r},${c}`];
+            if (!td) return;
+
+            td.classList.remove('correct', 'incorrect');
+            td.classList.add(actual && actual === expected ? 'correct' : 'incorrect');
+        });
+    }
+
+    handleCheckPuzzle() {
+        if (!this.modes.isPlayMode || !this.currentSolution) return;
+
+        Object.values(this.slots).forEach(slot => {
+            slot.positions.forEach(([r, c]) => {
+                const expected = this._getSolutionLetterAt(r, c);
+                const actual = (this.grid[r][c] || '').toUpperCase();
+                const td = this.cells[`${r},${c}`];
+                if (!td) return;
+
+                td.classList.remove('correct', 'incorrect');
+                td.classList.add(actual && actual === expected ? 'correct' : 'incorrect');
+            });
+        });
+    }
+
+    handleRevealSquare() {
+        if (!this.modes.isPlayMode || !this.currentSolution) return;
+
+        const selected = this.gridManager.selectedCell;
+        if (!selected) return;
+
+        const { r, c } = selected;
+        const expected = this._getSolutionLetterAt(r, c);
+        if (!expected) return;
+
+        this.grid[r][c] = expected;
+        this.gridManager.syncGridToDOM(this.grid, this.slots);
+        this.gridManager._updateHighlights(this);
+    }
+
+    handleRevealWord() {
+        if (!this.modes.isPlayMode || !this.currentSolution) return;
+
+        const slot = this.gridManager._getActiveSlot(this);
+        if (!slot) return;
+
+        slot.positions.forEach(([r, c]) => {
+            const expected = this._getSolutionLetterAt(r, c);
+            if (expected) this.grid[r][c] = expected;
+        });
+
+        this.gridManager.syncGridToDOM(this.grid, this.slots);
+        this.gridManager._updateHighlights(this);
+    }
+
+    handleRevealPuzzle() {
+        if (!this.modes.isPlayMode || !this.currentSolution) return;
+
+        this.applySolutionToGrid(this.slots, this.currentSolution);
+        this.gridManager._updateHighlights(this);
+    }
+
+    handleClearPlayGrid() {
+        if (!this.modes.isPlayMode) return;
+
+        for (let r = 0; r < this.grid.length; r++) {
+            for (let c = 0; c < this.grid[0].length; c++) {
+                if (this.grid[r][c] !== '#') {
+                    this.grid[r][c] = '';
+                }
+            }
         }
+
+        Object.values(this.cells).forEach(td => {
+            td.classList.remove('correct', 'incorrect');
+        });
+
+        this.gridManager.syncGridToDOM(this.grid, this.slots);
+        this.gridManager._updateHighlights(this);
+    }
+
+    _getSolutionLetterAt(r, c) {
+        for (const slotId in this.currentSolution) {
+            const slot = this.slots[slotId];
+            if (!slot) continue;
+
+            const index = slot.positions.findIndex(([rr, cc]) => rr === r && cc === c);
+            if (index !== -1) {
+                const letter = this.currentSolution[slotId]?.[index] || '';
+                return /^[A-Z]$/i.test(letter) ? letter.toUpperCase() : '';
+            }
+        }
+
+        return '';
+    }
+
+    /* ===============================
+       SEARCH
+    =============================== */
+
+    async handleSearch(value) {
+        const query = value.trim().toUpperCase();
+        const safeQuery = query.replace(/[^A-Z?]/g, '');
+
+        if (!safeQuery || safeQuery.length < 2) {
+            this.display.updateSearchResults([], () => {});
+            return;
+        }
+
+        try {
+            const words = await this.wordProvider.getWordsOfLength(safeQuery.length);
+            const regex = new RegExp(`^${safeQuery.replace(/\?/g, '.')}$`);
+            const matches = words.filter(word => regex.test(word)).slice(0, 50);
+
+            this.display.updateSearchResults(matches, (selected) => {
+                this.popups.show(selected);
+            });
+        } catch (error) {
+            console.warn('Search failed', error);
+            this.display.updateStatus('Word search failed.', true);
+        }
+    }
+
+    /* ===============================
+       HELPERS
+    =============================== */
+
+    _isInBounds(r, c) {
+        return (
+            r >= 0 &&
+            c >= 0 &&
+            r < this.grid.length &&
+            c < this.grid[0].length
+        );
     }
 }

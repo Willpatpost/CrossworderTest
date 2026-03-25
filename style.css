@@ -1,3 +1,5 @@
+/* style.css */
+
 /* ===============================
    1. DESIGN TOKENS
 ================================ */
@@ -39,6 +41,7 @@
     --dropdown-hover: #f1f1f1;
 
     --cell-size: 36px;
+    --nav-height: 60px;
 }
 
 /* ===============================
@@ -72,12 +75,16 @@ body.dark-mode {
 }
 
 /* ===============================
-   2. RESET
+   2. RESET & BASE LAYOUT
 ================================ */
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+}
+
+html, body {
+    height: 100%;
 }
 
 body {
@@ -88,341 +95,557 @@ body {
     transition: background 0.25s ease, color 0.25s ease;
 }
 
-/* ===============================
-   3. LAYOUT
-================================ */
+/* App Layout (Sticky Footer System) */
 .app-container {
-    max-width: 1300px;
-    margin: 0 auto;
-    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
+#app-main {
+    flex: 1;
+}
+
+/* ===============================
+   3. NAVBAR
+================================ */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-section);
+    padding: 0 2rem;
+    height: var(--nav-height);
+    border-bottom: 2px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.nav-logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--primary);
+    cursor: pointer;
+}
+
+.nav-logo:hover {
+    opacity: 0.8;
+}
+
+.nav-center {
+    display: flex;
+    gap: 10px;
+}
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    padding: 8px 16px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+    color: var(--text-main);
+    background: var(--dropdown-hover);
+}
+
+.nav-btn.active {
+    color: var(--primary);
+    background: rgba(0, 105, 217, 0.1);
+}
+
+/* ===============================
+   4. VIEW SECTIONS
+================================ */
+.view-section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.hidden {
+    display: none !important;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===============================
+   5. HOME
+================================ */
+.hero-banner {
+    text-align: center;
+    padding: 60px 20px;
+    background: linear-gradient(135deg, var(--primary), var(--play));
+    color: white;
+    border-radius: 12px;
+    margin-bottom: 30px;
+}
+
+.hero-banner h1 {
+    font-size: 2.8rem;
+    margin-bottom: 10px;
+}
+
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.info-card {
+    background: var(--bg-section);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* ===============================
+   6. SECTIONS (EDITOR)
+================================ */
 .section {
     background: var(--bg-section);
     padding: 20px;
     margin-bottom: 20px;
     border-radius: 12px;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.08);
-}
-
-/* Headers */
-h2, h3 {
-    color: var(--text-header);
-    margin-bottom: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
 
 h2 {
-    border-bottom: 2px solid var(--border-color);
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    color: var(--text-header);
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 6px;
 }
 
-/* ===============================
-   HEADER
-================================ */
-.header-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 25px;
-}
-
-.app-title {
-    font-size: 2.4rem;
-    letter-spacing: 1px;
-}
-
-/* ===============================
-   INPUTS
-================================ */
-.input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-input {
-    padding: 8px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-section);
-    color: var(--text-main);
-    transition: all 0.2s ease;
-}
-
-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(0,105,217,0.2);
-}
-
-/* ===============================
-   BUTTON SYSTEM
-================================ */
-.btn {
-    padding: 10px 16px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.2s ease;
-}
-
-.btn:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.05);
-}
-
-.btn:active {
-    transform: translateY(1px);
-}
-
-.primary-btn { background: var(--primary); color: #fff; }
-.primary-btn:hover { background: var(--primary-hover); }
-
-.secondary-btn { background: var(--secondary); color: #fff; }
-.secondary-btn:hover { background: var(--secondary-hover); }
-
-.success-btn { background: var(--success); color: #fff; }
-.danger-btn { background: var(--danger); color: #fff; }
-
-.play-btn {
-    background: var(--play);
-    color: #fff;
-    font-weight: bold;
-}
-
-.mode-btn {
-    background: var(--primary);
-    color: #fff;
-}
-
-.solve-btn {
-    background: var(--success);
-    color: #fff;
-    width: 100%;
-    font-size: 1.1rem;
-    padding: 14px;
-}
-
-.btn-active {
-    outline: 2px solid var(--highlight-active);
-    transform: scale(1.05);
-}
-
-/* ===============================
-   GROUPS
-================================ */
 .settings-controls,
 .mode-controls,
 .button-group {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    align-items: center;
 }
 
-.toggle-group {
+.input-group {
     display: flex;
-    gap: 15px;
-    border: 1px solid var(--border-color);
-    padding: 10px;
-    border-radius: 8px;
+    align-items: center;
+    gap: 8px;
 }
 
 /* ===============================
-   MAIN CONTENT
+   7. BUTTON SYSTEM (FIXED)
+================================ */
+.btn {
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+}
+
+/* Primary */
+.primary-btn {
+    background: var(--primary);
+}
+.primary-btn:hover {
+    background: var(--primary-hover);
+}
+
+/* Secondary */
+.secondary-btn {
+    background: var(--secondary);
+}
+.secondary-btn:hover {
+    background: var(--secondary-hover);
+}
+
+/* Success */
+.success-btn {
+    background: var(--success);
+}
+
+/* Danger */
+.danger-btn {
+    background: var(--danger);
+}
+
+/* Accent */
+.accent-btn {
+    background: var(--accent);
+}
+
+/* Solve */
+.solve-btn {
+    background: var(--play);
+}
+
+/* Mode Buttons */
+.mode-btn {
+    background: var(--bg-body);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
+.mode-btn:hover {
+    background: var(--dropdown-hover);
+}
+
+/* Active editor mode */
+.active-mode {
+    outline: 2px solid var(--primary);
+    background: var(--primary);
+    color: white;
+}
+
+/* Symmetry states */
+.symmetry-on {
+    background: var(--success);
+}
+
+.symmetry-off {
+    background: var(--secondary);
+}
+
+/* Disabled consistency */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ===============================
+   8. INPUTS
+================================ */
+input[type="number"],
+input[type="text"] {
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-body);
+    color: var(--text-main);
+}
+
+/* ===============================
+   9. PLAY TOOLBAR
+================================ */
+.nyt-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-section);
+    padding: 12px 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.timer {
+    font-size: 1.4rem;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.toolbar-right {
+    display: flex;
+    gap: 8px;
+}
+
+.toolbar-btn {
+    background: var(--bg-body);
+    border: 1px solid var(--border-color);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.toolbar-btn:hover {
+    background: var(--dropdown-hover);
+}
+
+/* Dropdown */
+.dropdown-wrapper {
+    position: relative;
+}
+
+.toolbar-dropdown {
+    position: absolute;
+    top: 110%;
+    right: 0;
+    background: var(--bg-section);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+}
+
+.toolbar-dropdown button {
+    padding: 10px 15px;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
+.toolbar-dropdown button:hover {
+    background: var(--dropdown-hover);
+}
+
+/* ===============================
+   10. MAIN GAME LAYOUT
 ================================ */
 .main-content {
     display: grid;
-    grid-template-columns: 0.8fr 2.5fr 1.2fr;
+    grid-template-columns: 260px 1fr 300px;
     gap: 20px;
 }
 
 /* ===============================
-   STATUS PANEL
-================================ */
-.status-panel textarea {
-    width: 100%;
-    height: 350px;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--status-bg);
-    color: var(--status-text);
-    font-family: monospace;
-    font-size: 13px;
-}
-
-/* ===============================
-   GRID
+   11. GRID
 ================================ */
 .grid-container {
+    background: var(--grid-bg);
+    padding: 15px;
+    border-radius: 6px;
     display: flex;
     justify-content: center;
-    padding: 20px;
-    background: var(--grid-bg);
-    border-radius: 10px;
-    overflow: auto;
 }
 
 .crossword-table {
+    border-collapse: separate;
     border-spacing: 2px;
+    border: 2px solid var(--grid-bg);
 }
 
-/* Base cell */
 .grid-cell {
     width: var(--cell-size);
     height: var(--cell-size);
     background: var(--cell-bg);
-    color: var(--cell-text);
+    border: 1px solid #aaa;
     position: relative;
     cursor: pointer;
-    user-select: none;
 }
 
-/* Letter */
-.cell-letter {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    font-size: calc(var(--cell-size) * 0.55);
-    font-weight: bold;
-}
-
-/* Block cell */
 .grid-cell.block {
     background: var(--cell-block);
 }
 
-/* Hover */
-.grid-cell:hover {
-    filter: brightness(0.96);
-}
-
-/* Number */
 .cell-number {
     position: absolute;
     top: 2px;
-    left: 4px;
-    font-size: 10px;
+    left: 3px;
+    font-size: 9px;
     color: var(--cell-number);
 }
 
-/* Highlights */
-.highlight-active {
-    background: var(--highlight-active) !important;
-    color: #000 !important;
-}
-
-.highlight-word {
-    background: var(--highlight-word) !important;
-}
-
-.cell-updating {
-    background: var(--cell-updating) !important;
+.cell-letter {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    font-size: 20px;
+    font-weight: 600;
 }
 
 /* ===============================
-   CLUES
+   12. CLUES
 ================================ */
 .word-list-display {
-    height: 350px;
-    overflow-y: auto;
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--status-bg);
+    border-radius: 8px;
+    height: 320px;
+    overflow-y: auto;
 }
 
-.clue-item {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border-color);
+.word-list-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--bg-body);
     cursor: pointer;
-    transition: background 0.15s ease;
 }
 
-.clue-item:hover {
+.word-list-item:hover {
     background: var(--dropdown-hover);
 }
 
-/* ===============================
-   SEARCH
-================================ */
-.search-container {
-    position: relative;
+.word-list-item.selected-clue {
+    background: var(--highlight-word);
+    border-left: 4px solid var(--play);
 }
 
-.search-dropdown {
+/* ===============================
+   13. STATES
+================================ */
+.grid-cell.active-cell {
+    background: var(--highlight-active);
+}
+
+.grid-cell.active-word {
+    background: var(--highlight-word);
+}
+
+.grid-cell.correct {
+    background: #e8f5e9;
+}
+
+.grid-cell.incorrect::after {
+    content: '';
     position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--dropdown-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    max-height: 200px;
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    inset: 0;
+    background: linear-gradient(to top right, transparent 45%, var(--danger) 50%, transparent 55%);
 }
 
-.search-dropdown div {
-    padding: 10px;
-    border-bottom: 1px solid var(--border-color);
-    cursor: pointer;
-}
-
-.search-dropdown div:hover {
-    background: var(--dropdown-hover);
-}
-
-/* ===============================
-   UTILITIES
-================================ */
-.hidden {
-    display: none !important;
-}
-
-.mode-label {
-    margin-top: 10px;
-    font-size: 0.9rem;
+/* Better loading state */
+.muted-text {
     color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Builder mode word preview */
+.builder-word {
+    letter-spacing: 2px;
+    font-family: monospace;
+}
+
+/* Clue source badge */
+.clue-source {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
 }
 
 /* ===============================
-   FOOTER
+   14. FOOTER (STICKY)
 ================================ */
 .footer {
     text-align: center;
-    margin-top: 30px;
-    color: var(--text-muted);
+    padding: 12px;
+    background: var(--bg-section);
+    border-top: 1px solid var(--border-color);
+    font-size: 0.9rem;
 }
 
 /* ===============================
-   RESPONSIVE
+   15. POPUP / MODAL
 ================================ */
-@media (max-width: 1100px) {
-    .main-content {
-        grid-template-columns: 1fr;
-    }
-
-    .grid-container {
-        order: -1;
-    }
-
-    :root {
-        --cell-size: 30px;
-    }
+.popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(2px);
 }
 
-@media (max-width: 600px) {
-    :root {
-        --cell-size: 24px;
-    }
+.popup-modal {
+    width: min(560px, 100%);
+    max-height: 80vh;
+    overflow-y: auto;
+    background: var(--bg-section);
+    color: var(--text-main);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+    padding: 24px;
+    border: 1px solid var(--border-color);
+}
 
-    .settings-controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
+.popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.popup-title {
+    margin: 0;
+    color: var(--text-header);
+}
+
+.popup-close-btn {
+    border: none;
+    background: var(--primary);
+    color: white;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.popup-close-btn:hover {
+    background: var(--primary-hover);
+}
+
+.popup-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.popup-entry {
+    padding-bottom: 10px;
+}
+
+.popup-entry-bordered {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.popup-clue {
+    margin: 0 0 6px 0;
+    font-size: 1.05rem;
+    line-height: 1.45;
+}
+
+.popup-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.popup-source {
+    font-size: 0.75rem;
+    color: var(--primary);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.popup-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.popup-empty {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.popup-footer {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+}
+
+.popup-footer-source {
+    color: var(--text-muted);
 }
