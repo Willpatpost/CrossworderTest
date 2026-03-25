@@ -4,244 +4,358 @@ export class SolverEngine {
     constructor() {
         this.recursiveCalls = 0;
         this.allowReuse = false;
-        this.onUpdateCallback = null; // Used for UI visualization
+        this.onUpdateCallback = null;
         this.isInterrupted = false;
+        this.randomize = true;
     }
 
     interrupt() {
         this.isInterrupted = true;
     }
 
-    /**
-     * Entry point for the solver.
-     */
-    async backtrackingSolve(slots, domains, constraints, letterFrequencies, cellContents, settings = {}) {
-        this.isInterrupted = false; // Reset at start
+    /* ===============================
+       ENTRY POINT
+    =============================== */
+
+    async backtrackingSolve(
+        slots,
+        domains,
+        constraints,
+        letterFrequencies,
+        cellContents,
+        settings = {}
+    ) {
+        this.isInterrupted = false;
         this.recursiveCalls = 0;
         this.allowReuse = settings.allowReuse ?? false;
         const visualize = settings.visualize ?? false;
-        
+        this.randomize = settings.randomize ?? true;
+
         const assignment = {};
-        
-        // 1. Deep clone domains to ensure search branches don't interfere with each other
-        const localDomains = {};
-        for (const id in domains) {
-            localDomains[id] = [...domains[id]];
+        const localDomains = this._cloneDomains(domains);
+
+        const consistent = this.ac3(localDomains, constraints);
+        if (!consistent) {
+            return { success: false };
         }
 
-        // 2. Initial Pruning (AC-3) - Pre-processes domains to ensure arc consistency
-        const consistent = this.ac3(localDomains, constraints);
-        if (!consistent) return { success: false };
-
-        // 3. Start recursive search
         return await this._recursiveSearch(
-            slots, 
-            localDomains, 
-            constraints, 
-            letterFrequencies, 
-            cellContents, 
-            assignment, 
+            slots,
+            localDomains,
+            constraints,
+            letterFrequencies,
+            cellContents,
+            assignment,
             visualize
         );
     }
 
-    /**
-     * Core recursive search (Async to allow for UI thread breathing room)
-     */
-    async _recursiveSearch(slots, domains, constraints, letterFrequencies, cellContents, assignment, visualize) {
-        // Base Case: All slots successfully filled
-        if (Object.keys(assignment).length === Object.keys(slots).length) {
-            return { success: true, solution: { ...assignment } };
+    _cloneDomains(domains) {
+        const clone = {};
+        for (const slotId in domains) {
+            clone[slotId] = Array.isArray(domains[slotId]) ? [...domains[slotId]] : [];
         }
+        return clone;
+    }
 
-        // CHECK FOR INTERRUPTION
-        if (this.isInterrupted) {
-            throw new Error("SOLVE_CANCELLED");
+    /* ===============================
+       RECURSIVE SEARCH
+    =============================== */
+
+    async _recursiveSearch(
+        slots,
+        domains,
+        constraints,
+        letterFrequencies,
+        cellContents,
+        assignment,
+        visualize
+    ) {
+        this._throwIfInterrupted();
+
+        if (this._isComplete(assignment, slots)) {
+            return {
+                success: true,
+                solution: { ...assignment }
+            };
         }
 
         this.recursiveCalls++;
-        
-        // To allow the UI to actually process the click, we need a "breather"
-        // If visualizing is off, maybe check every 500 calls
-        if (this.recursiveCalls % 500 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
-        
-        // HEURISTIC: Minimum Remaining Values (MRV)
-        const varToAssign = this.selectUnassignedVariable(assignment, domains, constraints);
-        if (!varToAssign) return { success: false };
 
-        // HEURISTIC: Order values by letter frequency score
-        let orderedValues = this.orderDomainValues(varToAssign, domains, letterFrequencies);
-        orderedValues = this.smartShuffle(orderedValues);
+        if (this.recursiveCalls % 500 === 0) {
+            await this._yieldToEventLoop();
+            this._throwIfInterrupted();
+        }
+
+        const slotId = this.selectUnassignedVariable(assignment, domains, constraints);
+        if (!slotId) {
+            return { success: false };
+        }
+
+        let orderedValues = this.orderDomainValues(slotId, domains, letterFrequencies);
+
+        if (this.randomize) {
+            orderedValues = this.smartShuffle(orderedValues);
+        }
 
         for (const value of orderedValues) {
-            // Constraint: No duplicate words (unless explicitly allowed)
-            if (!this.allowReuse && Object.values(assignment).includes(value)) {
+            this._throwIfInterrupted();
+
+            if (!this.allowReuse && this._isDuplicateAssignment(value, assignment)) {
                 continue;
             }
 
-            // Check if word fits existing letters and intersects with current assignments
-            if (this.isConsistent(varToAssign, value, assignment, slots, constraints, cellContents)) {
-                
-                assignment[varToAssign] = value;
-                
-                // --- VISUALIZATION HOOK ---
-                if (visualize && this.onUpdateCallback) {
-                    this.onUpdateCallback(varToAssign, value);
-                    // Small delay to let the browser paint the update
-                    await new Promise(resolve => setTimeout(resolve, 5)); 
-                }
+            if (
+                !this.isConsistent(
+                    slotId,
+                    value,
+                    assignment,
+                    slots,
+                    constraints,
+                    cellContents
+                )
+            ) {
+                continue;
+            }
 
-                // Look ahead: Prune domains of neighbors to detect early failures
-                const inferences = this.forwardCheck(varToAssign, value, assignment, domains, constraints);
-                
-                if (inferences !== false) {
-                    const result = await this._recursiveSearch(slots, domains, constraints, letterFrequencies, cellContents, assignment, visualize);
-                    if (result.success) return result;
-                }
-                
-                // BACKTRACK: The current path failed. Remove assignment and restore domains.
-                delete assignment[varToAssign];
-                
-                if (visualize && this.onUpdateCallback) {
-                    this.onUpdateCallback(varToAssign, ""); 
-                    await new Promise(resolve => setTimeout(resolve, 2)); 
-                }
+            assignment[slotId] = value;
 
-                this.restoreDomains(domains, inferences);
+            if (visualize && this.onUpdateCallback) {
+                this.onUpdateCallback(slotId, value);
+                await this._visualizationPause(5);
+                this._throwIfInterrupted();
+            }
+
+            const inferences = this.forwardCheck(
+                slotId,
+                value,
+                assignment,
+                domains,
+                constraints
+            );
+
+            if (inferences !== false) {
+                const result = await this._recursiveSearch(
+                    slots,
+                    domains,
+                    constraints,
+                    letterFrequencies,
+                    cellContents,
+                    assignment,
+                    visualize
+                );
+
+                if (result.success) {
+                    return result;
+                }
+            }
+
+            delete assignment[slotId];
+            this.restoreDomains(domains, inferences);
+
+            if (visualize && this.onUpdateCallback) {
+                this.onUpdateCallback(slotId, '');
+                await this._visualizationPause(2);
+                this._throwIfInterrupted();
             }
         }
 
         return { success: false };
     }
 
-    /**
-     * Selects the next slot to fill using MRV and Degree heuristics.
-     */
+    _isComplete(assignment, slots) {
+        return Object.keys(assignment).length === Object.keys(slots).length;
+    }
+
+    _isDuplicateAssignment(value, assignment) {
+        return Object.values(assignment).includes(value);
+    }
+
+    _throwIfInterrupted() {
+        if (this.isInterrupted) {
+            throw new Error('SOLVE_CANCELLED');
+        }
+    }
+
+    _yieldToEventLoop() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    _visualizationPause(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    /* ===============================
+       VARIABLE / VALUE HEURISTICS
+    =============================== */
+
     selectUnassignedVariable(assignment, domains, constraints) {
-        const unassigned = Object.keys(domains).filter(s => !(s in assignment));
+        const unassigned = Object.keys(domains).filter(
+            (slotId) => !(slotId in assignment)
+        );
+
         let bestSlot = null;
-        let minSize = Infinity;
+        let bestDomainSize = Infinity;
+        let bestDegree = -1;
 
         for (const slotId of unassigned) {
-            const size = domains[slotId].length;
-            if (size < minSize) {
-                minSize = size;
+            const domainSize = Array.isArray(domains[slotId])
+                ? domains[slotId].length
+                : 0;
+
+            const degree = constraints[slotId]
+                ? Object.keys(constraints[slotId]).length
+                : 0;
+
+            if (
+                domainSize < bestDomainSize ||
+                (domainSize === bestDomainSize && degree > bestDegree)
+            ) {
                 bestSlot = slotId;
-            } else if (size === minSize) {
-                // Tie-breaker: Degree Heuristic (pick the one with most constraints on others)
-                const degA = constraints[slotId] ? Object.keys(constraints[slotId]).length : 0;
-                const degBest = bestSlot && constraints[bestSlot] ? Object.keys(constraints[bestSlot]).length : 0;
-                if (degA > degBest) bestSlot = slotId;
+                bestDomainSize = domainSize;
+                bestDegree = degree;
             }
         }
+
         return bestSlot;
     }
 
-    /**
-     * Scores words based on sum of letter frequencies (Common letters = higher score).
-     */
-    orderDomainValues(slot, domains, letterFrequencies) {
-        const domain = [...domains[slot]];
-        if (!letterFrequencies || Object.keys(letterFrequencies).length === 0) return domain;
+    orderDomainValues(slotId, domains, letterFrequencies) {
+        const domain = Array.isArray(domains[slotId]) ? [...domains[slotId]] : [];
+
+        if (!letterFrequencies || Object.keys(letterFrequencies).length === 0) {
+            return domain;
+        }
 
         const getScore = (word) =>
-            word.split('').reduce((acc, ch) => acc + (letterFrequencies[ch] || 0), 0);
-        
+            [...word].reduce(
+                (score, char) => score + (letterFrequencies[char] || 0),
+                0
+            );
+
         return domain.sort((a, b) => getScore(b) - getScore(a));
     }
 
-    /**
-     * Shuffles small segments of the domain to prevent deterministic "boring" grids.
-     */
     smartShuffle(array) {
-        if (array.length <= 1) return array;
-        const segmentSize = Math.max(5, Math.floor(array.length * 0.1));
-        for (let i = 0; i < array.length; i += segmentSize) {
-            let end = Math.min(i + segmentSize, array.length);
-            for (let j = end - 1; j > i; j--) {
-                const k = i + Math.floor(Math.random() * (j - i + 1));
-                [array[j], array[k]] = [array[k], array[j]];
+        if (!Array.isArray(array) || array.length <= 1) {
+            return Array.isArray(array) ? [...array] : [];
+        }
+
+        const shuffled = [...array];
+        const segmentSize = Math.max(5, Math.floor(shuffled.length * 0.1));
+
+        for (let start = 0; start < shuffled.length; start += segmentSize) {
+            const end = Math.min(start + segmentSize, shuffled.length);
+
+            for (let i = end - 1; i > start; i--) {
+                const j = start + Math.floor(Math.random() * (i - start + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
             }
         }
-        return array;
+
+        return shuffled;
     }
 
-    /**
-     * Validates if a word can be placed in a slot.
-     */
+    /* ===============================
+       CONSISTENCY CHECKS
+    =============================== */
+
     isConsistent(slotId, word, assignment, slots, constraints, cellContents) {
-        const slotObj = slots[slotId];
-        const positions = slotObj.positions;
-        
-        // 1. Check against static letters manually entered in the grid
-        for (let i = 0; i < positions.length; i++) {
-            const [r, c] = positions[i];
-            const val = cellContents[`${r},${c}`];
-            if (val && /^[A-Z]$/i.test(val)) {
-                if (val.toUpperCase() !== word[i].toUpperCase()) return false;
-            }
+        const slot = slots[slotId];
+        if (!slot || !Array.isArray(slot.positions)) {
+            return false;
         }
 
-        // 2. Check against already assigned words in intersecting slots
-        const neighbors = constraints[slotId] || {};
-        for (const neighborId in neighbors) {
-            if (neighborId in assignment) {
-                const neighborWord = assignment[neighborId];
-                const overlaps = neighbors[neighborId]; 
-                for (const [myIdx, neighborIdx] of overlaps) {
-                    if (word[myIdx] !== neighborWord[neighborIdx]) return false;
+        if (typeof word !== 'string' || word.length !== slot.length) {
+            return false;
+        }
+
+        const positions = slot.positions;
+
+        for (let i = 0; i < positions.length; i++) {
+            const [r, c] = positions[i];
+            const fixedValue = cellContents?.[`${r},${c}`];
+
+            if (fixedValue && /^[A-Z]$/i.test(fixedValue)) {
+                if (fixedValue.toUpperCase() !== word[i].toUpperCase()) {
+                    return false;
                 }
             }
         }
+
+        const neighbors = constraints[slotId] || {};
+
+        for (const neighborId in neighbors) {
+            if (!(neighborId in assignment)) continue;
+
+            const neighborWord = assignment[neighborId];
+            const overlaps = neighbors[neighborId] || [];
+
+            for (const [myIdx, neighborIdx] of overlaps) {
+                if (word[myIdx] !== neighborWord[neighborIdx]) {
+                    return false;
+                }
+            }
+        }
+
         return true;
     }
 
-    /**
-     * Reduces domains of neighbors based on the new assignment.
-     */
-    forwardCheck(slot, value, assignment, domains, constraints) {
+    /* ===============================
+       FORWARD CHECKING
+    =============================== */
+
+    forwardCheck(slotId, value, assignment, domains, constraints) {
         const inferences = {};
-        const neighbors = constraints[slot] || {};
+        const neighbors = constraints[slotId] || {};
 
         for (const neighborId in neighbors) {
-            if (!(neighborId in assignment)) {
-                const overlaps = neighbors[neighborId];
-                const oldDomain = domains[neighborId];
-                
-                const newDomain = oldDomain.filter(w => {
-                    for (const [myIdx, neighborIdx] of overlaps) {
-                        // FIX: Ensure we compare the assigned 'value' char with the potential 'w' char
-                        if (value[myIdx] !== w[neighborIdx]) return false;
+            if (neighborId in assignment) continue;
+
+            const overlaps = neighbors[neighborId] || [];
+            const oldDomain = domains[neighborId] || [];
+
+            const newDomain = oldDomain.filter((candidate) => {
+                for (const [myIdx, neighborIdx] of overlaps) {
+                    if (value[myIdx] !== candidate[neighborIdx]) {
+                        return false;
                     }
-                    return true;
-                });
-                
-                if (newDomain.length === 0) {
-                    this.restoreDomains(domains, inferences);
-                    return false; 
                 }
-                
-                inferences[neighborId] = oldDomain;
-                domains[neighborId] = newDomain;
+
+                if (!this.allowReuse && this._isDuplicateAssignment(candidate, assignment)) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            if (newDomain.length === 0) {
+                this.restoreDomains(domains, inferences);
+                return false;
             }
+
+            inferences[neighborId] = oldDomain;
+            domains[neighborId] = newDomain;
         }
+
         return inferences;
     }
 
     restoreDomains(domains, inferences) {
-        if (!inferences) return;
-        for (const v in inferences) {
-            domains[v] = inferences[v];
+        if (!inferences || typeof inferences !== 'object') return;
+
+        for (const slotId in inferences) {
+            domains[slotId] = inferences[slotId];
         }
     }
 
-    /**
-     * AC-3 Algorithm for constraint satisfaction pre-processing.
-     */
+    /* ===============================
+       AC-3
+    =============================== */
+
     ac3(domains, constraints) {
         const queue = [];
+
         for (const slotA in constraints) {
             for (const slotB in constraints[slotA]) {
                 queue.push([slotA, slotB]);
@@ -249,34 +363,50 @@ export class SolverEngine {
         }
 
         while (queue.length > 0) {
+            this._throwIfInterrupted();
+
             const [var1, var2] = queue.shift();
+
             if (this.revise(var1, var2, domains, constraints)) {
-                if (domains[var1].length === 0) return false;
+                if (!domains[var1] || domains[var1].length === 0) {
+                    return false;
+                }
+
                 const neighbors = constraints[var1] || {};
                 for (const var3 in neighbors) {
-                    if (var3 !== var2) queue.push([var3, var1]);
+                    if (var3 !== var2) {
+                        queue.push([var3, var1]);
+                    }
                 }
             }
         }
+
         return true;
     }
 
     revise(var1, var2, domains, constraints) {
-        let revised = false;
-        const overlaps = constraints[var1][var2];
-        const domain1 = domains[var1];
-        const domain2 = domains[var2];
+        const overlaps = constraints[var1]?.[var2];
 
-        const newDomain = domain1.filter(word1 => {
-            return domain2.some(word2 => {
+        if (!Array.isArray(overlaps) || overlaps.length === 0) {
+            return false;
+        }
+
+        const domain1 = Array.isArray(domains[var1]) ? domains[var1] : [];
+        const domain2 = Array.isArray(domains[var2]) ? domains[var2] : [];
+
+        let revised = false;
+
+        const filteredDomain = domain1.filter((word1) => {
+            return domain2.some((word2) => {
                 return overlaps.every(([idx1, idx2]) => word1[idx1] === word2[idx2]);
             });
         });
 
-        if (newDomain.length < domain1.length) {
-            domains[var1] = newDomain;
+        if (filteredDomain.length !== domain1.length) {
+            domains[var1] = filteredDomain;
             revised = true;
         }
+
         return revised;
     }
 }

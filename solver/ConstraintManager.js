@@ -17,7 +17,7 @@ export class ConstraintManager {
         this.constraints = {};
         this.domains = {};
 
-        if (!Array.isArray(grid) || grid.length === 0 || !Array.isArray(grid[0])) {
+        if (!GridUtils.isRectangularGrid(grid)) {
             return {
                 slots: {},
                 cellContents: {}
@@ -32,26 +32,26 @@ export class ConstraintManager {
             for (let c = 0; c < cols; c++) {
                 if (!GridUtils.isFillableCell(grid, r, c)) continue;
 
-                const isAcross = GridUtils.isStartOfAcrossSlot(grid, r, c);
-                const isDown = GridUtils.isStartOfDownSlot(grid, r, c);
+                const startsAcross = GridUtils.isStartOfAcrossSlot(grid, r, c);
+                const startsDown = GridUtils.isStartOfDownSlot(grid, r, c);
 
-                let assignedNumber = false;
+                if (!startsAcross && !startsDown) continue;
 
-                if (isAcross) {
-                    const slot = this._createSlot(grid, r, c, 'across', clueNumber);
-                    this.slots[slot.id] = slot;
-                    assignedNumber = true;
+                if (startsAcross) {
+                    const acrossSlot = this._createSlot(grid, r, c, 'across', clueNumber);
+                    if (acrossSlot) {
+                        this.slots[acrossSlot.id] = acrossSlot;
+                    }
                 }
 
-                if (isDown) {
-                    const slot = this._createSlot(grid, r, c, 'down', clueNumber);
-                    this.slots[slot.id] = slot;
-                    assignedNumber = true;
+                if (startsDown) {
+                    const downSlot = this._createSlot(grid, r, c, 'down', clueNumber);
+                    if (downSlot) {
+                        this.slots[downSlot.id] = downSlot;
+                    }
                 }
 
-                if (assignedNumber) {
-                    clueNumber++;
-                }
+                clueNumber++;
             }
         }
 
@@ -68,6 +68,8 @@ export class ConstraintManager {
     _createSlot(grid, r, c, direction, clueNumber) {
         const positions = GridUtils.getSlotPositions(grid, r, c, direction);
 
+        if (!positions.length) return null;
+
         return {
             id: `${clueNumber}-${direction}`,
             direction,
@@ -80,11 +82,12 @@ export class ConstraintManager {
     _buildCellContentsMap(grid) {
         const flatCellMap = {};
 
+        if (!GridUtils.isRectangularGrid(grid)) return flatCellMap;
+
         for (let r = 0; r < grid.length; r++) {
             for (let c = 0; c < grid[0].length; c++) {
-                flatCellMap[`${r},${c}`] = GridUtils.normalizeCellValue(grid[r][c]) === '#'
-                    ? ''
-                    : GridUtils.normalizeCellValue(grid[r][c]);
+                const normalized = GridUtils.normalizeCellValue(grid[r][c]);
+                flatCellMap[`${r},${c}`] = normalized === '#' ? '' : normalized;
             }
         }
 
@@ -98,10 +101,40 @@ export class ConstraintManager {
     generateConstraints() {
         this.constraints = {};
 
+        const slotIds = Object.keys(this.slots);
+        slotIds.forEach((slotId) => {
+            this.constraints[slotId] = {};
+        });
+
+        const positionToSlots = this._buildPositionIndex();
+
+        for (const key in positionToSlots) {
+            const overlaps = positionToSlots[key];
+
+            if (!Array.isArray(overlaps) || overlaps.length < 2) continue;
+
+            for (let i = 0; i < overlaps.length; i++) {
+                for (let j = i + 1; j < overlaps.length; j++) {
+                    const a = overlaps[i];
+                    const b = overlaps[j];
+
+                    if (a.slotId === b.slotId) continue;
+
+                    this._addConstraint(a.slotId, b.slotId, a.indexInSlot, b.indexInSlot);
+                    this._addConstraint(b.slotId, a.slotId, b.indexInSlot, a.indexInSlot);
+                }
+            }
+        }
+
+        return this.constraints;
+    }
+
+    _buildPositionIndex() {
         const positionToSlots = {};
 
         for (const slotId in this.slots) {
             const slot = this.slots[slotId];
+            if (!slot?.positions?.length) continue;
 
             slot.positions.forEach(([r, c], indexInSlot) => {
                 const key = `${r},${c}`;
@@ -117,21 +150,7 @@ export class ConstraintManager {
             });
         }
 
-        for (const key in positionToSlots) {
-            const overlaps = positionToSlots[key];
-
-            if (overlaps.length < 2) continue;
-
-            for (let i = 0; i < overlaps.length; i++) {
-                for (let j = i + 1; j < overlaps.length; j++) {
-                    const a = overlaps[i];
-                    const b = overlaps[j];
-
-                    this._addConstraint(a.slotId, b.slotId, a.indexInSlot, b.indexInSlot);
-                    this._addConstraint(b.slotId, a.slotId, b.indexInSlot, a.indexInSlot);
-                }
-            }
-        }
+        return positionToSlots;
     }
 
     _addConstraint(fromSlotId, toSlotId, fromIndex, toIndex) {
@@ -143,7 +162,23 @@ export class ConstraintManager {
             this.constraints[fromSlotId][toSlotId] = [];
         }
 
-        this.constraints[fromSlotId][toSlotId].push([fromIndex, toIndex]);
+        const alreadyExists = this.constraints[fromSlotId][toSlotId].some(
+            ([existingFrom, existingTo]) =>
+                existingFrom === fromIndex && existingTo === toIndex
+        );
+
+        if (!alreadyExists) {
+            this.constraints[fromSlotId][toSlotId].push([fromIndex, toIndex]);
+        }
+    }
+
+    getNeighbors(slotId) {
+        return Object.keys(this.constraints[slotId] || {});
+    }
+
+    getOverlap(slotIdA, slotIdB) {
+        const overlaps = this.constraints[slotIdA]?.[slotIdB] || [];
+        return overlaps.length ? overlaps : null;
     }
 
     /* ===============================
@@ -155,10 +190,20 @@ export class ConstraintManager {
 
         for (const slotId in slots) {
             const slot = slots[slotId];
-            const allWords = wordLengthCache[slot.length] || [];
+            const allWords = Array.isArray(wordLengthCache[slot.length])
+                ? wordLengthCache[slot.length]
+                : [];
 
             const pattern = this._buildSlotPattern(slot, grid);
-            this.domains[slotId] = allWords.filter(word => pattern.test(word));
+
+            this.domains[slotId] = allWords.filter((word) => {
+                if (typeof word !== 'string') return false;
+
+                const normalizedWord = word.trim().toUpperCase();
+
+                if (normalizedWord.length !== slot.length) return false;
+                return pattern.test(normalizedWord);
+            });
         }
 
         return this.domains;
@@ -166,8 +211,8 @@ export class ConstraintManager {
 
     _buildSlotPattern(slot, grid) {
         const patternParts = slot.positions.map(([r, c]) => {
-            const normalized = GridUtils.normalizeCellValue(grid[r][c]);
-            return /^[A-Z]$/.test(normalized) ? normalized : '.';
+            const normalized = GridUtils.normalizeCellValue(grid?.[r]?.[c]);
+            return GridUtils.isLetter(normalized) ? normalized : '.';
         });
 
         return new RegExp(`^${patternParts.join('')}$`);

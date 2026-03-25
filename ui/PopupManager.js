@@ -6,7 +6,11 @@ export class PopupManager {
         this.fallbackProvider = fallbackProvider;
 
         this.activeOverlay = null;
+        this.activePopup = null;
         this.boundEscapeHandler = null;
+        this.boundFocusHandler = null;
+        this.previouslyFocusedElement = null;
+        this.currentRequestToken = 0;
     }
 
     /* ===============================
@@ -19,20 +23,26 @@ export class PopupManager {
         const normalizedWord = word.trim().toUpperCase();
         if (!normalizedWord) return;
 
+        const requestToken = ++this.currentRequestToken;
+
         this.close();
 
         try {
             const localResults = await this.localProvider.lookup(normalizedWord);
+
+            if (requestToken !== this.currentRequestToken) return;
 
             if (Array.isArray(localResults) && localResults.length > 0) {
                 this._createPopup(normalizedWord, localResults, 'Local Database');
                 return;
             }
 
-            await this._handleFallback(normalizedWord);
+            await this._handleFallback(normalizedWord, requestToken);
         } catch (error) {
             console.error('Popup error:', error);
-            await this._handleFallback(normalizedWord);
+
+            if (requestToken !== this.currentRequestToken) return;
+            await this._handleFallback(normalizedWord, requestToken);
         }
     }
 
@@ -41,21 +51,39 @@ export class PopupManager {
             document.body.removeChild(this.activeOverlay);
         }
 
-        this.activeOverlay = null;
-
         if (this.boundEscapeHandler) {
             document.removeEventListener('keydown', this.boundEscapeHandler);
             this.boundEscapeHandler = null;
         }
+
+        if (this.boundFocusHandler) {
+            document.removeEventListener('focusin', this.boundFocusHandler);
+            this.boundFocusHandler = null;
+        }
+
+        this.activeOverlay = null;
+        this.activePopup = null;
+
+        if (
+            this.previouslyFocusedElement &&
+            typeof this.previouslyFocusedElement.focus === 'function' &&
+            document.contains(this.previouslyFocusedElement)
+        ) {
+            this.previouslyFocusedElement.focus();
+        }
+
+        this.previouslyFocusedElement = null;
     }
 
     /* ===============================
        DATA FALLBACK
     =============================== */
 
-    async _handleFallback(word) {
+    async _handleFallback(word, requestToken) {
         try {
             const webResults = await this.fallbackProvider.fetchFallback(word);
+
+            if (requestToken !== this.currentRequestToken) return;
 
             if (Array.isArray(webResults) && webResults.length > 0) {
                 this._createPopup(word, webResults, 'Dictionary API');
@@ -63,6 +91,8 @@ export class PopupManager {
             }
         } catch (error) {
             console.error('Fallback lookup error:', error);
+
+            if (requestToken !== this.currentRequestToken) return;
         }
 
         this._createPopup(word, [], 'No results found');
@@ -73,6 +103,9 @@ export class PopupManager {
     =============================== */
 
     _createPopup(word, entries, sourceLabel) {
+        this.close();
+        this.previouslyFocusedElement = document.activeElement;
+
         const overlay = document.createElement('div');
         overlay.className = 'popup-overlay';
         overlay.setAttribute('role', 'presentation');
@@ -81,14 +114,16 @@ export class PopupManager {
         popup.className = 'popup-modal';
         popup.setAttribute('role', 'dialog');
         popup.setAttribute('aria-modal', 'true');
-        popup.setAttribute('aria-labelledby', 'popup-title');
+
+        const titleId = `popup-title-${Date.now()}`;
+        popup.setAttribute('aria-labelledby', titleId);
 
         const header = document.createElement('div');
         header.className = 'popup-header';
 
         const title = document.createElement('h2');
         title.className = 'popup-title';
-        title.id = 'popup-title';
+        title.id = titleId;
         title.textContent = word;
 
         const closeBtn = document.createElement('button');
@@ -103,7 +138,7 @@ export class PopupManager {
         const body = document.createElement('div');
         body.className = 'popup-body';
 
-        if (entries.length > 0) {
+        if (Array.isArray(entries) && entries.length > 0) {
             entries.forEach((item, index) => {
                 const entry = document.createElement('div');
                 entry.className = 'popup-entry';
@@ -128,7 +163,10 @@ export class PopupManager {
                 date.textContent = item?.date || '';
 
                 meta.appendChild(source);
-                meta.appendChild(date);
+
+                if (date.textContent) {
+                    meta.appendChild(date);
+                }
 
                 entry.appendChild(clue);
                 entry.appendChild(meta);
@@ -167,15 +205,76 @@ export class PopupManager {
 
         this.boundEscapeHandler = (event) => {
             if (event.key === 'Escape') {
+                event.preventDefault();
                 close();
+            }
+
+            if (event.key === 'Tab') {
+                this._trapTabKey(event, popup);
             }
         };
 
+        this.boundFocusHandler = (event) => {
+            if (!this.activePopup) return;
+            if (this.activePopup.contains(event.target)) return;
+
+            const firstFocusable = this._getFocusableElements(this.activePopup)[0];
+            firstFocusable?.focus();
+        };
+
         document.addEventListener('keydown', this.boundEscapeHandler);
+        document.addEventListener('focusin', this.boundFocusHandler);
 
         document.body.appendChild(overlay);
+
         this.activeOverlay = overlay;
+        this.activePopup = popup;
 
         closeBtn.focus();
+    }
+
+    /* ===============================
+       FOCUS MANAGEMENT
+    =============================== */
+
+    _getFocusableElements(container) {
+        if (!container) return [];
+
+        const selectors = [
+            'button:not([disabled])',
+            '[href]',
+            'input:not([disabled])',
+            'select:not([disabled])',
+            'textarea:not([disabled])',
+            '[tabindex]:not([tabindex="-1"])'
+        ];
+
+        return Array.from(container.querySelectorAll(selectors.join(','))).filter(
+            (el) =>
+                !el.hasAttribute('disabled') &&
+                el.getAttribute('aria-hidden') !== 'true'
+        );
+    }
+
+    _trapTabKey(event, popup) {
+        const focusable = this._getFocusableElements(popup);
+        if (!focusable.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+
+        if (event.shiftKey) {
+            if (active === first || !popup.contains(active)) {
+                event.preventDefault();
+                last.focus();
+            }
+            return;
+        }
+
+        if (active === last) {
+            event.preventDefault();
+            first.focus();
+        }
     }
 }

@@ -17,8 +17,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 ================================ */
 function initializeTheme() {
     const savedTheme = localStorage.getItem('theme');
+
     if (savedTheme === 'dark') {
         document.body.classList.add('dark-mode');
+    } else {
+        document.body.classList.remove('dark-mode');
     }
 }
 
@@ -26,36 +29,98 @@ function initializeTheme() {
    NAVIGATION
 ================================ */
 function setupNavigation(app) {
-    const navButtons = document.querySelectorAll('.nav-btn');
-    const views = document.querySelectorAll('.view-section');
+    const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
+    const views = Array.from(document.querySelectorAll('.view-section'));
     const logo = document.getElementById('nav-logo');
 
-    const switchView = (targetId) => {
-        // Update nav button active state
+    const getButtonForTarget = (targetId) =>
+        navButtons.find((btn) => btn.dataset.target === targetId) || null;
+
+    const updateNavState = (targetId) => {
         navButtons.forEach((btn) => {
-            btn.classList.toggle('active', btn.dataset.target === targetId);
+            const isActive = btn.dataset.target === targetId;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-selected', String(isActive));
+            btn.setAttribute('tabindex', isActive ? '0' : '-1');
         });
+    };
 
-        // Show/hide sections
+    const updateViewState = (targetId) => {
         views.forEach((view) => {
-            view.classList.toggle('hidden', view.id !== targetId);
+            const isTarget = view.id === targetId;
+            view.classList.toggle('hidden', !isTarget);
+            view.setAttribute('aria-hidden', String(!isTarget));
         });
+    };
 
-        // Route play/editor transitions through the orchestrator
+    const focusPrimaryHeading = (targetId) => {
+        const view = document.getElementById(targetId);
+        if (!view) return;
+
+        const heading = view.querySelector('h1, h2');
+        if (!heading) return;
+
+        if (!heading.hasAttribute('tabindex')) {
+            heading.setAttribute('tabindex', '-1');
+        }
+
+        heading.focus({ preventScroll: true });
+    };
+
+    const switchView = (targetId, { focusHeading = false } = {}) => {
+        if (!targetId) return;
+
         if (targetId === 'play-screen') {
             if (!app.modes?.isPlayMode) {
                 app.enterPlayMode();
             }
-        } else {
-            if (app.modes?.isPlayMode) {
-                app.exitPlayMode();
-            }
+        } else if (app.modes?.isPlayMode) {
+            app.exitPlayMode();
+        }
+
+        updateNavState(targetId);
+        updateViewState(targetId);
+
+        if (focusHeading) {
+            focusPrimaryHeading(targetId);
         }
     };
 
     navButtons.forEach((btn) => {
         btn.addEventListener('click', () => {
             switchView(btn.dataset.target);
+        });
+
+        btn.addEventListener('keydown', (e) => {
+            const currentIndex = navButtons.indexOf(btn);
+
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                const next = navButtons[(currentIndex + 1) % navButtons.length];
+                next?.focus();
+            }
+
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const prev =
+                    navButtons[(currentIndex - 1 + navButtons.length) % navButtons.length];
+                prev?.focus();
+            }
+
+            if (e.key === 'Home') {
+                e.preventDefault();
+                navButtons[0]?.focus();
+            }
+
+            if (e.key === 'End') {
+                e.preventDefault();
+                navButtons[navButtons.length - 1]?.focus();
+            }
+
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                switchView(btn.dataset.target, { focusHeading: true });
+            }
         });
     });
 
@@ -67,10 +132,21 @@ function setupNavigation(app) {
         logo.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                switchView('home-screen');
+                switchView('home-screen', { focusHeading: true });
             }
         });
     }
+
+    const initiallyActive =
+        navButtons.find((btn) => btn.classList.contains('active'))?.dataset.target ||
+        views.find((view) => !view.classList.contains('hidden'))?.id ||
+        'home-screen';
+
+    switchView(initiallyActive);
+
+    // Keep nav state correct if browser restores focus weirdly after reloads
+    const activeBtn = getButtonForTarget(initiallyActive);
+    activeBtn?.setAttribute('aria-selected', 'true');
 }
 
 /* ===============================
@@ -82,34 +158,78 @@ function setupNYTToolbar() {
     const checkDropdown = document.getElementById('check-dropdown');
     const revealDropdown = document.getElementById('reveal-dropdown');
 
-    const closeAll = () => {
-        document.querySelectorAll('.toolbar-dropdown').forEach((dropdown) => {
-            dropdown.classList.add('hidden');
-        });
+    const allDropdowns = [checkDropdown, revealDropdown].filter(Boolean);
+
+    const setExpanded = (button, expanded) => {
+        if (!button) return;
+        button.setAttribute('aria-expanded', String(expanded));
     };
 
-    const toggleDropdown = (dropdown) => {
-        if (!dropdown) return;
+    const closeAll = () => {
+        allDropdowns.forEach((dropdown) => {
+            dropdown.classList.add('hidden');
+        });
 
-        const wasHidden = dropdown.classList.contains('hidden');
+        setExpanded(checkBtn, false);
+        setExpanded(revealBtn, false);
+    };
+
+    const openDropdown = (button, dropdown) => {
+        if (!button || !dropdown) return;
+
         closeAll();
+        dropdown.classList.remove('hidden');
+        setExpanded(button, true);
+    };
 
-        if (wasHidden) {
-            dropdown.classList.remove('hidden');
+    const toggleDropdown = (button, dropdown) => {
+        if (!button || !dropdown) return;
+
+        const isHidden = dropdown.classList.contains('hidden');
+
+        if (isHidden) {
+            openDropdown(button, dropdown);
+        } else {
+            closeAll();
         }
     };
 
     checkBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
-        toggleDropdown(checkDropdown);
+        toggleDropdown(checkBtn, checkDropdown);
     });
 
     revealBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
-        toggleDropdown(revealDropdown);
+        toggleDropdown(revealBtn, revealDropdown);
     });
 
-    document.addEventListener('click', closeAll);
+    document.addEventListener('click', (e) => {
+        const target = e.target;
+        const clickedInsideDropdown = allDropdowns.some((dropdown) =>
+            dropdown.contains(target)
+        );
+        const clickedTrigger =
+            checkBtn?.contains(target) || revealBtn?.contains(target);
+
+        if (!clickedInsideDropdown && !clickedTrigger) {
+            closeAll();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeAll();
+        }
+    });
+
+    allDropdowns.forEach((dropdown) => {
+        dropdown.addEventListener('click', () => {
+            closeAll();
+        });
+    });
+
+    closeAll();
 }
 
 /* ===============================

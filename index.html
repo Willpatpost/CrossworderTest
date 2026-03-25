@@ -2,6 +2,7 @@
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -14,32 +15,30 @@
     <div class="app-container">
 
         <!-- NAVBAR -->
-        <nav class="navbar">
+        <nav class="navbar" aria-label="Primary navigation">
             <div class="nav-left">
-                <h1 
-                    class="nav-logo" 
-                    id="nav-logo" 
-                    role="button" 
-                    tabindex="0"
-                    aria-label="Go to home screen"
-                >
+                <h1 class="nav-logo" id="nav-logo" role="button" tabindex="0" aria-label="Go to home screen">
                     CROSSWORDER
                 </h1>
             </div>
 
-            <div class="nav-center">
-                <button class="nav-btn active" id="nav-home" data-target="home-screen">Home</button>
-                <button class="nav-btn" id="nav-editor" data-target="editor-screen">Editor</button>
-                <button class="nav-btn" id="nav-play" data-target="play-screen">Play</button>
+            <div class="nav-center" role="tablist" aria-label="App sections">
+                <button class="nav-btn active" id="nav-home" data-target="home-screen" type="button" role="tab"
+                    aria-controls="home-screen" aria-selected="true">
+                    Home
+                </button>
+                <button class="nav-btn" id="nav-editor" data-target="editor-screen" type="button" role="tab"
+                    aria-controls="editor-screen" aria-selected="false">
+                    Editor
+                </button>
+                <button class="nav-btn" id="nav-play" data-target="play-screen" type="button" role="tab"
+                    aria-controls="play-screen" aria-selected="false">
+                    Play
+                </button>
             </div>
 
             <div class="nav-right">
-                <button 
-                    id="theme-toggle-button" 
-                    class="btn secondary-btn"
-                    type="button"
-                    aria-label="Toggle dark mode"
-                >
+                <button id="theme-toggle-button" class="btn secondary-btn" type="button" aria-label="Toggle dark mode">
                     🌓 Theme
                 </button>
             </div>
@@ -49,101 +48,117 @@
         <main id="app-main">
 
             <!-- HOME -->
-            <section id="home-screen" class="view-section">
+            <section id="home-screen" class="view-section" aria-labelledby="home-heading">
                 <section class="hero-banner">
-                    <h1>Welcome to Crossworder</h1>
+                    <h1 id="home-heading">Welcome to Crossworder</h1>
                     <p>A professional-grade suite for crossword construction and competitive play.</p>
                 </section>
 
                 <div class="home-grid">
-                    <div class="info-card">
-                        <h3>About the App</h3>
+                    <article class="info-card">
+                        <h2>About the App</h2>
                         <p>
-                            Crossworder uses a Constraint Satisfaction Problem (CSP) solver to help you 
-                            find words that fit perfectly into your grid intersections.
+                            Crossworder uses a Constraint Satisfaction Problem (CSP) solver to help you
+                            find words that fit naturally into your grid intersections.
                         </p>
-                    </div>
+                    </article>
 
-                    <div class="info-card">
-                        <h3>Directions</h3>
+                    <article class="info-card">
+                        <h2>Directions</h2>
                         <ul>
-                            <li><strong>Editor:</strong> Build and solve crossword grids.</li>
-                            <li><strong>Play:</strong> Solve puzzles interactively with tools and checks.</li>
+                            <li><strong>Editor:</strong> Build, inspect, and solve crossword grids.</li>
+                            <li><strong>Play:</strong> Solve puzzles interactively with checks and reveals.</li>
                         </ul>
-                    </div>
+                    </article>
                 </div>
             </section>
 
             <!-- EDITOR -->
-            <section id="editor-screen" class="view-section hidden">
+            <section id="editor-screen" class="view-section hidden" aria-labelledby="editor-heading">
+                <header class="section screen-header">
+                    <h1 id="editor-heading">Editor</h1>
+                    <p>Build your grid, run the solver, and inspect entries and clues.</p>
+                </header>
 
-                <!-- QUICK LOAD (TOP PRIORITY) -->
-                <section class="section predefined-puzzles-section">
-                    <h2>Quick Load</h2>
+                <!-- QUICK LOAD -->
+                <section class="section predefined-puzzles-section" aria-labelledby="quick-load-heading">
+                    <h2 id="quick-load-heading">Quick Load</h2>
                     <div class="button-group">
-                        <button id="load-easy-button" class="btn secondary-btn">Easy</button>
-                        <button id="load-medium-button" class="btn secondary-btn">Medium</button>
-                        <button id="load-hard-button" class="btn secondary-btn">Hard</button>
-                        <button id="random-puzzle-button" class="btn accent-btn">Random Classic</button>
+                        <button id="load-easy-button" class="btn secondary-btn" type="button">Easy</button>
+                        <button id="load-medium-button" class="btn secondary-btn" type="button">Medium</button>
+                        <button id="load-hard-button" class="btn secondary-btn" type="button">Hard</button>
+                        <button id="random-puzzle-button" class="btn accent-btn" type="button">Random Classic</button>
                     </div>
                 </section>
 
                 <!-- GRID SETTINGS -->
-                <section class="section settings-section">
-                    <h2>Grid Settings</h2>
+                <section class="section settings-section" aria-labelledby="grid-settings-heading">
+                    <h2 id="grid-settings-heading">Grid Settings</h2>
                     <div class="settings-controls">
                         <div class="input-group">
                             <label for="rows-input">Rows</label>
-                            <input type="number" id="rows-input" min="5" max="25" value="15" />
+                            <input type="number" id="rows-input" min="5" max="25" value="15" inputmode="numeric" />
                         </div>
+
                         <div class="input-group">
                             <label for="columns-input">Columns</label>
-                            <input type="number" id="columns-input" min="5" max="25" value="15" />
+                            <input type="number" id="columns-input" min="5" max="25" value="15" inputmode="numeric" />
                         </div>
-                        <button id="generate-grid-button" class="btn primary-btn">Generate Grid</button>
+
+                        <button id="generate-grid-button" class="btn primary-btn" type="button">
+                            Generate Grid
+                        </button>
                     </div>
                 </section>
 
                 <!-- EDITOR CONTROLS -->
-                <section class="section mode-section">
-                    <h2>Editor Controls</h2>
+                <section class="section mode-section" aria-labelledby="editor-controls-heading">
+                    <h2 id="editor-controls-heading">Editor Controls</h2>
 
                     <div class="mode-controls">
 
                         <!-- Interaction Mode -->
-                        <div class="mode-group">
-                            <button id="drag-mode-button" class="btn mode-btn">Drag</button>
-                            <button id="letter-entry-button" class="btn mode-btn">Letter</button>
+                        <div class="mode-group" role="group" aria-label="Interaction mode">
+                            <button id="drag-mode-button" class="btn mode-btn" type="button">Drag</button>
+                            <button id="letter-mode-button" class="btn mode-btn" type="button">Letter</button>
                         </div>
 
                         <!-- Grid Tools -->
-                        <div class="mode-group">
-                            <button id="auto-number-button" class="btn secondary-btn">Auto Number</button>
-                            <button id="symmetry-button" class="btn success-btn">Symmetry: ON</button>
+                        <div class="mode-group" role="group" aria-label="Grid tools">
+                            <button id="auto-number-button" class="btn secondary-btn" type="button">
+                                Auto Number
+                            </button>
+                            <button id="symmetry-button" class="btn success-btn" type="button">
+                                Symmetry: ON
+                            </button>
                         </div>
 
                         <!-- Solver Actions -->
-                        <div class="mode-group">
-                            <button id="solve-crossword-button" class="btn solve-btn">Solve & Generate Clues</button>
-                            <button id="cancel-solve-button" class="btn danger-btn hidden">Cancel Solve</button>
+                        <div class="mode-group" role="group" aria-label="Solver actions">
+                            <button id="solve-crossword-button" class="btn solve-btn" type="button">
+                                Solve &amp; Generate Clues
+                            </button>
+                            <button id="cancel-solve-button" class="btn danger-btn hidden" type="button">
+                                Cancel Solve
+                            </button>
                         </div>
-
                     </div>
 
-                    <div id="mode-label" class="mode-label">
+                    <div id="mode-label" class="mode-label" aria-live="polite">
                         Mode: Default (Toggle Black Squares)
                     </div>
                 </section>
 
                 <!-- SOLVING CONTROLS -->
-                <section class="section solving-controls-section">
-                    <h2>Solving Controls</h2>
+                <section class="section solving-controls-section" aria-labelledby="solving-controls-heading">
+                    <h2 id="solving-controls-heading">Solving Controls</h2>
                     <div class="settings-controls">
-                        <label class="toggle-container">
+                        <label class="toggle-container" for="allow-reuse-toggle">
                             <input type="checkbox" id="allow-reuse-toggle" />
                             <span>Allow Word Reuse</span>
                         </label>
-                        <label class="toggle-container">
+
+                        <label class="toggle-container" for="visualize-solve-toggle">
                             <input type="checkbox" id="visualize-solve-toggle" checked />
                             <span>Visualize Solve</span>
                         </label>
@@ -151,83 +166,131 @@
                 </section>
 
                 <!-- WORD LOOKUP -->
-                <section class="section word-lookup-section">
-                    <h2>Word Lookup</h2>
+                <section class="section word-lookup-section" aria-labelledby="word-lookup-heading">
+                    <h2 id="word-lookup-heading">Word Lookup</h2>
                     <div class="search-container">
-                        <input 
-                            type="text" 
-                            id="word-search-input" 
-                            placeholder="Search (use ? for wildcards, e.g. C??T)" 
-                            autocomplete="off" 
-                        />
-                        <div id="search-dropdown" class="search-dropdown"></div>
+                        <label for="word-search-input" class="sr-only">Search words by pattern</label>
+                        <input type="text" id="word-search-input" placeholder="Search (use ? for wildcards, e.g. C??T)"
+                            autocomplete="off" spellcheck="false" aria-describedby="matches-count" />
+                        <div id="search-dropdown" class="search-dropdown" role="listbox"
+                            aria-label="Word search results"></div>
                     </div>
-                    <div id="matches-count" class="matches-count"></div>
+                    <div id="matches-count" class="matches-count" aria-live="polite"></div>
                 </section>
 
+                <!-- EDITOR WORKSPACE -->
+                <section class="section workspace-section" aria-labelledby="editor-workspace-heading">
+                    <h2 id="editor-workspace-heading">Workspace</h2>
+
+                    <div class="main-content editor-workspace" id="editor-workspace">
+
+                        <aside class="status-panel" aria-labelledby="status-heading">
+                            <h3 id="status-heading">Status</h3>
+                            <textarea id="status-display" readonly aria-label="Solver status log"></textarea>
+
+                            <div id="game-stats" class="game-stats hidden" aria-live="polite">
+                                <strong>Progress:</strong> <span id="solve-progress">0%</span>
+                            </div>
+                        </aside>
+
+                        <section class="grid-panel" aria-labelledby="editor-grid-heading">
+                            <h3 id="editor-grid-heading">Grid</h3>
+                            <div class="grid-container" id="grid-container" aria-label="Crossword editor grid"></div>
+                        </section>
+
+                        <aside class="clues-panel" aria-labelledby="editor-clues-heading">
+                            <h3 id="editor-clues-heading">Entries</h3>
+
+                            <div class="word-list">
+                                <h4>Across</h4>
+                                <div id="across-display" class="word-list-display"></div>
+                            </div>
+
+                            <div class="word-list">
+                                <h4>Down</h4>
+                                <div id="down-display" class="word-list-display"></div>
+                            </div>
+                        </aside>
+
+                    </div>
+                </section>
             </section>
 
             <!-- PLAY -->
-            <section id="play-screen" class="view-section hidden">
+            <section id="play-screen" class="view-section hidden" aria-labelledby="play-heading">
+                <header class="section screen-header">
+                    <h1 id="play-heading">Play</h1>
+                    <p>Interactive play view with check and reveal tools.</p>
+                </header>
 
                 <!-- TOOLBAR -->
-                <div class="nyt-toolbar">
+                <div class="nyt-toolbar" aria-label="Puzzle tools">
                     <div class="toolbar-left">
-                        <div id="timer" class="timer">0:00</div>
+                        <div id="timer" class="timer" aria-live="polite">0:00</div>
                     </div>
 
                     <div class="toolbar-right">
                         <div class="dropdown-wrapper">
-                            <button class="toolbar-btn" id="check-menu-btn">Check ▼</button>
-                            <div class="toolbar-dropdown hidden" id="check-dropdown">
-                                <button id="check-square-btn">Square</button>
-                                <button id="check-word-btn">Word</button>
-                                <button id="check-puzzle-btn">Puzzle</button>
+                            <button class="toolbar-btn" id="check-menu-btn" type="button" aria-haspopup="true"
+                                aria-expanded="false" aria-controls="check-dropdown">
+                                Check ▼
+                            </button>
+                            <div class="toolbar-dropdown hidden" id="check-dropdown" role="menu">
+                                <button id="check-square-btn" type="button" role="menuitem">Square</button>
+                                <button id="check-word-btn" type="button" role="menuitem">Word</button>
+                                <button id="check-puzzle-btn" type="button" role="menuitem">Puzzle</button>
                             </div>
                         </div>
 
                         <div class="dropdown-wrapper">
-                            <button class="toolbar-btn" id="reveal-menu-btn">Reveal ▼</button>
-                            <div class="toolbar-dropdown hidden" id="reveal-dropdown">
-                                <button id="reveal-square-btn">Square</button>
-                                <button id="reveal-word-btn">Word</button>
-                                <button id="reveal-puzzle-btn">Puzzle</button>
+                            <button class="toolbar-btn" id="reveal-menu-btn" type="button" aria-haspopup="true"
+                                aria-expanded="false" aria-controls="reveal-dropdown">
+                                Reveal ▼
+                            </button>
+                            <div class="toolbar-dropdown hidden" id="reveal-dropdown" role="menu">
+                                <button id="reveal-square-btn" type="button" role="menuitem">Square</button>
+                                <button id="reveal-word-btn" type="button" role="menuitem">Word</button>
+                                <button id="reveal-puzzle-btn" type="button" role="menuitem">Puzzle</button>
                             </div>
                         </div>
 
-                        <button class="toolbar-btn" id="clear-btn">Clear</button>
-                        <button class="toolbar-btn icon-btn" id="pause-btn">⏸</button>
+                        <button class="toolbar-btn" id="clear-btn" type="button">Clear</button>
+                        <button class="toolbar-btn icon-btn" id="pause-btn" type="button" aria-label="Pause game">
+                            ⏸
+                        </button>
                     </div>
                 </div>
 
-                <!-- GAME CONTENT -->
-                <section class="section main-content" id="game-container">
+                <!-- PLAY WORKSPACE -->
+                <section class="section main-content" id="game-container" aria-labelledby="play-workspace-heading">
+                    <h2 id="play-workspace-heading" class="sr-only">Play workspace</h2>
 
-                    <div class="status-panel">
-                        <h3>Status</h3>
-                        <textarea id="status-display" readonly aria-label="Solver status log"></textarea>
+                    <aside class="status-panel" aria-labelledby="play-status-heading">
+                        <h3 id="play-status-heading">Game Status</h3>
+                        <p class="play-status-copy">
+                            Use the play tools to check or reveal entries while solving.
+                        </p>
+                    </aside>
 
-                        <div id="game-stats" class="game-stats hidden">
-                            <strong>Progress:</strong> <span id="solve-progress">0%</span>
-                        </div>
-                    </div>
+                    <section class="grid-panel" aria-labelledby="play-grid-heading">
+                        <h3 id="play-grid-heading">Puzzle</h3>
+                        <div class="grid-container" id="play-grid-container" aria-label="Crossword play grid"></div>
+                    </section>
 
-                    <div class="grid-container" id="grid-container" aria-label="Crossword grid"></div>
+                    <aside class="clues-panel" aria-labelledby="play-clues-heading">
+                        <h3 id="play-clues-heading">Clues</h3>
 
-                    <div class="clues-panel">
                         <div class="word-list">
-                            <h3>Across</h3>
-                            <div id="across-display" class="word-list-display"></div>
+                            <h4>Across</h4>
+                            <div id="play-across-display" class="word-list-display"></div>
                         </div>
 
                         <div class="word-list">
-                            <h3>Down</h3>
-                            <div id="down-display" class="word-list-display"></div>
+                            <h4>Down</h4>
+                            <div id="play-down-display" class="word-list-display"></div>
                         </div>
-                    </div>
-
+                    </aside>
                 </section>
-
             </section>
 
         </main>
@@ -241,4 +304,5 @@
 
     <script type="module" src="main.js"></script>
 </body>
+
 </html>
