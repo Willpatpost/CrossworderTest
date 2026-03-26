@@ -188,9 +188,6 @@
                             <h3 id="status-heading">Status</h3>
                             <textarea id="status-display" readonly aria-label="Solver status log"></textarea>
 
-                            <div id="game-stats" class="game-stats hidden" aria-live="polite">
-                                <strong>Progress:</strong> <span id="solve-progress">0%</span>
-                            </div>
                         </aside>
 
                         <section class="grid-panel" aria-labelledby="editor-grid-heading">
@@ -226,7 +223,7 @@
                 <!-- TOOLBAR -->
                 <div class="nyt-toolbar" aria-label="Puzzle tools">
                     <div class="toolbar-left">
-                        <div id="timer" class="timer" aria-live="polite">0:00</div>
+                        <div id="timer" class="timer" aria-live="polite">00:00</div>
                     </div>
 
                     <div class="toolbar-right">
@@ -256,7 +253,7 @@
 
                         <button class="toolbar-btn" id="clear-btn" type="button">Clear</button>
                         <button class="toolbar-btn icon-btn" id="pause-btn" type="button" aria-label="Pause game">
-                            ⏸
+                            Pause
                         </button>
                     </div>
                 </div>
@@ -264,6 +261,10 @@
                 <!-- PLAY WORKSPACE -->
                 <section class="section main-content" id="game-container" aria-labelledby="play-workspace-heading">
                     <h2 id="play-workspace-heading" class="sr-only">Play workspace</h2>
+
+                    <div id="play-paused-overlay" class="play-paused-overlay hidden" aria-live="polite">
+                        Game paused
+                    </div>
 
                     <aside class="status-panel" aria-labelledby="play-status-heading">
                         <h3 id="play-status-heading">Game Status</h3>

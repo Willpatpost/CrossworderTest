@@ -48,7 +48,8 @@ export class DisplayManager {
         solution = {},
         onWordClick,
         definitionsProvider = null,
-        isPlayMode = false
+        isPlayMode = false,
+        clueMap = {}
     ) {
         this._activeListMode = isPlayMode ? 'play' : 'editor';
         const hydrationToken = ++this._clueHydrationToken;
@@ -67,7 +68,8 @@ export class DisplayManager {
             acrossContainer,
             solution,
             onWordClick,
-            isPlayMode
+            isPlayMode,
+            clueMap
         );
 
         this._renderSlotList(
@@ -75,7 +77,8 @@ export class DisplayManager {
             downContainer,
             solution,
             onWordClick,
-            isPlayMode
+            isPlayMode,
+            clueMap
         );
 
         if (isPlayMode && definitionsProvider) {
@@ -86,7 +89,8 @@ export class DisplayManager {
                     acrossContainer,
                     downContainer,
                     solution,
-                    definitionsProvider
+                    definitionsProvider,
+                    clueMap
                 },
                 hydrationToken
             );
@@ -126,7 +130,7 @@ export class DisplayManager {
             .sort((a, b) => a.number - b.number);
     }
 
-    _renderSlotList(slotsArr, container, solution, onWordClick, isPlayMode) {
+    _renderSlotList(slotsArr, container, solution, onWordClick, isPlayMode, clueMap) {
         container.innerHTML = '';
 
         const fragment = document.createDocumentFragment();
@@ -148,8 +152,15 @@ export class DisplayManager {
             const word = solution?.[slot.id] || '';
 
             if (isPlayMode) {
-                text.textContent = 'Loading clue...';
-                text.classList.add('muted-text');
+                const authoredClue = clueMap?.[slot.id] || '';
+
+                if (authoredClue) {
+                    text.textContent = authoredClue;
+                    this._setItemSourceBadge(item, 'Puzzle');
+                } else {
+                    text.textContent = 'Loading clue...';
+                    text.classList.add('muted-text');
+                }
             } else {
                 text.textContent = this._formatEditorEntry(word, slot.length);
                 text.classList.add('builder-word');
@@ -191,7 +202,8 @@ export class DisplayManager {
             acrossContainer,
             downContainer,
             solution,
-            definitionsProvider
+            definitionsProvider,
+            clueMap
         } = config;
 
         const slotGroups = [
@@ -204,6 +216,10 @@ export class DisplayManager {
         for (const { slots, container } of slotGroups) {
             for (const slot of slots) {
                 const word = solution?.[slot.id];
+                if (clueMap?.[slot.id]) {
+                    continue;
+                }
+
                 if (!word || !word.trim()) {
                     this._setClueText(container, slot.id, 'No clue found', true);
                     continue;
@@ -268,6 +284,12 @@ export class DisplayManager {
 
     _setSourceBadge(container, slotId, source) {
         const item = this._findSlotItem(container, slotId);
+        if (!item) return;
+
+        this._setItemSourceBadge(item, source);
+    }
+
+    _setItemSourceBadge(item, source) {
         if (!item) return;
 
         item.querySelector('.clue-source')?.remove();

@@ -50,10 +50,22 @@ export class CrosswordSolver {
         this.activeWorker = null;
 
         this.currentSolution = null;
+        this.editorGridSnapshot = null;
+        this.currentPuzzleClues = {};
         this.puzzleIndex = [];
+        this.missingPuzzleFiles = new Set();
 
         this._globalMouseUpBound = false;
         this._searchInputBound = false;
+        this._searchRequestId = 0;
+
+        this.activeSolveSession = null;
+        this._solveRunId = 0;
+
+        this.isPlayPaused = false;
+        this.playElapsedMs = 0;
+        this.playTimerStartedAt = null;
+        this.playTimerInterval = null;
     }
 
     /* ===============================
@@ -77,6 +89,10 @@ export class CrosswordSolver {
                 error
             );
         }
+
+        this._updateRandomPuzzleButton();
+        this._updateTimerDisplay();
+        this._updatePauseUI();
 
         this.loadPredefinedPuzzle('Easy');
         this.display.updateStatus('System ready.', true);
@@ -162,9 +178,7 @@ export class CrosswordSolver {
         this._bindClick('reveal-puzzle-btn', () => this.handleRevealPuzzle());
 
         this._bindClick('clear-btn', () => this.handleClearPlayGrid());
-        this._bindClick('pause-btn', () => {
-            this.display.updateStatus('Pause functionality is not implemented yet.', true);
-        });
+        this._bindClick('pause-btn', () => this.togglePlayPause());
 
         if (!this._globalMouseUpBound) {
             window.addEventListener('mouseup', () => this.handleMouseUp());
@@ -183,19 +197,21 @@ export class CrosswordSolver {
     =============================== */
 
     abortActiveSolve(isManualCancel = false) {
+        const session = this.activeSolveSession;
+
+        if (session && !session.settled) {
+            session.settled = true;
+            session.reject(new Error('SOLVE_CANCELLED'));
+        }
+
         if (this.activeWorker) {
             this.activeWorker.terminate();
             this.activeWorker = null;
         }
 
-        const wasSolving = this.isSolving;
-        this.isSolving = false;
-
-        const solveBtn = document.getElementById('solve-crossword-button');
-        const cancelBtn = document.getElementById('cancel-solve-button');
-
-        if (solveBtn) solveBtn.disabled = false;
-        if (cancelBtn) cancelBtn.classList.add('hidden');
+        const wasSolving = this.isSolving || Boolean(session);
+        this.activeSolveSession = null;
+        this._updateSolveControls(false);
 
         if (wasSolving && isManualCancel) {
             this.display.updateStatus('Solve operation cancelled by user.', true);
@@ -213,13 +229,28 @@ export class CrosswordSolver {
         }
 
         if (!this.currentSolution) {
-            this.currentSolution = this.extractSolutionFromGrid();
+            const extractedSolution = this.extractSolutionFromGrid({ requireComplete: true });
+            if (!extractedSolution) {
+                this.display.updateStatus(
+                    'Play mode requires a fully solved grid or imported puzzle.',
+                    true
+                );
+                return false;
+            }
+
+            this.currentSolution = extractedSolution;
         }
+
+        this.editorGridSnapshot = GridUtils.cloneGrid(this.grid);
+        this.isPlayPaused = false;
 
         this.modes.setPlayMode(true);
         this.blankGridForPlayMode();
         this.render();
         this.refreshWordList();
+        this._resetPlayTimer();
+        this._resumePlayTimer();
+        this._updatePauseUI();
 
         const firstSlot = this._getFirstSlot();
         if (firstSlot) {
@@ -230,6 +261,7 @@ export class CrosswordSolver {
         }
 
         this.display.updateStatus('Entered play mode. Good luck!', true);
+        return true;
     }
 
     exitPlayMode() {
@@ -237,18 +269,23 @@ export class CrosswordSolver {
             this.abortActiveSolve();
         }
 
+        this._pausePlayTimer();
+        this._resetPlayTimer();
+        this.isPlayPaused = false;
         this.modes.setPlayMode(false);
 
-        if (this.currentSolution) {
-            this.applySolutionToGrid(this.slots, this.currentSolution);
+        if (this.editorGridSnapshot?.length) {
+            this.grid = GridUtils.cloneGrid(this.editorGridSnapshot);
         }
 
+        this.editorGridSnapshot = null;
         this.render();
         this.refreshWordList();
+        this._updatePauseUI();
         this.display.updateStatus('Returned to editor mode.', true);
     }
 
-    extractSolutionFromGrid() {
+    extractSolutionFromGrid({ requireComplete = false } = {}) {
         const solution = {};
 
         for (const slotId in this.slots) {
@@ -257,8 +294,20 @@ export class CrosswordSolver {
 
             slot.positions.forEach(([r, c]) => {
                 const val = this.grid[r][c];
-                word += /^[A-Z]$/i.test(val) ? val.toUpperCase() : ' ';
+                if (/^[A-Z]$/i.test(val)) {
+                    word += val.toUpperCase();
+                    return;
+                }
+
+                if (requireComplete) {
+                    word = '';
+                    return;
+                }
             });
+
+            if (requireComplete && word.length !== slot.length) {
+                return null;
+            }
 
             solution[slotId] = word;
         }
@@ -349,6 +398,7 @@ export class CrosswordSolver {
         this.syncActiveGridToDOM();
         this.refreshWordList();
         this.currentSolution = null;
+        this.currentPuzzleClues = {};
     }
 
     paintCell(r, c, value) {
@@ -370,6 +420,7 @@ export class CrosswordSolver {
         this.syncActiveGridToDOM();
         this.refreshWordList();
         this.currentSolution = null;
+        this.currentPuzzleClues = {};
     }
 
     /* ===============================
@@ -379,6 +430,8 @@ export class CrosswordSolver {
     generateNewGrid(rows, cols) {
         this.grid = Array.from({ length: rows }, () => Array(cols).fill(''));
         this.currentSolution = null;
+        this.currentPuzzleClues = {};
+        this.editorGridSnapshot = null;
         this.render();
         this.display.updateStatus(`Generated ${rows}×${cols} grid.`, true);
     }
@@ -401,6 +454,8 @@ export class CrosswordSolver {
         );
 
         this.currentSolution = null;
+        this.currentPuzzleClues = {};
+        this.editorGridSnapshot = null;
         this.render();
         this.display.updateStatus(`Loaded ${name} puzzle.`, true);
     }
@@ -411,31 +466,72 @@ export class CrosswordSolver {
             return;
         }
 
-        const randomEntry =
-            this.puzzleIndex[Math.floor(Math.random() * this.puzzleIndex.length)];
-
-        this.display.updateStatus(
-            `Loading ${randomEntry.title || randomEntry.id}...`,
-            true
+        const candidateEntries = this.puzzleIndex.filter(
+            (entry) => !this.missingPuzzleFiles.has(entry.file)
         );
 
-        try {
-            const resp = await fetch(`data/nyt_puzzles/${randomEntry.file}`);
-            if (!resp.ok) {
-                throw new Error(`HTTP ${resp.status}`);
-            }
-
-            const puzzleData = await resp.json();
-            this.importXdGrid(puzzleData.grid);
-
+        if (!candidateEntries.length) {
+            this._updateRandomPuzzleButton(
+                true,
+                'Classic puzzle files are not included in this project snapshot.'
+            );
             this.display.updateStatus(
-                `Loaded ${randomEntry.title} (${randomEntry.author}, ${randomEntry.date}).`,
+                'Random Classic is unavailable because the puzzle files are missing from this repository snapshot.',
                 true
             );
-        } catch (error) {
-            console.error(error);
-            this.display.updateStatus('Failed to load puzzle data.', true);
+            return;
         }
+
+        const shuffledCandidates = [...candidateEntries]
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 8);
+
+        for (const randomEntry of shuffledCandidates) {
+            this.display.updateStatus(
+                `Loading ${randomEntry.title || randomEntry.id}...`,
+                true
+            );
+
+            try {
+                const resp = await fetch(`data/nyt_puzzles/${randomEntry.file}`);
+                if (!resp.ok) {
+                    if (resp.status === 404) {
+                        this.missingPuzzleFiles.add(randomEntry.file);
+                        continue;
+                    }
+
+                    throw new Error(`HTTP ${resp.status}`);
+                }
+
+                const puzzleData = await resp.json();
+                this.importXdGrid(puzzleData.grid);
+                this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
+                this.currentSolution = this.extractSolutionFromGrid({ requireComplete: true });
+                this._updateRandomPuzzleButton(false);
+
+                const authoredClueCount = Object.keys(this.currentPuzzleClues).length;
+                const clueSuffix = authoredClueCount
+                    ? ` Loaded ${authoredClueCount} authored clues.`
+                    : ' No authored clues were included, so clue lookup will fall back to the local database.';
+
+                this.display.updateStatus(
+                    `Loaded ${randomEntry.title} (${randomEntry.author}, ${randomEntry.date}).${clueSuffix}`,
+                    true
+                );
+                return;
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        this._updateRandomPuzzleButton(
+            true,
+            'Classic puzzle files are not included in this project snapshot.'
+        );
+        this.display.updateStatus(
+            'Random Classic is unavailable because the referenced puzzle files could not be loaded.',
+            true
+        );
     }
 
     importXdGrid(gridStrings) {
@@ -449,7 +545,9 @@ export class CrosswordSolver {
             })
         );
 
+        this.currentPuzzleClues = {};
         this.currentSolution = null;
+        this.editorGridSnapshot = null;
         this.render();
     }
 
@@ -493,9 +591,16 @@ export class CrosswordSolver {
         this.display.updateWordLists(
             this.slots,
             this.currentSolution || {},
-            wordClickHandler,
+            (slot) => {
+                if (this.modes.isPlayMode && this.isPlayPaused) {
+                    return;
+                }
+
+                wordClickHandler(slot);
+            },
             this.definitions,
-            this.modes.isPlayMode
+            this.modes.isPlayMode,
+            this.currentPuzzleClues
         );
     }
 
@@ -552,12 +657,9 @@ export class CrosswordSolver {
             this.abortActiveSolve();
         }
 
-        const solveBtn = document.getElementById('solve-crossword-button');
-        const cancelBtn = document.getElementById('cancel-solve-button');
-
+        const runId = ++this._solveRunId;
         this.isSolving = true;
-        if (solveBtn) solveBtn.disabled = true;
-        if (cancelBtn) cancelBtn.classList.remove('hidden');
+        this._updateSolveControls(true);
 
         try {
             this.display.updateStatus('Analyzing grid constraints...');
@@ -598,15 +700,34 @@ export class CrosswordSolver {
                 true
             );
 
+            const session = {
+                settled: false,
+                reject: () => { },
+                worker: null
+            };
+
             const result = await new Promise((resolve, reject) => {
-                this.activeWorker = new Worker('./solver/SolverWorker.js', {
+                session.reject = reject;
+                session.worker = new Worker('./solver/SolverWorker.js', {
                     type: 'module'
                 });
+                this.activeWorker = session.worker;
+                this.activeSolveSession = session;
 
                 let lastVisualUpdate = performance.now();
+                const settle = (callback, value) => {
+                    if (session.settled) return;
+                    session.settled = true;
+                    if (this.activeSolveSession === session) {
+                        this.activeSolveSession = null;
+                    }
+                    callback(value);
+                };
 
-                this.activeWorker.onmessage = (e) => {
+                session.worker.onmessage = (e) => {
                     const { type, payload } = e.data;
+
+                    if (session.settled) return;
 
                     if (type === 'UPDATE') {
                         if (!visualize) return;
@@ -644,18 +765,18 @@ export class CrosswordSolver {
                     }
 
                     if (type === 'RESULT') {
-                        resolve(payload);
+                        settle(resolve, payload);
                         return;
                     }
 
                     if (type === 'ERROR') {
-                        reject(new Error(payload));
+                        settle(reject, new Error(payload));
                     }
                 };
 
-                this.activeWorker.onerror = (err) => reject(err);
+                session.worker.onerror = (err) => settle(reject, err);
 
-                this.activeWorker.postMessage({
+                session.worker.postMessage({
                     type: 'START_SOLVE',
                     payload: {
                         slots: this.slots,
@@ -667,6 +788,10 @@ export class CrosswordSolver {
                     }
                 });
             });
+
+            if (runId !== this._solveRunId) {
+                return;
+            }
 
             const end = performance.now();
 
@@ -685,12 +810,24 @@ export class CrosswordSolver {
                 this.syncActiveGridToDOM();
             }
         } catch (error) {
+            if (runId !== this._solveRunId) {
+                return;
+            }
+
+            if (error?.message === 'SOLVE_CANCELLED') {
+                return;
+            }
+
             if (this.isSolving) {
                 console.error(error);
                 this.display.updateStatus(`Solver error: ${error.message}`, true);
             }
         } finally {
-            this.abortActiveSolve();
+            if (runId === this._solveRunId) {
+                this.activeWorker = null;
+                this.activeSolveSession = null;
+                this._updateSolveControls(false);
+            }
         }
     }
 
@@ -713,7 +850,7 @@ export class CrosswordSolver {
     =============================== */
 
     handleCheckSquare() {
-        if (!this.modes.isPlayMode || !this.currentSolution) return;
+        if (!this._canUsePlayTools()) return;
 
         const selected = this.gridManager.selectedCell;
         if (!selected) return;
@@ -727,12 +864,11 @@ export class CrosswordSolver {
         const td = this.gridManager.cells[`${r},${c}`];
         if (!td) return;
 
-        td.classList.remove('correct', 'incorrect');
-        td.classList.add(actual && actual === expected ? 'correct' : 'incorrect');
+        this._applyCheckState(td, actual, expected);
     }
 
     handleCheckWord() {
-        if (!this.modes.isPlayMode || !this.currentSolution) return;
+        if (!this._canUsePlayTools()) return;
 
         const slot = this.gridManager._getActiveSlot(this);
         if (!slot) return;
@@ -743,13 +879,12 @@ export class CrosswordSolver {
             const td = this.gridManager.cells[`${r},${c}`];
             if (!td) return;
 
-            td.classList.remove('correct', 'incorrect');
-            td.classList.add(actual && actual === expected ? 'correct' : 'incorrect');
+            this._applyCheckState(td, actual, expected);
         });
     }
 
     handleCheckPuzzle() {
-        if (!this.modes.isPlayMode || !this.currentSolution) return;
+        if (!this._canUsePlayTools()) return;
 
         Object.values(this.slots).forEach((slot) => {
             slot.positions.forEach(([r, c]) => {
@@ -758,14 +893,13 @@ export class CrosswordSolver {
                 const td = this.gridManager.cells[`${r},${c}`];
                 if (!td) return;
 
-                td.classList.remove('correct', 'incorrect');
-                td.classList.add(actual && actual === expected ? 'correct' : 'incorrect');
+                this._applyCheckState(td, actual, expected);
             });
         });
     }
 
     handleRevealSquare() {
-        if (!this.modes.isPlayMode || !this.currentSolution) return;
+        if (!this._canUsePlayTools()) return;
 
         const selected = this.gridManager.selectedCell;
         if (!selected) return;
@@ -779,7 +913,7 @@ export class CrosswordSolver {
     }
 
     handleRevealWord() {
-        if (!this.modes.isPlayMode || !this.currentSolution) return;
+        if (!this._canUsePlayTools()) return;
 
         const slot = this.gridManager._getActiveSlot(this);
         if (!slot) return;
@@ -795,14 +929,14 @@ export class CrosswordSolver {
     }
 
     handleRevealPuzzle() {
-        if (!this.modes.isPlayMode || !this.currentSolution) return;
+        if (!this._canUsePlayTools()) return;
 
         this.applySolutionToGrid(this.slots, this.currentSolution);
         this.gridManager._updateHighlights(this);
     }
 
     handleClearPlayGrid() {
-        if (!this.modes.isPlayMode) return;
+        if (!this.modes.isPlayMode || this.isPlayPaused) return;
 
         for (let r = 0; r < this.grid.length; r++) {
             for (let c = 0; c < this.grid[0].length; c++) {
@@ -842,6 +976,7 @@ export class CrosswordSolver {
     =============================== */
 
     async handleSearch(value) {
+        const requestId = ++this._searchRequestId;
         const query = value.trim().toUpperCase();
         const safeQuery = query.replace(/[^A-Z?]/g, '');
 
@@ -852,16 +987,281 @@ export class CrosswordSolver {
 
         try {
             const words = await this.wordProvider.getWordsOfLength(safeQuery.length);
+            if (requestId !== this._searchRequestId) return;
+
             const regex = new RegExp(`^${safeQuery.replace(/\?/g, '.')}$`);
             const matches = words.filter((word) => regex.test(word)).slice(0, 50);
 
+            if (requestId !== this._searchRequestId) return;
             this.display.updateSearchResults(matches, (selected) => {
                 this.popups.show(selected);
             });
         } catch (error) {
+            if (requestId !== this._searchRequestId) return;
             console.warn('Search failed', error);
             this.display.updateStatus('Word search failed.', true);
         }
+    }
+
+    togglePlayPause() {
+        if (!this.modes.isPlayMode) return;
+
+        this.isPlayPaused = !this.isPlayPaused;
+
+        if (this.isPlayPaused) {
+            this._pausePlayTimer();
+            this.display.updateStatus('Game paused.', true);
+        } else {
+            this._resumePlayTimer();
+            this.display.updateStatus('Game resumed.', true);
+        }
+
+        this._updatePauseUI();
+    }
+
+    _applyCheckState(td, actual, expected) {
+        if (!td) return;
+
+        td.classList.remove('correct', 'incorrect');
+        if (!actual) return;
+
+        td.classList.add(actual === expected ? 'correct' : 'incorrect');
+    }
+
+    _canUsePlayTools() {
+        return this.modes.isPlayMode && this.currentSolution && !this.isPlayPaused;
+    }
+
+    _updateSolveControls(isSolving) {
+        this.isSolving = isSolving;
+
+        const solveBtn = document.getElementById('solve-crossword-button');
+        const cancelBtn = document.getElementById('cancel-solve-button');
+
+        if (solveBtn) solveBtn.disabled = isSolving;
+        if (cancelBtn) cancelBtn.classList.toggle('hidden', !isSolving);
+    }
+
+    _updateRandomPuzzleButton(disabled = false, reason = '') {
+        const randomBtn = document.getElementById('random-puzzle-button');
+        if (!randomBtn) return;
+
+        const shouldDisable = disabled || this.puzzleIndex.length === 0;
+        randomBtn.disabled = shouldDisable;
+        randomBtn.title = shouldDisable
+            ? reason || 'Classic puzzle files are unavailable.'
+            : 'Load a random classic puzzle';
+    }
+
+    _extractPuzzleClues(puzzleData) {
+        const acrossSlots = Object.values(this.slots || {})
+            .filter((slot) => slot.direction === 'across')
+            .sort((a, b) => a.number - b.number);
+        const downSlots = Object.values(this.slots || {})
+            .filter((slot) => slot.direction === 'down')
+            .sort((a, b) => a.number - b.number);
+
+        return {
+            ...this._mapDirectionalClues(
+                puzzleData?.clues?.across ?? puzzleData?.across,
+                acrossSlots,
+                'across'
+            ),
+            ...this._mapDirectionalClues(
+                puzzleData?.clues?.down ?? puzzleData?.down,
+                downSlots,
+                'down'
+            )
+        };
+    }
+
+    _mapDirectionalClues(rawClues, slots, direction) {
+        const mapped = {};
+
+        if (!rawClues) return mapped;
+
+        if (Array.isArray(rawClues)) {
+            rawClues.forEach((entry, index) => {
+                const normalized = this._normalizePuzzleClueEntry(entry, direction);
+                if (!normalized?.clue) return;
+
+                if (normalized.slotId) {
+                    mapped[normalized.slotId] = normalized.clue;
+                    return;
+                }
+
+                const slot = slots[index];
+                if (slot) {
+                    mapped[slot.id] = normalized.clue;
+                }
+            });
+
+            return mapped;
+        }
+
+        if (typeof rawClues === 'object') {
+            Object.entries(rawClues).forEach(([key, value]) => {
+                const clue = this._extractClueText(value);
+                const match = String(key).match(/\d+/);
+                if (!clue || !match) return;
+
+                const slot = slots.find((candidate) => candidate.number === Number(match[0]));
+                if (slot) {
+                    mapped[slot.id] = clue;
+                }
+            });
+        }
+
+        return mapped;
+    }
+
+    _normalizePuzzleClueEntry(entry, direction) {
+        if (typeof entry === 'string') {
+            const trimmed = entry.trim();
+            if (!trimmed) return null;
+
+            const numberedMatch = trimmed.match(/^\s*(\d+)[\.\): -]+\s*(.+)$/);
+            if (numberedMatch) {
+                return {
+                    slotId: `${numberedMatch[1]}-${direction}`,
+                    clue: numberedMatch[2].trim()
+                };
+            }
+
+            return { slotId: '', clue: trimmed };
+        }
+
+        if (!entry || typeof entry !== 'object') return null;
+
+        const clue = this._extractClueText(entry);
+        if (!clue) return null;
+
+        const number = this._extractClueNumber(entry);
+        return {
+            slotId: number ? `${number}-${direction}` : '',
+            clue
+        };
+    }
+
+    _extractClueText(value) {
+        if (typeof value === 'string') {
+            return value.trim();
+        }
+
+        if (!value || typeof value !== 'object') {
+            return '';
+        }
+
+        return [
+            value.clue,
+            value.text,
+            value.label,
+            value.value
+        ].find((candidate) => typeof candidate === 'string' && candidate.trim())?.trim() || '';
+    }
+
+    _extractClueNumber(value) {
+        const candidates = [value.number, value.num, value.id];
+
+        for (const candidate of candidates) {
+            const match = String(candidate ?? '').match(/\d+/);
+            if (match) return match[0];
+        }
+
+        return '';
+    }
+
+    _pausePlayTimer() {
+        if (this.playTimerStartedAt !== null) {
+            this.playElapsedMs = Date.now() - this.playTimerStartedAt;
+        }
+
+        if (this.playTimerInterval) {
+            window.clearInterval(this.playTimerInterval);
+            this.playTimerInterval = null;
+        }
+
+        this.playTimerStartedAt = null;
+        this._updateTimerDisplay();
+    }
+
+    _resumePlayTimer() {
+        if (!this.modes.isPlayMode || this.isPlayPaused) return;
+        if (this.playTimerInterval) return;
+
+        this.playTimerStartedAt = Date.now() - this.playElapsedMs;
+        this.playTimerInterval = window.setInterval(() => {
+            this.playElapsedMs = Date.now() - this.playTimerStartedAt;
+            this._updateTimerDisplay();
+        }, 1000);
+
+        this._updateTimerDisplay();
+    }
+
+    _resetPlayTimer() {
+        if (this.playTimerInterval) {
+            window.clearInterval(this.playTimerInterval);
+            this.playTimerInterval = null;
+        }
+
+        this.playElapsedMs = 0;
+        this.playTimerStartedAt = null;
+        this._updateTimerDisplay();
+    }
+
+    _updateTimerDisplay() {
+        const timer = document.getElementById('timer');
+        if (!timer) return;
+
+        const totalSeconds = Math.max(0, Math.floor(this.playElapsedMs / 1000));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        timer.textContent = hours > 0
+            ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+            : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    _updatePauseUI() {
+        const pauseBtn = document.getElementById('pause-btn');
+        const overlay = document.getElementById('play-paused-overlay');
+        const gridContainer = document.getElementById('play-grid-container');
+        const disableWhilePaused = [
+            'check-menu-btn',
+            'reveal-menu-btn',
+            'check-square-btn',
+            'check-word-btn',
+            'check-puzzle-btn',
+            'reveal-square-btn',
+            'reveal-word-btn',
+            'reveal-puzzle-btn',
+            'clear-btn'
+        ];
+
+        if (pauseBtn) {
+            const isPlaying = this.modes.isPlayMode;
+            pauseBtn.disabled = !isPlaying;
+            pauseBtn.textContent = this.isPlayPaused ? 'Resume' : 'Pause';
+            pauseBtn.setAttribute('aria-label', this.isPlayPaused ? 'Resume game' : 'Pause game');
+        }
+
+        if (overlay) {
+            overlay.classList.toggle(
+                'hidden',
+                !(this.modes.isPlayMode && this.isPlayPaused)
+            );
+        }
+
+        if (gridContainer) {
+            gridContainer.classList.toggle('paused-grid', this.isPlayPaused);
+        }
+
+        disableWhilePaused.forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.disabled = this.isPlayPaused || !this.modes.isPlayMode;
+        });
     }
 
     /* ===============================

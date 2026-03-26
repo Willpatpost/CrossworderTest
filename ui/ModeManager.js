@@ -139,10 +139,6 @@ export class ModeManager {
             cancelSolveBtn.disabled = this.isPlayMode && !isVisible;
         }
 
-        const gameStats = document.getElementById('game-stats');
-        if (gameStats) {
-            gameStats.classList.toggle('hidden', false);
-        }
     }
 
     _setDisabled(id, disabled) {

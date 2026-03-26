@@ -72,7 +72,10 @@ function setupNavigation(app) {
 
         if (targetId === 'play-screen') {
             if (!app.modes?.isPlayMode) {
-                app.enterPlayMode();
+                const entered = app.enterPlayMode();
+                if (!entered) {
+                    return;
+                }
             }
         } else if (app.modes?.isPlayMode) {
             app.exitPlayMode();
