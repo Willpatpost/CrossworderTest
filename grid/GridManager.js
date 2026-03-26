@@ -106,6 +106,8 @@ export class GridManager {
             return;
         }
 
+        if (coordinator?.isPlayPaused) return;
+
         if (!this._isValidCell(r, c, coordinator)) return;
 
         if (
@@ -170,6 +172,7 @@ export class GridManager {
 
         this._boundKeyHandler = (e) => {
             if (!coordinator?.modes?.isPlayMode) return;
+            if (coordinator?.isPlayPaused) return;
             if (!this.selectedCell) return;
 
             const tagName = e.target?.tagName;
