@@ -1,14 +1,14 @@
 // grid/Cell.js
 
 export class Cell {
-    constructor(row, col, value = "") {
+    constructor(row, col, value = '') {
         this.row = row;
         this.col = col;
-        this.value = value; // "#", "", or "A"
+        this.value = value;
     }
 
     isBlock() {
-        return this.value === "#";
+        return this.value === '#';
     }
 
     isFilled() {
@@ -16,6 +16,6 @@ export class Cell {
     }
 
     isEmpty() {
-        return this.value === "";
+        return this.value === '';
     }
 }

@@ -3,10 +3,18 @@
 export class DisplayManager {
     constructor() {
         this.statusDisplay = document.getElementById('status-display');
-        this.acrossDisplay = document.getElementById('across-display');
-        this.downDisplay = document.getElementById('down-display');
+
+        this.editorAcrossDisplay = document.getElementById('across-display');
+        this.editorDownDisplay = document.getElementById('down-display');
+
+        this.playAcrossDisplay = document.getElementById('play-across-display');
+        this.playDownDisplay = document.getElementById('play-down-display');
+
         this.dropdown = document.getElementById('search-dropdown');
         this.matchesCount = document.getElementById('matches-count');
+
+        this._clueHydrationToken = 0;
+        this._activeListMode = 'editor'; // editor | play
     }
 
     /* ===============================
@@ -22,17 +30,17 @@ export class DisplayManager {
             second: '2-digit'
         });
 
-        const text = `[${timestamp}] ${message}\n`;
+        const line = `[${timestamp}] ${message}\n`;
 
         this.statusDisplay.value = append
-            ? this.statusDisplay.value + text
-            : text;
+            ? `${this.statusDisplay.value}${line}`
+            : line;
 
         this.statusDisplay.scrollTop = this.statusDisplay.scrollHeight;
     }
 
     /* ===============================
-       WORD LIST RENDERING (FAST + CLEAN)
+       WORD / CLUE LISTS
     =============================== */
 
     async updateWordLists(
@@ -42,24 +50,79 @@ export class DisplayManager {
         definitionsProvider = null,
         isPlayMode = false
     ) {
-        if (!this.acrossDisplay || !this.downDisplay) return;
+        this._activeListMode = isPlayMode ? 'play' : 'editor';
+        const hydrationToken = ++this._clueHydrationToken;
 
         const acrossSlots = this._getSortedSlots(slots, 'across');
         const downSlots = this._getSortedSlots(slots, 'down');
 
-        // Render immediately (fast UI)
-        this._renderSlotList(acrossSlots, this.acrossDisplay, solution, onWordClick, isPlayMode);
-        this._renderSlotList(downSlots, this.downDisplay, solution, onWordClick, isPlayMode);
+        const { acrossContainer, downContainer } = this._getContainersForMode(isPlayMode);
 
-        // Then hydrate clues async (non-blocking)
+        if (!acrossContainer || !downContainer) return;
+
+        this._clearInactiveContainers(isPlayMode);
+
+        this._renderSlotList(
+            acrossSlots,
+            acrossContainer,
+            solution,
+            onWordClick,
+            isPlayMode
+        );
+
+        this._renderSlotList(
+            downSlots,
+            downContainer,
+            solution,
+            onWordClick,
+            isPlayMode
+        );
+
         if (isPlayMode && definitionsProvider) {
-            this._hydrateClues([...acrossSlots, ...downSlots], solution, definitionsProvider);
+            await this._hydrateClues(
+                {
+                    acrossSlots,
+                    downSlots,
+                    acrossContainer,
+                    downContainer,
+                    solution,
+                    definitionsProvider
+                },
+                hydrationToken
+            );
         }
     }
 
+    _getContainersForMode(isPlayMode) {
+        if (isPlayMode) {
+            return {
+                acrossContainer: this.playAcrossDisplay,
+                downContainer: this.playDownDisplay
+            };
+        }
+
+        return {
+            acrossContainer: this.editorAcrossDisplay,
+            downContainer: this.editorDownDisplay
+        };
+    }
+
+    _clearInactiveContainers(isPlayMode) {
+        const inactiveAcross = isPlayMode
+            ? this.editorAcrossDisplay
+            : this.playAcrossDisplay;
+
+        const inactiveDown = isPlayMode
+            ? this.editorDownDisplay
+            : this.playDownDisplay;
+
+        if (inactiveAcross) inactiveAcross.innerHTML = '';
+        if (inactiveDown) inactiveDown.innerHTML = '';
+    }
+
     _getSortedSlots(slots, direction) {
-        return Object.values(slots)
-            .filter(s => s.direction === direction)
+        return Object.values(slots || {})
+            .filter((slot) => slot.direction === direction)
             .sort((a, b) => a.number - b.number);
     }
 
@@ -68,33 +131,38 @@ export class DisplayManager {
 
         const fragment = document.createDocumentFragment();
 
-        slotsArr.forEach(slot => {
-            const word = solution[slot.id];
-
-            const item = document.createElement('div');
+        slotsArr.forEach((slot) => {
+            const item = document.createElement('button');
+            item.type = 'button';
             item.className = 'word-list-item';
             item.dataset.slotId = slot.id;
+            item.dataset.direction = slot.direction;
 
             const number = document.createElement('span');
             number.className = 'clue-number';
-            number.textContent = slot.number;
+            number.textContent = String(slot.number);
 
             const text = document.createElement('span');
             text.className = 'clue-text';
 
-            // Instant render (no waiting)
+            const word = solution?.[slot.id] || '';
+
             if (isPlayMode) {
                 text.textContent = 'Loading clue...';
                 text.classList.add('muted-text');
             } else {
-                text.textContent = word || '•'.repeat(slot.length);
+                text.textContent = this._formatEditorEntry(word, slot.length);
                 text.classList.add('builder-word');
             }
 
             item.appendChild(number);
             item.appendChild(text);
 
-            item.addEventListener('click', () => onWordClick(slot));
+            item.addEventListener('click', () => {
+                if (typeof onWordClick === 'function') {
+                    onWordClick(slot);
+                }
+            });
 
             fragment.appendChild(item);
         });
@@ -102,52 +170,120 @@ export class DisplayManager {
         container.appendChild(fragment);
     }
 
+    _formatEditorEntry(word, length) {
+        if (!word) return '•'.repeat(length);
+
+        const normalized = [...word]
+            .map((char) => (/^[A-Z]$/i.test(char) ? char.toUpperCase() : '•'))
+            .join('');
+
+        return normalized.padEnd(length, '•').slice(0, length);
+    }
+
     /* ===============================
-       ASYNC CLUE HYDRATION (FAST)
+       CLUE HYDRATION
     =============================== */
 
-    async _hydrateClues(slots, solution, definitionsProvider) {
-        const promises = slots.map(async (slot) => {
-            const word = solution[slot.id];
-            if (!word) return;
+    async _hydrateClues(config, hydrationToken) {
+        const {
+            acrossSlots,
+            downSlots,
+            acrossContainer,
+            downContainer,
+            solution,
+            definitionsProvider
+        } = config;
 
-            try {
-                const results = await definitionsProvider.lookup(word);
-                return { slotId: slot.id, result: results?.[0] };
-            } catch {
-                return { slotId: slot.id, error: true };
+        const slotGroups = [
+            { slots: acrossSlots, container: acrossContainer },
+            { slots: downSlots, container: downContainer }
+        ];
+
+        const tasks = [];
+
+        for (const { slots, container } of slotGroups) {
+            for (const slot of slots) {
+                const word = solution?.[slot.id];
+                if (!word || !word.trim()) {
+                    this._setClueText(container, slot.id, 'No clue found', true);
+                    continue;
+                }
+
+                tasks.push(
+                    this._hydrateSingleClue(
+                        slot,
+                        word,
+                        container,
+                        definitionsProvider,
+                        hydrationToken
+                    )
+                );
             }
-        });
+        }
 
-        const results = await Promise.all(promises);
+        await Promise.all(tasks);
+    }
 
-        results.forEach(({ slotId, result, error }) => {
-            const item = document.querySelector(`.word-list-item[data-slot-id="${slotId}"]`);
-            if (!item) return;
+    async _hydrateSingleClue(
+        slot,
+        word,
+        container,
+        definitionsProvider,
+        hydrationToken
+    ) {
+        try {
+            const results = await definitionsProvider.lookup(word);
 
-            const text = item.querySelector('.clue-text');
+            if (hydrationToken !== this._clueHydrationToken) return;
 
-            if (error) {
-                text.textContent = '[Error loading clue]';
-                return;
-            }
+            const result = Array.isArray(results) ? results[0] : null;
 
             if (!result) {
-                text.textContent = 'No clue found';
-                text.classList.add('muted-text');
+                this._setClueText(container, slot.id, 'No clue found', true);
+                this._setSourceBadge(container, slot.id, '');
                 return;
             }
 
-            text.textContent = result.clue;
+            const clueText = result.clue || 'No clue found';
+            this._setClueText(container, slot.id, clueText, !result.clue);
+            this._setSourceBadge(container, slot.id, result.source || '');
+        } catch {
+            if (hydrationToken !== this._clueHydrationToken) return;
 
-            // Optional source badge
-            if (result.source) {
-                const badge = document.createElement('span');
-                badge.className = 'clue-source';
-                badge.textContent = result.source;
-                item.appendChild(badge);
-            }
-        });
+            this._setClueText(container, slot.id, '[Error loading clue]', true);
+            this._setSourceBadge(container, slot.id, '');
+        }
+    }
+
+    _setClueText(container, slotId, value, muted = false) {
+        const item = this._findSlotItem(container, slotId);
+        if (!item) return;
+
+        const text = item.querySelector('.clue-text');
+        if (!text) return;
+
+        text.textContent = value;
+        text.classList.toggle('muted-text', muted);
+    }
+
+    _setSourceBadge(container, slotId, source) {
+        const item = this._findSlotItem(container, slotId);
+        if (!item) return;
+
+        item.querySelector('.clue-source')?.remove();
+
+        if (!source) return;
+
+        const badge = document.createElement('span');
+        badge.className = 'clue-source';
+        badge.textContent = source;
+
+        item.appendChild(badge);
+    }
+
+    _findSlotItem(container, slotId) {
+        if (!container) return null;
+        return container.querySelector(`.word-list-item[data-slot-id="${slotId}"]`);
     }
 
     /* ===============================
@@ -161,28 +297,34 @@ export class DisplayManager {
 
         if (!matches.length) {
             this.dropdown.classList.add('hidden');
+
             if (this.matchesCount) {
                 this.matchesCount.textContent = 'No matches found';
             }
+
             return;
         }
 
         this.dropdown.classList.remove('hidden');
 
         if (this.matchesCount) {
-            this.matchesCount.textContent = `${matches.length} match${matches.length > 1 ? 'es' : ''}`;
+            this.matchesCount.textContent =
+                `${matches.length} match${matches.length === 1 ? '' : 'es'}`;
         }
 
         const fragment = document.createDocumentFragment();
 
-        matches.forEach(word => {
-            const item = document.createElement('div');
+        matches.forEach((word) => {
+            const item = document.createElement('button');
+            item.type = 'button';
             item.className = 'search-result-item';
             item.textContent = word;
 
             item.addEventListener('click', () => {
                 this.dropdown.classList.add('hidden');
-                onSelect(word);
+                if (typeof onSelect === 'function') {
+                    onSelect(word);
+                }
             });
 
             fragment.appendChild(item);
@@ -196,17 +338,33 @@ export class DisplayManager {
     =============================== */
 
     highlightSlotInList(slotId) {
-        document.querySelectorAll('.word-list-item')
-            .forEach(el => el.classList.remove('selected-clue'));
+        const containers = this._activeListMode === 'play'
+            ? [this.playAcrossDisplay, this.playDownDisplay]
+            : [this.editorAcrossDisplay, this.editorDownDisplay];
 
-        const target = document.querySelector(`.word-list-item[data-slot-id="${slotId}"]`);
+        containers.forEach((container) => {
+            if (!container) return;
 
-        if (target) {
-            target.classList.add('selected-clue');
-            target.scrollIntoView({
-                block: 'nearest',
-                behavior: 'smooth'
-            });
+            container
+                .querySelectorAll('.word-list-item')
+                .forEach((el) => el.classList.remove('selected-clue'));
+        });
+
+        for (const container of containers) {
+            if (!container) continue;
+
+            const target = container.querySelector(
+                `.word-list-item[data-slot-id="${slotId}"]`
+            );
+
+            if (target) {
+                target.classList.add('selected-clue');
+                target.scrollIntoView({
+                    block: 'nearest',
+                    behavior: 'smooth'
+                });
+                break;
+            }
         }
     }
 }

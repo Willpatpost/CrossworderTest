@@ -15,11 +15,20 @@ export class ModeManager {
 
     setMode(mode) {
         if (this.isPlayMode) return this.currentMode;
+        if (!this.editorModes.includes(mode)) return this.currentMode;
 
-        // Toggle behavior
-        this.currentMode = (this.currentMode === mode) ? 'none' : mode;
-
+        this.currentMode = this.currentMode === mode ? 'none' : mode;
         this._updateUI();
+
+        return this.currentMode;
+    }
+
+    clearMode() {
+        if (this.isPlayMode) return this.currentMode;
+
+        this.currentMode = 'none';
+        this._updateUI();
+
         return this.currentMode;
     }
 
@@ -28,8 +37,8 @@ export class ModeManager {
     =============================== */
 
     setPlayMode(enabled) {
-        this.isPlayMode = enabled;
-        this.currentMode = enabled ? 'play' : 'none';
+        this.isPlayMode = Boolean(enabled);
+        this.currentMode = this.isPlayMode ? 'play' : 'none';
 
         this._updateUI();
         return this.isPlayMode;
@@ -53,7 +62,7 @@ export class ModeManager {
     }
 
     /* ===============================
-       UI UPDATES (CLEAN + CLASS-BASED)
+       UI UPDATES
     =============================== */
 
     _updateUI() {
@@ -69,7 +78,7 @@ export class ModeManager {
         const label = document.getElementById('mode-label');
         if (!label) return;
 
-        let text = 'Toggle Black Squares';
+        let text = 'Default (Toggle Black Squares)';
 
         if (this.currentMode === 'drag') text = 'Drag';
         if (this.currentMode === 'letter') text = 'Letter';
@@ -81,13 +90,14 @@ export class ModeManager {
     /* ---------- Mode Buttons ---------- */
 
     _updateModeButtons() {
-        this.editorModes.forEach(mode => {
+        this.editorModes.forEach((mode) => {
             const btn = document.getElementById(`${mode}-mode-button`);
             if (!btn) return;
 
-            const isActive = this.currentMode === mode;
+            const isActive = !this.isPlayMode && this.currentMode === mode;
 
             btn.classList.toggle('active-mode', isActive);
+            btn.setAttribute('aria-pressed', String(isActive));
             btn.disabled = this.isPlayMode;
         });
     }
@@ -99,10 +109,9 @@ export class ModeManager {
         if (!btn) return;
 
         btn.textContent = `Symmetry: ${this.isSymmetryEnabled ? 'ON' : 'OFF'}`;
-
         btn.classList.toggle('symmetry-on', this.isSymmetryEnabled);
         btn.classList.toggle('symmetry-off', !this.isSymmetryEnabled);
-
+        btn.setAttribute('aria-pressed', String(this.isSymmetryEnabled));
         btn.disabled = this.isPlayMode;
     }
 
@@ -111,16 +120,34 @@ export class ModeManager {
     _updateGlobalStates() {
         document.body.classList.toggle('is-playing', this.isPlayMode);
 
-        // Optional: dim editor controls during play
-        const editorControls = document.querySelectorAll('#editor-screen .btn');
-        editorControls.forEach(btn => {
-            btn.disabled = this.isPlayMode;
-        });
+        this._setDisabled('generate-grid-button', this.isPlayMode);
+        this._setDisabled('load-easy-button', this.isPlayMode);
+        this._setDisabled('load-medium-button', this.isPlayMode);
+        this._setDisabled('load-hard-button', this.isPlayMode);
+        this._setDisabled('random-puzzle-button', this.isPlayMode);
+        this._setDisabled('rows-input', this.isPlayMode);
+        this._setDisabled('columns-input', this.isPlayMode);
+        this._setDisabled('auto-number-button', this.isPlayMode);
+        this._setDisabled('word-search-input', this.isPlayMode);
+        this._setDisabled('allow-reuse-toggle', this.isPlayMode);
+        this._setDisabled('visualize-solve-toggle', this.isPlayMode);
+        this._setDisabled('solve-crossword-button', this.isPlayMode);
 
-        // Solver stats always visible now (clean behavior)
+        const cancelSolveBtn = document.getElementById('cancel-solve-button');
+        if (cancelSolveBtn) {
+            const isVisible = !cancelSolveBtn.classList.contains('hidden');
+            cancelSolveBtn.disabled = this.isPlayMode && !isVisible;
+        }
+
         const gameStats = document.getElementById('game-stats');
         if (gameStats) {
-            gameStats.classList.remove('hidden');
+            gameStats.classList.toggle('hidden', false);
         }
+    }
+
+    _setDisabled(id, disabled) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = disabled;
     }
 }
