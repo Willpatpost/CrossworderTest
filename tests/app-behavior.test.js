@@ -1682,6 +1682,79 @@ test('blacklistSelectedSlotWord stores the current fill and clears the slot', ()
     assert.match(statuses.at(-1), /Blacklisted CAT/);
 });
 
+test('removeBlacklistedWord updates slot blacklist state and reports the change', () => {
+    const statuses = [];
+    let snapshotCount = 0;
+    let rendered = 0;
+
+    const app = {
+        slotBlacklist: { '1-across': ['CAT', 'CAR'] },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _getSlotBlacklist: solverMethods._getSlotBlacklist,
+        _setSlotBlacklist: solverMethods._setSlotBlacklist,
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        renderSolverBlacklist() {
+            rendered++;
+        },
+        _scheduleEditorAutosave() {}
+    };
+
+    const removed = solverMethods.removeBlacklistedWord.call(app, '1-across', 'CAT');
+
+    assert.equal(removed, true);
+    assert.equal(snapshotCount, 1);
+    assert.equal(rendered, 1);
+    assert.deepEqual(app.slotBlacklist, { '1-across': ['CAR'] });
+    assert.match(statuses.at(-1), /Removed CAT from the blacklist/);
+});
+
+test('updateSolverDiagnostics renders a readable summary for the latest solve', () => {
+    const originalDocument = globalThis.document;
+    const diagnostics = {
+        textContent: '',
+        classList: {
+            add() {},
+            remove() {}
+        }
+    };
+
+    globalThis.document = {
+        getElementById(id) {
+            return id === 'solver-diagnostics' ? diagnostics : null;
+        }
+    };
+
+    try {
+        solverMethods._updateSolverDiagnostics.call(
+            {},
+            {
+                maxDepth: 4,
+                backtracks: 7,
+                domainReductions: 20,
+                recursiveCalls: 10
+            },
+            {
+                deterministic: true,
+                lockFilledEntries: true,
+                allowReuse: false,
+                themeEntries: ['NOVA']
+            }
+        );
+
+        assert.match(diagnostics.textContent, /deterministic/);
+        assert.match(diagnostics.textContent, /depth 4/);
+        assert.match(diagnostics.textContent, /Theme priority: NOVA/);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
 test('loadRandomPuzzle marks missing files and falls back when all candidates fail', async () => {
     const originalError = console.error;
     const statuses = [];

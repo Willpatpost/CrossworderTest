@@ -91,6 +91,8 @@ export class CrosswordApp {
         this._updateTimerDisplay();
         this._updatePauseUI();
         this.updateSearchModeUI();
+        this.renderSolverBlacklist?.();
+        this._updateSolverDiagnostics?.(null, null);
 
         await this.loadPredefinedPuzzle('Easy');
         await this.loadPuzzleOfTheDaySummary();
@@ -239,6 +241,12 @@ export class CrosswordApp {
 
         this._bindClick('blacklist-entry-button', () => {
             this.blacklistSelectedSlotWord();
+        });
+
+        this._bindClick('solver-blacklist-list', (event) => {
+            const button = event.target?.closest?.('[data-slot-id][data-word]');
+            if (!button) return;
+            this.removeBlacklistedWord(button.dataset.slotId, button.dataset.word);
         });
 
         this._bindClick('cancel-solve-button', () => {

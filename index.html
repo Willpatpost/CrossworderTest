@@ -348,12 +348,34 @@
                         </div>
                     </div>
 
+                    <div class="input-group solver-theme-group">
+                        <label for="theme-entries-input">Theme Entries</label>
+                        <input
+                            type="text"
+                            id="theme-entries-input"
+                            placeholder="Comma-separated entries to prioritize (e.g. CAT,NOVA)"
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                    </div>
+
                     <div id="solver-metrics" class="solver-metrics" aria-live="polite">
                         <div class="summary-item summary-item-wide">
                             <span class="summary-value">No solve yet</span>
                             <span class="summary-label">Run the solver to inspect timing, search depth, and pruning.</span>
                         </div>
                     </div>
+
+                    <div id="solver-diagnostics" class="solver-diagnostics muted-text" aria-live="polite">
+                        Detailed solver diagnostics will appear here after a solve.
+                    </div>
+
+                    <section class="solver-blacklist-panel" aria-labelledby="solver-blacklist-heading">
+                        <h3 id="solver-blacklist-heading">Blacklisted Fills</h3>
+                        <div id="solver-blacklist-list" class="solver-blacklist-list muted-text">
+                            No fills are blacklisted yet.
+                        </div>
+                    </section>
                 </section>
 
                 <!-- WORD LOOKUP -->

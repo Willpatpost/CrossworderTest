@@ -103,6 +103,56 @@ export class DefinitionsProvider {
       .map(({ score, ...entry }) => entry);
   }
 
+  async scoreWords(rawWords) {
+    const words = [...new Set(
+      (rawWords || [])
+        .map((word) => String(word || "").trim().toLowerCase())
+        .filter(Boolean)
+    )];
+    const scores = {};
+    if (!words.length) return scores;
+
+    const byLength = new Map();
+    words.forEach((word) => {
+      const list = byLength.get(word.length) || [];
+      list.push(word);
+      byLength.set(word.length, list);
+    });
+
+    for (const [len, lengthWords] of byLength.entries()) {
+      try {
+        const defsMap = await this._loadLength(len);
+
+        lengthWords.forEach((word) => {
+          const rawEntries = defsMap?.[word];
+          if (!rawEntries?.length) {
+            scores[word.toUpperCase()] = 0;
+            return;
+          }
+
+          const normalizedEntries = rawEntries.map(entry => ({
+            clue: entry.c,
+            source: entry.s,
+            date: entry.d === "0" ? "" : entry.d,
+            attribution: `(${entry.s}${entry.d !== "0" ? `, ${entry.d}` : ""})`
+          }));
+
+          const bestScore = normalizedEntries.reduce(
+            (best, entry) => Math.max(best, this._scoreEntry(entry)),
+            0
+          );
+          scores[word.toUpperCase()] = bestScore + Math.min(rawEntries.length, 12);
+        });
+      } catch {
+        lengthWords.forEach((word) => {
+          scores[word.toUpperCase()] = scores[word.toUpperCase()] || 0;
+        });
+      }
+    }
+
+    return scores;
+  }
+
   _rankEntries(entries) {
     const seenClues = new Set();
 

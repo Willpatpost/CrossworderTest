@@ -103,6 +103,33 @@ test('DefinitionsProvider searchEntries matches clue text and answer text', asyn
     }
 });
 
+test('DefinitionsProvider scoreWords weights clue history quality and count', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: true,
+        async json() {
+            return {
+                cat: [
+                    { c: 'Feline pet', s: 'NYT', d: '2025-01-01' },
+                    { c: 'House cat', s: 'LAT', d: '2024-01-01' }
+                ],
+                car: [
+                    { c: 'Vehicle', s: 'WEB', d: '0' }
+                ]
+            };
+        }
+    });
+
+    try {
+        const provider = new DefinitionsProvider({ basePath: '/mock' });
+        const scores = await provider.scoreWords(['CAT', 'CAR']);
+
+        assert.equal(scores.CAT > scores.CAR, true);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
 test('DictionaryAPI caches empty fallback results for failed requests', async () => {
     const originalFetch = globalThis.fetch;
     let requestCount = 0;

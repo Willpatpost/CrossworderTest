@@ -54,6 +54,7 @@ export const renderingMethods = {
 
         if (!this.modes.isPlayMode) {
             this.updateEditorClueComposer?.();
+            this.renderSolverBlacklist?.();
         }
     },
 
@@ -74,6 +75,10 @@ export const renderingMethods = {
         }
 
         this.display.updatePuzzleSummary(this.grid, this.slots, this.currentPuzzleClues);
+
+        if (!this.modes.isPlayMode) {
+            this.renderSolverBlacklist?.();
+        }
     },
 
     _extractSlotWord(slot) {

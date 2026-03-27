@@ -149,6 +149,7 @@ export class ModeManager {
         this._setDisabled('deterministic-solve-toggle', this.isPlayMode);
         this._setDisabled('visualize-solve-toggle', this.isPlayMode);
         this._setDisabled('visualize-speed-select', this.isPlayMode);
+        this._setDisabled('theme-entries-input', this.isPlayMode);
         this._setDisabled('solve-crossword-button', this.isPlayMode);
         this._setDisabled('solve-selected-word-button', this.isPlayMode);
         this._setDisabled('suggest-fill-button', this.isPlayMode);

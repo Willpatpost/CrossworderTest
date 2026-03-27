@@ -131,3 +131,45 @@ test('SolverEngine prioritizes a preferred slot before other MRV ties', () => {
 
     assert.equal(selected, 'b');
 });
+
+test('SolverEngine orderDomainValues prefers theme entries over equal alternatives', () => {
+    const solver = new SolverEngine();
+    solver.themeEntries = ['NOVA'];
+
+    const ordered = solver.orderDomainValues(
+        '1-across',
+        {
+            '1-across': ['ATOM', 'NOVA']
+        },
+        {
+            '1-across': {}
+        },
+        {},
+        {},
+        {}
+    );
+
+    assert.deepEqual(ordered, ['NOVA', 'ATOM']);
+});
+
+test('SolverEngine orderDomainValues uses clue-history scores when other heuristics tie', () => {
+    const solver = new SolverEngine();
+
+    const ordered = solver.orderDomainValues(
+        '1-across',
+        {
+            '1-across': ['ATOM', 'NOVA']
+        },
+        {
+            '1-across': {}
+        },
+        {},
+        {},
+        {
+            NOVA: 50,
+            ATOM: 10
+        }
+    );
+
+    assert.deepEqual(ordered, ['NOVA', 'ATOM']);
+});

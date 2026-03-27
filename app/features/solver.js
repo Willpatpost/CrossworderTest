@@ -1,6 +1,21 @@
 import { GridUtils } from '../../utils/GridUtils.js';
 
 export const solverMethods = {
+    _parseThemeEntries(value) {
+        return [...new Set(
+            String(value || '')
+                .split(',')
+                .map((entry) => entry.trim().toUpperCase())
+                .filter(Boolean)
+        )];
+    },
+
+    async _buildWordHistoryScores(domains) {
+        const words = Object.values(domains || {}).flat();
+        if (!this.definitions?.scoreWords) return {};
+        return this.definitions.scoreWords(words);
+    },
+
     _getSelectedEditorSlot() {
         if (this.modes?.isPlayMode) return null;
         return this.gridManager._getActiveSlot?.(this) || null;
@@ -102,13 +117,17 @@ export const solverMethods = {
         const visualizeSpeed =
             document.getElementById('visualize-speed-select')?.value || 'fast';
         const reducedMotion = this._prefersReducedMotion();
+        const themeEntries = this._parseThemeEntries(
+            document.getElementById('theme-entries-input')?.value || ''
+        );
 
         return {
             allowReuse,
             deterministic,
             visualize: wantsVisualize && !reducedMotion,
             visualizeSpeed,
-            reducedMotion
+            reducedMotion,
+            themeEntries
         };
     },
 
@@ -125,6 +144,92 @@ export const solverMethods = {
         return true;
     },
 
+    _updateSolverDiagnostics(stats = null, settings = null) {
+        const container = document.getElementById('solver-diagnostics');
+        if (!container) return;
+
+        if (!stats) {
+            container.textContent = 'Detailed solver diagnostics will appear here after a solve.';
+            container.classList.add('muted-text');
+            return;
+        }
+
+        const pruneRatio = stats.recursiveCalls
+            ? ((stats.domainReductions / Math.max(stats.recursiveCalls, 1)) || 0).toFixed(1)
+            : '0.0';
+        const modeSummary = [
+            settings?.deterministic ? 'deterministic' : 'adaptive',
+            settings?.lockFilledEntries ? 'locked fills' : 'unlocked fills',
+            settings?.allowReuse ? 'reuse on' : 'reuse off'
+        ].join(', ');
+        const themeSummary = settings?.themeEntries?.length
+            ? ` Theme priority: ${settings.themeEntries.join(', ')}.`
+            : '';
+
+        container.textContent =
+            `Solve mode: ${modeSummary}. Search reached depth ${stats.maxDepth} with ${stats.backtracks} backtracks and averaged ${pruneRatio} domain reductions per recursive call.${themeSummary}`;
+        container.classList.remove('muted-text');
+    },
+
+    renderSolverBlacklist() {
+        const container = document.getElementById('solver-blacklist-list');
+        if (!container) return;
+
+        const entries = Object.entries(this.slotBlacklist || {})
+            .flatMap(([slotId, words]) => (words || []).map((word) => ({ slotId, word })));
+
+        container.innerHTML = '';
+
+        if (!entries.length) {
+            container.textContent = 'No fills are blacklisted yet.';
+            container.classList.add('muted-text');
+            return;
+        }
+
+        container.classList.remove('muted-text');
+
+        entries.forEach(({ slotId, word }) => {
+            const slot = this.slots?.[slotId];
+            const chip = document.createElement('div');
+            chip.className = 'blacklist-chip';
+
+            const label = document.createElement('span');
+            label.textContent = slot
+                ? `${slot.number}-${slot.direction}`
+                : slotId;
+
+            const strong = document.createElement('strong');
+            strong.textContent = word;
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.slotId = slotId;
+            button.dataset.word = word;
+            button.setAttribute('aria-label', `Remove ${word} from blacklist`);
+            button.textContent = 'Remove';
+
+            chip.appendChild(label);
+            chip.appendChild(strong);
+            chip.appendChild(button);
+            container.appendChild(chip);
+        });
+    },
+
+    removeBlacklistedWord(slotId, word) {
+        if (!slotId || !word) return false;
+
+        const blacklist = this._getSlotBlacklist(slotId);
+        if (!blacklist.has(word)) return false;
+
+        this._recordEditorSnapshot?.();
+        blacklist.delete(word);
+        this._setSlotBlacklist(slotId, blacklist);
+        this.renderSolverBlacklist?.();
+        this.display.updateStatus(`Removed ${word} from the blacklist for ${slotId}.`, true);
+        this._scheduleEditorAutosave?.();
+        return true;
+    },
+
     _updateSolverMetrics(stats = null) {
         const container = document.getElementById('solver-metrics');
         if (!container) return;
@@ -136,6 +241,7 @@ export const solverMethods = {
                     <span class="summary-label">Run the solver to inspect timing, search depth, and pruning.</span>
                 </div>
             `;
+            this._updateSolverDiagnostics?.(null, null);
             return;
         }
 
@@ -240,7 +346,8 @@ export const solverMethods = {
                     visualize: false,
                     visualizeSpeed: 'fast',
                     reducedMotion: false,
-                    lockFilledEntries: true
+                    lockFilledEntries: true,
+                    themeEntries: []
                 };
             const {
                 allowReuse,
@@ -252,6 +359,9 @@ export const solverMethods = {
             } = solveSettings;
             const initialAssignment = this._getLockedAssignments
                 ? this._getLockedAssignments(lockFilledEntries)
+                : {};
+            const wordHistoryScores = this._buildWordHistoryScores
+                ? await this._buildWordHistoryScores(domains)
                 : {};
 
             this.display.updateStatus(
@@ -356,7 +466,9 @@ export const solverMethods = {
                             visualize,
                             randomize: !deterministic,
                             visualizationDelayMs: visualizeSpeed === 'slow' ? 14 : 5,
-                            initialAssignment
+                            initialAssignment,
+                            themeEntries: solveSettings.themeEntries,
+                            wordHistoryScores
                         }
                     }
                 });
@@ -368,6 +480,7 @@ export const solverMethods = {
 
             const end = performance.now();
             this._updateSolverMetrics?.(result.stats || null);
+            this._updateSolverDiagnostics?.(result.stats || null, solveSettings);
 
             if (result.success) {
                 this.currentSolution = result.solution;
@@ -467,7 +580,11 @@ export const solverMethods = {
                     randomize: !solveSettings.deterministic,
                     visualize: false,
                     preferredSlotId: activeSlot.id,
-                    initialAssignment
+                    initialAssignment,
+                    themeEntries: solveSettings.themeEntries,
+                    wordHistoryScores: this._buildWordHistoryScores
+                        ? await this._buildWordHistoryScores(domains)
+                        : {}
                 }
             );
 
@@ -487,6 +604,7 @@ export const solverMethods = {
                 true
             );
             this._scheduleEditorAutosave?.();
+            this.renderSolverBlacklist?.();
             return true;
         } catch (error) {
             if (runId === this._solveRunId && error?.message !== 'SOLVE_CANCELLED') {
@@ -510,13 +628,17 @@ export const solverMethods = {
         }
 
         return this._withPreparedSolverData(async ({ slotMap, domains }) => {
+            const wordHistoryScores = this._buildWordHistoryScores
+                ? await this._buildWordHistoryScores(domains)
+                : {};
             const solverSlot = slotMap?.[slot.id] || slot;
             const candidates = this.solver.orderDomainValues(
                 solverSlot.id,
                 domains,
                 this.constraintManager.constraints || {},
                 this._getLockedAssignments(this._getSelectedSolveSettings?.().lockFilledEntries ?? true),
-                this.letterFrequencies || {}
+                this.letterFrequencies || {},
+                wordHistoryScores
             );
 
             const suggestion = candidates[0];
@@ -532,6 +654,7 @@ export const solverMethods = {
                 true
             );
             this._scheduleEditorAutosave?.();
+            this.renderSolverBlacklist?.();
             return true;
         });
     },
@@ -565,6 +688,7 @@ export const solverMethods = {
             true
         );
         this._scheduleEditorAutosave?.();
+        this.renderSolverBlacklist?.();
         return true;
     },
 

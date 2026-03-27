@@ -46,6 +46,7 @@ export class SolverEngine {
             ? settings.themeEntries.map((entry) => String(entry || '').toUpperCase()).filter(Boolean)
             : [];
         this.preferredSlotId = settings.preferredSlotId || null;
+        this.wordHistoryScores = settings.wordHistoryScores || {};
         const startedAt = performance.now();
 
         const assignment = { ...(settings.initialAssignment || {}) };
@@ -265,6 +266,7 @@ export class SolverEngine {
 
     orderDomainValues(slotId, domains, constraints, assignment, letterFrequencies) {
         const domain = Array.isArray(domains[slotId]) ? [...domains[slotId]] : [];
+        const historyScores = arguments[5] || this.wordHistoryScores || {};
 
         const getFrequencyScore = (word) => {
             if (!letterFrequencies || Object.keys(letterFrequencies).length === 0) {
@@ -306,12 +308,19 @@ export class SolverEngine {
             this.themeEntries.includes(word) ? 5000 : 0
         );
 
+        const getHistoryScore = (word) => (
+            Number(historyScores?.[word] || 0)
+        );
+
         return domain.sort((a, b) => {
             const lcvDelta = getConstraintImpact(b) - getConstraintImpact(a);
             if (lcvDelta !== 0) return lcvDelta;
 
             const themeDelta = getThemeBoost(b) - getThemeBoost(a);
             if (themeDelta !== 0) return themeDelta;
+
+            const historyDelta = getHistoryScore(b) - getHistoryScore(a);
+            if (historyDelta !== 0) return historyDelta;
 
             const frequencyDelta = getFrequencyScore(b) - getFrequencyScore(a);
             if (frequencyDelta !== 0) return frequencyDelta;
