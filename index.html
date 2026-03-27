@@ -13,6 +13,7 @@
 
 <body>
     <div class="app-container">
+        <div id="live-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
         <!-- NAVBAR -->
         <nav class="navbar" aria-label="Primary navigation">
@@ -100,6 +101,39 @@
                         <span id="home-stat-wordlists" class="stat-value">19</span>
                         <span class="stat-label">Word-length libraries</span>
                     </article>
+                </section>
+
+                <section class="section home-onboarding" aria-labelledby="home-onboarding-heading">
+                    <div class="home-library-header">
+                        <div>
+                            <p class="card-eyebrow">Start Here</p>
+                            <h2 id="home-onboarding-heading">A quick path if you want to learn the workspace fast.</h2>
+                            <p class="muted-text">
+                                You can treat Crossworder as a constructor, a solver, or a play app. These are the
+                                smoothest ways to begin.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="home-grid">
+                        <article class="info-card home-onboarding-card">
+                            <span class="workflow-number">01</span>
+                            <h3>Open a bundled puzzle</h3>
+                            <p>Use Easy or the puzzle library to see a complete grid, clue set, and play-ready flow.</p>
+                        </article>
+
+                        <article class="info-card home-onboarding-card">
+                            <span class="workflow-number">02</span>
+                            <h3>Try the editor loop</h3>
+                            <p>Type directly in the grid, add clues, use undo/redo, and save a local draft automatically.</p>
+                        </article>
+
+                        <article class="info-card home-onboarding-card">
+                            <span class="workflow-number">03</span>
+                            <h3>Lean on the solver</h3>
+                            <p>Suggest a fill, solve one word, blacklist bad entries, or run a full deterministic solve.</p>
+                        </article>
+                    </div>
                 </section>
 
                 <section class="home-daily section" aria-labelledby="daily-puzzle-heading">
@@ -299,6 +333,10 @@
                 <!-- QUICK LOAD -->
                 <section class="section predefined-puzzles-section" aria-labelledby="quick-load-heading">
                     <h2 id="quick-load-heading">Quick Load</h2>
+                    <p class="section-helper">
+                        Start from a bundled puzzle if you want a complete grid fast, or generate a blank board below if
+                        you want to construct from scratch.
+                    </p>
                     <div class="button-group">
                         <button id="load-easy-button" class="btn secondary-btn" type="button">Easy</button>
                         <button id="load-medium-button" class="btn secondary-btn" type="button">Medium</button>
@@ -329,6 +367,10 @@
 
                 <section class="section settings-section" aria-labelledby="puzzle-metadata-heading">
                     <h2 id="puzzle-metadata-heading">Puzzle Metadata</h2>
+                    <p class="section-helper">
+                        These fields travel with drafts and exports, so you can treat the current workspace like a real
+                        puzzle package instead of a loose grid.
+                    </p>
                     <div class="settings-controls metadata-controls">
                         <div class="input-group metadata-field">
                             <label for="puzzle-title-input">Title</label>
@@ -343,6 +385,21 @@
                         <div class="input-group metadata-field">
                             <label for="puzzle-difficulty-input">Difficulty</label>
                             <input type="text" id="puzzle-difficulty-input" placeholder="Easy / Medium / Hard" autocomplete="off" spellcheck="false" />
+                        </div>
+
+                        <div class="input-group metadata-field">
+                            <label for="puzzle-tags-input">Tags</label>
+                            <input type="text" id="puzzle-tags-input" placeholder="theme, themeless, mini" autocomplete="off" spellcheck="false" />
+                        </div>
+
+                        <div class="input-group metadata-field">
+                            <label for="puzzle-copyright-input">Copyright</label>
+                            <input type="text" id="puzzle-copyright-input" placeholder="Optional copyright or rights note" autocomplete="off" spellcheck="false" />
+                        </div>
+
+                        <div class="input-group metadata-field">
+                            <label for="puzzle-source-url-input">Source URL</label>
+                            <input type="text" id="puzzle-source-url-input" placeholder="https://example.com/puzzle" autocomplete="off" spellcheck="false" />
                         </div>
 
                         <div class="input-group metadata-field metadata-field-wide">
@@ -439,6 +496,10 @@
                 <!-- SOLVING CONTROLS -->
                 <section class="section solving-controls-section" aria-labelledby="solving-controls-heading">
                     <h2 id="solving-controls-heading">Solving Controls</h2>
+                    <p class="section-helper">
+                        Use these options when you want help filling the grid. Locked entries stay fixed, theme entries
+                        get prioritized, and deterministic mode makes repeated runs easier to compare.
+                    </p>
                     <div class="settings-controls">
                         <label class="toggle-container" for="allow-reuse-toggle">
                             <input type="checkbox" id="allow-reuse-toggle" />
@@ -502,6 +563,10 @@
                 <!-- WORD LOOKUP -->
                 <section class="section word-lookup-section" aria-labelledby="word-lookup-heading">
                     <h2 id="word-lookup-heading">Word Lookup</h2>
+                    <p class="section-helper">
+                        Search by answer pattern with <code>?</code> wildcards, or switch to clue search when you know
+                        the clue idea but not the fill yet.
+                    </p>
                     <div class="search-container">
                         <label for="word-search-mode" class="sr-only">Search mode</label>
                         <select id="word-search-mode" aria-label="Search mode">
@@ -637,6 +702,10 @@
                         <p class="play-status-copy">
                             Use the play tools to check or reveal entries while solving.
                         </p>
+                        <p class="section-helper compact-helper">
+                            Clue navigation follows the active selection, and you can use Next Empty to stay in solving
+                            flow without hunting around the grid.
+                        </p>
                     </aside>
 
                     <section class="grid-panel" aria-labelledby="play-grid-heading">
@@ -665,6 +734,10 @@
                             </p>
                             <p id="play-active-clue-source" class="clue-origin-detail muted-text">
                                 Clue origin details will appear here.
+                            </p>
+                            <p class="section-helper compact-helper">
+                                Authored clues come from the puzzle itself, while local and web clues are fallback help
+                                when a puzzle did not ship with its own clue set.
                             </p>
                         </section>
 

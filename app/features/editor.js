@@ -192,6 +192,9 @@ export const editorMethods = {
             title: document.getElementById('puzzle-title-input'),
             author: document.getElementById('puzzle-author-input'),
             difficulty: document.getElementById('puzzle-difficulty-input'),
+            tags: document.getElementById('puzzle-tags-input'),
+            copyright: document.getElementById('puzzle-copyright-input'),
+            sourceUrl: document.getElementById('puzzle-source-url-input'),
             notes: document.getElementById('puzzle-notes-input')
         };
 
@@ -208,11 +211,14 @@ export const editorMethods = {
             title: document.getElementById('puzzle-title-input')?.value?.trim() || '',
             author: document.getElementById('puzzle-author-input')?.value?.trim() || '',
             difficulty: document.getElementById('puzzle-difficulty-input')?.value?.trim() || '',
+            tags: document.getElementById('puzzle-tags-input')?.value?.trim() || '',
+            copyright: document.getElementById('puzzle-copyright-input')?.value?.trim() || '',
+            sourceUrl: document.getElementById('puzzle-source-url-input')?.value?.trim() || '',
             notes: document.getElementById('puzzle-notes-input')?.value?.trim() || ''
         };
 
         const current = this.currentPuzzleMetadata || {};
-        const changed = ['title', 'author', 'difficulty', 'notes'].some(
+        const changed = ['title', 'author', 'difficulty', 'tags', 'copyright', 'sourceUrl', 'notes'].some(
             (key) => (current[key] || '') !== (nextMetadata[key] || '')
         );
 
@@ -238,7 +244,6 @@ export const editorMethods = {
             row.map((cell) => (cell === '#' ? '#' : ''))
         );
         this.currentSolution = null;
-        this.currentPuzzleMetadata = {};
         this.render();
         this.display.updateStatus('Cleared all entered letters from the editor grid.', true);
         this._updateDraftButtons?.();
@@ -461,6 +466,9 @@ export const editorMethods = {
             title: this.currentPuzzleMetadata?.title || 'Crossworder Export',
             author: this.currentPuzzleMetadata?.author || '',
             difficulty: this.currentPuzzleMetadata?.difficulty || '',
+            tags: this.currentPuzzleMetadata?.tags || '',
+            copyright: this.currentPuzzleMetadata?.copyright || '',
+            sourceUrl: this.currentPuzzleMetadata?.sourceUrl || '',
             notes: this.currentPuzzleMetadata?.notes || '',
             exportedAt: new Date().toISOString(),
             grid: this.grid.map((row) =>
@@ -475,6 +483,9 @@ export const editorMethods = {
                 title: this.currentPuzzleMetadata?.title || '',
                 author: this.currentPuzzleMetadata?.author || '',
                 difficulty: this.currentPuzzleMetadata?.difficulty || '',
+                tags: this.currentPuzzleMetadata?.tags || '',
+                copyright: this.currentPuzzleMetadata?.copyright || '',
+                sourceUrl: this.currentPuzzleMetadata?.sourceUrl || '',
                 notes: this.currentPuzzleMetadata?.notes || '',
                 packageType: 'crossworder-puzzle',
                 schemaVersion: 2

@@ -2,11 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CrosswordApp } from '../app/CrosswordApp.js';
 import { editorMethods } from '../app/features/editor.js';
+import { navigationMethods } from '../app/features/navigation.js';
 import { puzzleMethods } from '../app/features/puzzles.js';
 import { playMethods } from '../app/features/play.js';
+import { playSessionMethods } from '../app/features/playSession.js';
 import { renderingMethods } from '../app/features/rendering.js';
 import { solverMethods } from '../app/features/solver.js';
 import { GridManager } from '../grid/GridManager.js';
+import { DisplayManager } from '../ui/DisplayManager.js';
+import { ModeManager } from '../ui/ModeManager.js';
 
 test('puzzle clue extraction maps mixed clue formats onto slot ids', () => {
     const app = {
@@ -41,6 +45,150 @@ test('puzzle clue extraction maps mixed clue formats onto slot ids', () => {
         '1-down': 'First down',
         '2-down': 'Second down clue'
     });
+});
+
+test('CrosswordApp exposes aliased state through structured state slices', () => {
+    const originalDocument = globalThis.document;
+    globalThis.document = {
+        getElementById() {
+            return null;
+        }
+    };
+
+    try {
+        const app = new CrosswordApp();
+
+        app.grid = [['A']];
+        app.currentPuzzleMetadata = { title: 'Slice Test' };
+        app.isPlayPaused = true;
+
+        assert.deepEqual(app.workspaceState.grid, [['A']]);
+        assert.deepEqual(app.workspaceState.currentPuzzleMetadata, { title: 'Slice Test' });
+        assert.equal(app.playState.isPaused, true);
+
+        app.solverState.isSolving = true;
+        assert.equal(app.isSolving, true);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('ModeManager setPlayMode updates play state and current mode', () => {
+    const manager = new ModeManager();
+    let updatedState = null;
+    manager.ui = {
+        update(state) {
+            updatedState = state;
+        }
+    };
+
+    const enabled = manager.setPlayMode(true);
+
+    assert.equal(enabled, true);
+    assert.equal(manager.isPlayMode, true);
+    assert.equal(manager.currentMode, 'play');
+    assert.equal(updatedState.isPlayMode, true);
+    assert.equal(updatedState.currentMode, 'play');
+});
+
+test('navigation switchView exits play mode when leaving the play screen', () => {
+    const originalDocument = globalThis.document;
+    const events = [];
+    const homeSection = {
+        id: 'home-screen',
+        classList: { toggle() {} },
+        setAttribute() {},
+        querySelector() {
+            return null;
+        }
+    };
+    const playSection = {
+        id: 'play-screen',
+        classList: { toggle() {} },
+        setAttribute() {},
+        querySelector() {
+            return null;
+        }
+    };
+    const homeButton = {
+        dataset: { target: 'home-screen' },
+        classList: { toggle() {} },
+        setAttribute() {}
+    };
+    const playButton = {
+        dataset: { target: 'play-screen' },
+        classList: { toggle() {} },
+        setAttribute() {}
+    };
+
+    globalThis.document = {
+        dispatchEvent(event) {
+            events.push(event.type);
+        },
+        getElementById(id) {
+            if (id === 'home-screen') return homeSection;
+            if (id === 'play-screen') return playSection;
+            return null;
+        }
+    };
+
+    try {
+        let exited = 0;
+        const app = {
+            modes: { isPlayMode: true },
+            _navButtons: [homeButton, playButton],
+            _viewSections: [homeSection, playSection],
+            exitPlayMode() {
+                exited++;
+                this.modes.isPlayMode = false;
+            },
+            _updateNavigationState: navigationMethods._updateNavigationState,
+            _updateViewState: navigationMethods._updateViewState
+        };
+
+        const switched = navigationMethods.switchView.call(app, 'home-screen');
+
+        assert.equal(switched, true);
+        assert.equal(exited, 1);
+        assert.deepEqual(events, ['crossworder:close-play-menus']);
+        assert.equal(app.modes.isPlayMode, false);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('navigation switchView aborts play navigation when play mode cannot be entered', () => {
+    const originalDocument = globalThis.document;
+    const events = [];
+    globalThis.document = {
+        dispatchEvent(event) {
+            events.push(event.type);
+        }
+    };
+
+    try {
+        let updated = false;
+        const app = {
+            modes: { isPlayMode: false },
+            enterPlayMode() {
+                return false;
+            },
+            _updateNavigationState() {
+                updated = true;
+            },
+            _updateViewState() {
+                updated = true;
+            }
+        };
+
+        const switched = navigationMethods.switchView.call(app, 'play-screen');
+
+        assert.equal(switched, false);
+        assert.equal(updated, false);
+        assert.deepEqual(events, ['crossworder:close-play-menus']);
+    } finally {
+        globalThis.document = originalDocument;
+    }
 });
 
 test('puzzle clue extraction falls back to slot order for unnumbered entries', () => {
@@ -492,6 +640,9 @@ test('updatePuzzleMetadataFromInputs stores editor metadata and schedules autosa
                 'puzzle-title-input': { value: 'Mini Theme' },
                 'puzzle-author-input': { value: 'Will' },
                 'puzzle-difficulty-input': { value: 'Medium' },
+                'puzzle-tags-input': { value: 'mini, theme' },
+                'puzzle-copyright-input': { value: 'Copyright 2026' },
+                'puzzle-source-url-input': { value: 'https://example.com/puzzle' },
                 'puzzle-notes-input': { value: 'Theme entries included.' }
             };
             return values[id] || null;
@@ -525,6 +676,9 @@ test('updatePuzzleMetadataFromInputs stores editor metadata and schedules autosa
             title: 'Mini Theme',
             author: 'Will',
             difficulty: 'Medium',
+            tags: 'mini, theme',
+            copyright: 'Copyright 2026',
+            sourceUrl: 'https://example.com/puzzle',
             notes: 'Theme entries included.'
         });
         assert.match(statuses.at(-1), /Updated puzzle metadata/);
@@ -1122,6 +1276,104 @@ test('selectFeaturedAndRecommendedPuzzles prefers daily-eligible featured and in
     assert.equal(picks.recommended.file, 'medium.json');
 });
 
+test('DisplayManager announces status updates in the live region', () => {
+    const originalDocument = globalThis.document;
+    const statusDisplay = {
+        value: '',
+        scrollTop: 0,
+        scrollHeight: 24
+    };
+    const liveStatus = {
+        textContent: ''
+    };
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'status-display') return statusDisplay;
+            if (id === 'live-status') return liveStatus;
+            return null;
+        }
+    };
+
+    try {
+        const display = new DisplayManager();
+        display.updateStatus('Testing live updates.', false);
+
+        assert.match(statusDisplay.value, /Testing live updates\./);
+        assert.equal(liveStatus.textContent, 'Testing live updates.');
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('DisplayManager marks the active clue with aria-current', () => {
+    const originalDocument = globalThis.document;
+    const makeItem = (slotId) => {
+        const classSet = new Set();
+        return {
+            dataset: { slotId },
+            classList: {
+                add(name) {
+                    classSet.add(name);
+                },
+                remove(name) {
+                    classSet.delete(name);
+                },
+                contains(name) {
+                    return classSet.has(name);
+                }
+            },
+            attributes: {},
+            setAttribute(name, value) {
+                this.attributes[name] = value;
+            },
+            removeAttribute(name) {
+                delete this.attributes[name];
+            },
+            scrollIntoView() {}
+        };
+    };
+    const first = makeItem('1-across');
+    const second = makeItem('2-down');
+    const container = {
+        querySelectorAll() {
+            return [first, second];
+        },
+        querySelector(selector) {
+            return selector.includes('2-down') ? second : null;
+        }
+    };
+
+    globalThis.document = {
+        getElementById() {
+            return null;
+        }
+    };
+
+    const originalWindow = globalThis.window;
+    globalThis.window = {
+        matchMedia() {
+            return { matches: true };
+        }
+    };
+
+    try {
+        const display = new DisplayManager();
+        display._activeListMode = 'editor';
+        display.editorAcrossDisplay = container;
+        display.editorDownDisplay = null;
+        display._updateActiveCluePanelFromItem = () => {};
+
+        display.highlightSlotInList('2-down');
+
+        assert.equal(first.attributes['aria-current'], undefined);
+        assert.equal(second.attributes['aria-current'], 'true');
+    } finally {
+        globalThis.document = originalDocument;
+        globalThis.window = originalWindow;
+    }
+});
+
 test('clearEditorLetters removes letters while preserving block structure', () => {
     const statuses = [];
     let snapshotCount = 0;
@@ -1130,6 +1382,7 @@ test('clearEditorLetters removes letters while preserving block structure', () =
         modes: { isPlayMode: false },
         grid: [['A', '#', 'T']],
         currentSolution: { '1-across': 'AT' },
+        currentPuzzleMetadata: { title: 'Keep Me' },
         display: {
             updateStatus(message) {
                 statuses.push(message);
@@ -1148,6 +1401,7 @@ test('clearEditorLetters removes letters while preserving block structure', () =
     assert.equal(snapshotCount, 1);
     assert.deepEqual(app.grid, [['', '#', '']]);
     assert.equal(app.currentSolution, null);
+    assert.deepEqual(app.currentPuzzleMetadata, { title: 'Keep Me' });
     assert.match(statuses.at(-1), /Cleared all entered letters/);
 });
 
@@ -1300,6 +1554,9 @@ test('serializeCurrentPuzzle exports the editor grid and numbered clues as JSON-
             title: 'Mini Theme',
             author: 'Will',
             difficulty: 'Medium',
+            tags: 'mini, themed',
+            copyright: 'Copyright 2026',
+            sourceUrl: 'https://example.com/mini-theme',
             notes: 'Theme notes'
         },
         activePuzzleSource: {
@@ -1328,6 +1585,9 @@ test('serializeCurrentPuzzle exports the editor grid and numbered clues as JSON-
         title: 'Mini Theme',
         author: 'Will',
         difficulty: 'Medium',
+        tags: 'mini, themed',
+        copyright: 'Copyright 2026',
+        sourceUrl: 'https://example.com/mini-theme',
         notes: 'Theme notes',
         packageType: 'crossworder-puzzle',
         schemaVersion: 2
@@ -1382,6 +1642,9 @@ test('importPuzzleFile loads JSON through the existing puzzle import flow', asyn
                     title: 'Imported Theme',
                     author: 'Constructor',
                     difficulty: 'Hard',
+                    tags: 'themed, mini',
+                    copyright: 'Copyright 2026',
+                    sourceUrl: 'https://example.com/imported',
                     notes: 'Imported notes'
                 },
                 source: {
@@ -1408,6 +1671,9 @@ test('importPuzzleFile loads JSON through the existing puzzle import flow', asyn
         title: 'Imported Theme',
         author: 'Constructor',
         difficulty: 'Hard',
+        tags: 'themed, mini',
+        copyright: 'Copyright 2026',
+        sourceUrl: 'https://example.com/imported',
         notes: 'Imported notes'
     });
     assert.deepEqual(app.currentSolution, { '1-across': 'AT' });
@@ -2435,6 +2701,72 @@ test('updatePauseUI reflects completed play state in the toolbar', () => {
         assert.equal(elements.get('clear-btn').disabled, true);
         assert.equal(elements.get('next-empty-btn').disabled, true);
         assert.equal(elements.get('previous-clue-button').disabled, false);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('togglePlayPause pauses and resumes play while saving recent progress', () => {
+    const statuses = [];
+    let pauseCount = 0;
+    let resumeCount = 0;
+    let pauseUiCount = 0;
+    let saveCount = 0;
+    const stateUpdates = [];
+
+    const app = {
+        modes: { isPlayMode: true },
+        isPlayPaused: false,
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _pausePlayTimer() {
+            pauseCount++;
+        },
+        _resumePlayTimer() {
+            resumeCount++;
+        },
+        _updatePlayStatusCopy(state) {
+            stateUpdates.push(state);
+        },
+        _updatePauseUI() {
+            pauseUiCount++;
+        },
+        _saveRecentPuzzleRecord() {
+            saveCount++;
+        }
+    };
+
+    playSessionMethods.togglePlayPause.call(app);
+    playSessionMethods.togglePlayPause.call(app);
+
+    assert.equal(app.isPlayPaused, false);
+    assert.equal(pauseCount, 1);
+    assert.equal(resumeCount, 1);
+    assert.equal(pauseUiCount, 2);
+    assert.equal(saveCount, 2);
+    assert.deepEqual(stateUpdates, ['paused', 'active']);
+    assert.match(statuses[0], /Game paused/);
+    assert.match(statuses[1], /Game resumed/);
+});
+
+test('updateTimerDisplay formats elapsed play time with hours when needed', () => {
+    const originalDocument = globalThis.document;
+    const timer = { textContent: '' };
+    globalThis.document = {
+        getElementById(id) {
+            return id === 'timer' ? timer : null;
+        }
+    };
+
+    try {
+        playSessionMethods._updateTimerDisplay.call({
+            playElapsedMs: ((1 * 3600) + (2 * 60) + 3) * 1000
+        });
+
+        assert.equal(timer.textContent, '1:02:03');
     } finally {
         globalThis.document = originalDocument;
     }

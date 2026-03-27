@@ -149,7 +149,7 @@ export const solverMethods = {
         if (!container) return;
 
         if (!stats) {
-            container.textContent = 'Detailed solver diagnostics will appear here after a solve.';
+            container.textContent = 'Detailed solver diagnostics will appear here after a solve, including where the search spent time and why it stopped.';
             container.classList.add('muted-text');
             return;
         }
@@ -238,7 +238,7 @@ export const solverMethods = {
             container.innerHTML = `
                 <div class="summary-item summary-item-wide">
                     <span class="summary-value">No solve yet</span>
-                    <span class="summary-label">Run the solver to inspect timing, search depth, and pruning.</span>
+                    <span class="summary-label">Run the solver to inspect timing, search depth, pruning, and domain pressure.</span>
                 </div>
             `;
             this._updateSolverDiagnostics?.(null, null);
