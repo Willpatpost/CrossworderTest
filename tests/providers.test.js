@@ -72,32 +72,29 @@ test('DictionaryAPI caches empty fallback results for failed requests', async ()
     }
 });
 
-test('Letter entry keeps authored clues while invalidating the saved solution', () => {
-    const originalWindow = globalThis.window;
-    globalThis.window = {
-        prompt() {
-            return 'z';
-        }
-    };
-
+test('Direct editor letter entry keeps authored clues while invalidating the saved solution', () => {
     const app = {
         grid: [['', '']],
         currentSolution: { '1-across': 'AB' },
         currentPuzzleClues: { '1-across': 'Example clue' },
+        gridManager: {
+            selectedCell: { r: 0, c: 0 },
+            _moveWithinWord() {}
+        },
+        _isInBounds(r, c) {
+            return r >= 0 && c >= 0 && r < 1 && c < 2;
+        },
         display: { updateStatus() {} },
         rebuildGridState() {},
         syncActiveGridToDOM() {},
-        refreshWordList() {}
+        refreshWordList() {},
+        _finalizeEditorLetterChange: editorMethods._finalizeEditorLetterChange
     };
 
-    try {
-        editorMethods.handleLetterEntry.call(app, 0, 0);
-        assert.equal(app.grid[0][0], 'Z');
-        assert.equal(app.currentSolution, null);
-        assert.deepEqual(app.currentPuzzleClues, { '1-across': 'Example clue' });
-    } finally {
-        globalThis.window = originalWindow;
-    }
+    editorMethods.handleEditorLetterInput.call(app, 'z');
+    assert.equal(app.grid[0][0], 'Z');
+    assert.equal(app.currentSolution, null);
+    assert.deepEqual(app.currentPuzzleClues, { '1-across': 'Example clue' });
 });
 
 test('Play completion check detects a solved puzzle once', () => {

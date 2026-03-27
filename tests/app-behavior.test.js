@@ -269,6 +269,75 @@ test('paintCell handles the center cell once on odd-sized symmetric grids', () =
     assert.equal(rebuilds, 2);
 });
 
+test('setEditorSelection selects a letter-mode cell and toggles direction on repeat selection', () => {
+    let highlightCount = 0;
+
+    const app = {
+        grid: [['', '']],
+        slots: {
+            '1-across': {
+                id: '1-across',
+                direction: 'across',
+                positions: [[0, 0], [0, 1]]
+            }
+        },
+        gridManager: {
+            selectedCell: null,
+            selectedDirection: 'across',
+            _updateHighlights() {
+                highlightCount++;
+            }
+        },
+        display: {
+            updateStatus() {}
+        },
+        _isInBounds(r, c) {
+            return r >= 0 && c >= 0 && r < 1 && c < 2;
+        }
+    };
+
+    editorMethods.setEditorSelection.call(app, 0, 0);
+    editorMethods.setEditorSelection.call(app, 0, 0);
+
+    assert.deepEqual(app.gridManager.selectedCell, { r: 0, c: 0 });
+    assert.equal(app.gridManager.selectedDirection, 'down');
+    assert.equal(highlightCount, 2);
+});
+
+test('editor backspace clears the previous cell when the current one is already empty', () => {
+    let movedBackward = 0;
+    let highlightCount = 0;
+
+    const app = {
+        grid: [['A', '']],
+        currentSolution: { '1-across': 'AB' },
+        gridManager: {
+            selectedCell: { r: 0, c: 1 },
+            _moveWithinWord(delta) {
+                movedBackward = delta;
+                this.selectedCell = { r: 0, c: 0 };
+            },
+            _updateHighlights() {
+                highlightCount++;
+            }
+        },
+        _isInBounds(r, c) {
+            return r >= 0 && c >= 0 && r < 1 && c < 2;
+        },
+        rebuildGridState() {},
+        syncActiveGridToDOM() {},
+        refreshWordList() {},
+        _finalizeEditorLetterChange: editorMethods._finalizeEditorLetterChange
+    };
+
+    editorMethods.handleEditorBackspace.call(app);
+
+    assert.equal(movedBackward, -1);
+    assert.equal(app.grid[0][0], '');
+    assert.equal(app.currentSolution, null);
+    assert.equal(highlightCount, 1);
+});
+
 test('handleSolve ignores stale worker results after a newer solve run starts', async () => {
     const originalWorker = globalThis.Worker;
     const originalDocument = globalThis.document;

@@ -36,7 +36,7 @@ export const editorMethods = {
         const mode = this.modes.currentMode;
 
         if (mode === 'letter') {
-            this.handleLetterEntry(r, c);
+            this.setEditorSelection(r, c);
             return;
         }
 
@@ -47,23 +47,90 @@ export const editorMethods = {
         this.paintCell(r, c, this.grid[r][c] === '#' ? '' : '#');
     },
 
-    handleLetterEntry(r, c) {
-        if (this.grid[r][c] === '#') return;
+    setEditorSelection(r, c) {
+        if (!this._isInBounds(r, c) || this.grid[r][c] === '#') return;
 
-        const input = window.prompt('Enter a letter:');
-        if (input === null) return;
-
-        const letter = input.trim().toUpperCase().charAt(0);
-
-        if (!letter) {
-            this.grid[r][c] = '';
-        } else if (/^[A-Z]$/.test(letter)) {
-            this.grid[r][c] = letter;
+        const selected = this.gridManager.selectedCell;
+        if (selected?.r === r && selected?.c === c) {
+            this.gridManager.selectedDirection =
+                this.gridManager.selectedDirection === 'across' ? 'down' : 'across';
         } else {
+            this.gridManager.selectedCell = { r, c };
+
+            const matchingSlot = Object.values(this.slots || {}).find((slot) =>
+                slot.direction === this.gridManager.selectedDirection &&
+                slot.positions.some(([rr, cc]) => rr === r && cc === c)
+            );
+
+            if (!matchingSlot) {
+                const acrossSlot = Object.values(this.slots || {}).find((slot) =>
+                    slot.direction === 'across' &&
+                    slot.positions.some(([rr, cc]) => rr === r && cc === c)
+                );
+                this.gridManager.selectedDirection = acrossSlot ? 'across' : 'down';
+            }
+        }
+
+        this.gridManager._updateHighlights(this);
+        this.display.updateStatus(
+            'Letter mode active. Type to fill, use arrows to move, and Backspace/Delete to clear.',
+            true
+        );
+    },
+
+    handleEditorLetterInput(letter) {
+        const selected = this.gridManager.selectedCell;
+        if (!selected) return;
+
+        const normalized = String(letter || '').trim().toUpperCase().charAt(0);
+        if (!/^[A-Z]$/.test(normalized)) {
             this.display.updateStatus('Please enter a single letter A-Z.', true);
             return;
         }
 
+        const { r, c } = selected;
+        if (!this._isInBounds(r, c) || this.grid[r][c] === '#') return;
+
+        this.grid[r][c] = normalized;
+        this._finalizeEditorLetterChange();
+        this.gridManager._moveWithinWord(1, this);
+    },
+
+    handleEditorBackspace() {
+        const selected = this.gridManager.selectedCell;
+        if (!selected) return;
+
+        let { r, c } = selected;
+        if (!this._isInBounds(r, c) || this.grid[r][c] === '#') return;
+
+        if (!this.grid[r][c]) {
+            this.gridManager._moveWithinWord(-1, this);
+            if (!this.gridManager.selectedCell) return;
+            ({ r, c } = this.gridManager.selectedCell);
+        }
+
+        this.grid[r][c] = '';
+        this._finalizeEditorLetterChange();
+        this.gridManager._updateHighlights(this);
+    },
+
+    handleEditorDelete() {
+        const selected = this.gridManager.selectedCell;
+        if (!selected) return;
+
+        const { r, c } = selected;
+        if (!this._isInBounds(r, c) || this.grid[r][c] === '#') return;
+
+        this.grid[r][c] = '';
+        this._finalizeEditorLetterChange();
+        this.gridManager._updateHighlights(this);
+    },
+
+    handleEditorArrow(key) {
+        this.gridManager._handleArrow(key, this);
+    },
+
+    _finalizeEditorLetterChange() {
         this.rebuildGridState();
         this.syncActiveGridToDOM();
         this.refreshWordList();

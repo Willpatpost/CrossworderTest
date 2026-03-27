@@ -61,7 +61,7 @@ export const renderingMethods = {
         this.gridManager.syncGridToDOM(this.grid, this.slots);
         this.cells = this.gridManager.cells;
 
-        if (this.modes.isPlayMode) {
+        if (this.modes.isPlayMode || this.modes.currentMode === 'letter') {
             this.gridManager._updateHighlights(this);
         }
 
