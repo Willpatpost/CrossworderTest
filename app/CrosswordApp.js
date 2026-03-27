@@ -59,6 +59,7 @@ export class CrosswordApp {
         this.playElapsedMs = 0;
         this.playTimerStartedAt = null;
         this.playTimerInterval = null;
+        this.hasCompletedPlayPuzzle = false;
     }
 
     async init() {

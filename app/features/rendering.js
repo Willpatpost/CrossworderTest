@@ -64,6 +64,8 @@ export const renderingMethods = {
         if (this.modes.isPlayMode) {
             this.gridManager._updateHighlights(this);
         }
+
+        this.display.updatePuzzleSummary(this.grid, this.slots, this.currentPuzzleClues);
     },
 
     _extractSlotWord(slot) {

@@ -646,6 +646,10 @@ input[type="text"] {
     background: var(--bg-section);
 }
 
+.summary-item-wide {
+    grid-column: 1 / -1;
+}
+
 .summary-value {
     font-size: 1.2rem;
     font-weight: 700;

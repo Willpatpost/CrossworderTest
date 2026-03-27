@@ -424,6 +424,16 @@ export class DisplayManager {
             ? Math.round((filledCells / fillableCells) * 100)
             : 0;
 
+        if (fillableCells === 0) {
+            this.puzzleSummary.innerHTML = `
+                <div class="summary-item summary-item-wide">
+                    <span class="summary-value">No open cells yet</span>
+                    <span class="summary-label">Add fillable squares or load a bundled puzzle to begin.</span>
+                </div>
+            `;
+            return;
+        }
+
         this.puzzleSummary.innerHTML = [
             this._createSummaryItem(`${rows}x${cols}`, 'Grid'),
             this._createSummaryItem(String(blockCount), 'Blocks'),

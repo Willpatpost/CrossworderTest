@@ -108,6 +108,7 @@ export const puzzleMethods = {
         this.currentPuzzleClues = {};
         this.currentSolution = null;
         this.editorGridSnapshot = null;
+        this.hasCompletedPlayPuzzle = false;
         this.render();
     },
 
@@ -165,6 +166,7 @@ export const puzzleMethods = {
             });
             this.currentPuzzleClues = dailyPuzzle.clues || {};
             this.currentSolution = mode === 'play' ? (dailyPuzzle.solution || null) : null;
+            this.hasCompletedPlayPuzzle = false;
 
             if (mode === 'play') {
                 document.getElementById('nav-play')?.click();

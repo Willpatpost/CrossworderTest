@@ -68,7 +68,6 @@ export const editorMethods = {
         this.syncActiveGridToDOM();
         this.refreshWordList();
         this.currentSolution = null;
-        this.currentPuzzleClues = {};
     },
 
     paintCell(r, c, value) {
@@ -98,7 +97,11 @@ export const editorMethods = {
         this.currentSolution = null;
         this.currentPuzzleClues = {};
         this.editorGridSnapshot = null;
+        this.hasCompletedPlayPuzzle = false;
         this.render();
-        this.display.updateStatus(`Generated ${rows}×${cols} grid.`, true);
+        this.display.updateStatus(
+            `Generated ${rows}×${cols} grid. Add blocks, type letters, or load a bundled puzzle to get started.`,
+            true
+        );
     }
 };

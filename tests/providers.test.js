@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { WordListProvider } from '../providers/WordListProvider.js';
 import { DefinitionsProvider } from '../providers/DefinitionsProvider.js';
 import { DictionaryAPI } from '../providers/DictionaryAPI.js';
+import { editorMethods } from '../app/features/editor.js';
+import { playMethods } from '../app/features/play.js';
 
 test('WordListProvider clears in-flight promise entries after success', async () => {
     const originalFetch = globalThis.fetch;
@@ -68,4 +70,72 @@ test('DictionaryAPI caches empty fallback results for failed requests', async ()
     } finally {
         globalThis.fetch = originalFetch;
     }
+});
+
+test('Letter entry keeps authored clues while invalidating the saved solution', () => {
+    const originalWindow = globalThis.window;
+    globalThis.window = {
+        prompt() {
+            return 'z';
+        }
+    };
+
+    const app = {
+        grid: [['', '']],
+        currentSolution: { '1-across': 'AB' },
+        currentPuzzleClues: { '1-across': 'Example clue' },
+        display: { updateStatus() {} },
+        rebuildGridState() {},
+        syncActiveGridToDOM() {},
+        refreshWordList() {}
+    };
+
+    try {
+        editorMethods.handleLetterEntry.call(app, 0, 0);
+        assert.equal(app.grid[0][0], 'Z');
+        assert.equal(app.currentSolution, null);
+        assert.deepEqual(app.currentPuzzleClues, { '1-across': 'Example clue' });
+    } finally {
+        globalThis.window = originalWindow;
+    }
+});
+
+test('Play completion check detects a solved puzzle once', () => {
+    let statusMessage = '';
+    let popupMessage = '';
+
+    const app = {
+        modes: { isPlayMode: true },
+        currentSolution: { '1-across': 'CAT' },
+        slots: {
+            '1-across': {
+                id: '1-across',
+                positions: [[0, 0], [0, 1], [0, 2]]
+            }
+        },
+        grid: [['C', 'A', 'T']],
+        hasCompletedPlayPuzzle: false,
+        playElapsedMs: 65000,
+        display: {
+            updateStatus(message) {
+                statusMessage = message;
+            }
+        },
+        popups: {
+            showMessage(_title, message) {
+                popupMessage = message;
+            }
+        },
+        _pausePlayTimer() {},
+        _updatePauseUI() {}
+    };
+
+    const first = playMethods._checkForPuzzleCompletion.call(app);
+    const second = playMethods._checkForPuzzleCompletion.call(app);
+
+    assert.equal(first, true);
+    assert.equal(second, false);
+    assert.equal(app.hasCompletedPlayPuzzle, true);
+    assert.match(statusMessage, /Puzzle complete!/);
+    assert.match(popupMessage, /1:05/);
 });
