@@ -5,7 +5,7 @@ Crossworder is a browser-based crossword editor, solver, and play experience bui
 ## What’s in the project
 
 - `index.html`, `main.js`, and `style.css` provide the shell and app bootstrap.
-- `CrosswordSolver.js` coordinates puzzle loading, editor interactions, solving, and play mode.
+- `app/` contains the application coordinator plus feature-focused modules for editor, puzzle, rendering, solver, and play behavior.
 - `grid/` contains the grid rendering and interaction logic.
 - `solver/` contains the constraint builder, solving engine, and web worker entrypoint.
 - `providers/` loads bundled word/definition data and the fallback dictionary API.
@@ -13,6 +13,9 @@ Crossworder is a browser-based crossword editor, solver, and play experience bui
 - `data/words_by_length/` holds the solver’s candidate word lists.
 - `data/defs_by_length/` holds local clue/definition history grouped by word length.
 - `data/puzzles/` holds bundled puzzle JSON files and the puzzle index used by the random loader.
+- `data/nyt_puzzles/` is currently archival source material and is not part of the active runtime puzzle flow.
+- `scripts/` contains repository automation helpers, including puzzle-of-the-day generation.
+- `tests/` contains the Node test suite for the core logic modules.
 
 ## Bundled puzzles
 
@@ -65,3 +68,4 @@ Then open the served URL in your browser.
 - The solver depends on the bundled word lists, so fill quality is only as strong as that data.
 - Puzzle clues are optional in the bundled JSON format. If a puzzle file does not include clues, the app falls back to the local definitions database during play mode.
 - This repository is currently light on automated tests, so manual browser verification is still important after behavior changes.
+- The source tree is intentionally organized so top-level app code stays minimal, with feature logic living under `app/` and domain-specific modules staying in their own folders.

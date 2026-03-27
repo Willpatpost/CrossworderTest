@@ -1,10 +1,10 @@
 // main.js
-import { CrosswordSolver } from './CrosswordSolver.js';
+import { CrosswordApp } from './app/CrosswordApp.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     initializeTheme();
 
-    const app = new CrosswordSolver();
+    const app = new CrosswordApp();
     await app.init();
 
     setupNavigation(app);
