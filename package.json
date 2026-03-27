@@ -1,0 +1,10 @@
+{
+  "name": "crossworder-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "generate:potd": "node scripts/generate-puzzle-of-the-day.mjs --force"
+  }
+}

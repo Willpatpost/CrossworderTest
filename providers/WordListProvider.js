@@ -17,6 +17,7 @@ export class WordListProvider {
         if (!resp.ok) {
             // If a length doesn't exist (e.g. length 25), return empty array
             this._cache.set(len, []);
+            this._promises.delete(len);
             return [];
         }
 
@@ -27,6 +28,7 @@ export class WordListProvider {
                           .filter(w => w.length > 0);
 
         this._cache.set(len, words);
+        this._promises.delete(len);
         return words;
       })().catch(err => {
         this._promises.delete(len);

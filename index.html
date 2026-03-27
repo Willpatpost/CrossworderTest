@@ -49,28 +49,148 @@
 
             <!-- HOME -->
             <section id="home-screen" class="view-section" aria-labelledby="home-heading">
-                <section class="hero-banner">
-                    <h1 id="home-heading">Welcome to Crossworder</h1>
-                    <p>A professional-grade suite for crossword construction and competitive play.</p>
+                <section class="home-hero">
+                    <div class="hero-copy">
+                        <p class="hero-kicker">Construct. Solve. Play.</p>
+                        <h1 id="home-heading">A crossword workshop with a live solving engine.</h1>
+                        <p class="hero-subcopy">
+                            Build grids, lock in theme letters, search candidate fills, and jump into play mode
+                            without leaving the same workspace.
+                        </p>
+                        <div class="hero-actions">
+                            <button class="btn primary-btn home-action-btn" type="button" data-home-target="editor-screen">
+                                Open Editor
+                            </button>
+                            <button class="btn secondary-btn home-action-btn" type="button" data-home-target="play-screen">
+                                Try Play Mode
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="hero-spotlight" aria-hidden="true">
+                        <div class="spotlight-card spotlight-primary">
+                            <span class="spotlight-label">Live Workspace</span>
+                            <strong>Design symmetrical layouts and test fills fast.</strong>
+                        </div>
+                        <div class="spotlight-card spotlight-secondary">
+                            <span class="spotlight-label">Built-In Data</span>
+                            <strong>Word lists, clue history, and bundled puzzles are ready on load.</strong>
+                        </div>
+                    </div>
                 </section>
 
-                <div class="home-grid">
-                    <article class="info-card">
-                        <h2>About the App</h2>
+                <section class="home-stats" aria-label="Project highlights">
+                    <article class="stat-card">
+                        <span class="stat-value">3</span>
+                        <span class="stat-label">Bundled puzzles</span>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-value">19</span>
+                        <span class="stat-label">Word-length libraries</span>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-value">2</span>
+                        <span class="stat-label">Working modes</span>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-value">1</span>
+                        <span class="stat-label">Unified crossword workflow</span>
+                    </article>
+                </section>
+
+                <section class="home-daily section" aria-labelledby="daily-puzzle-heading">
+                    <div class="daily-puzzle-copy">
+                        <p class="card-eyebrow">Daily Puzzle</p>
+                        <h2 id="daily-puzzle-heading">A fresh crossword, picked and solved automatically every night.</h2>
+                        <p id="daily-puzzle-summary" class="daily-puzzle-summary">
+                            Loading today’s puzzle details...
+                        </p>
+                    </div>
+                    <div class="daily-puzzle-actions">
+                        <button id="load-daily-editor-button" class="btn primary-btn" type="button">
+                            Load in Editor
+                        </button>
+                        <button id="play-daily-button" class="btn secondary-btn" type="button">
+                            Play Today’s Puzzle
+                        </button>
+                    </div>
+                </section>
+
+                <section class="home-grid home-grid-featured">
+                    <article class="info-card feature-card">
+                        <p class="card-eyebrow">Editor</p>
+                        <h2>Shape a puzzle instead of fighting a blank page.</h2>
                         <p>
-                            Crossworder uses a Constraint Satisfaction Problem (CSP) solver to help you
-                            find words that fit naturally into your grid intersections.
+                            Generate a grid, paint blocks with symmetry, seed letters for a theme, and inspect
+                            across/down entries as the structure evolves.
+                        </p>
+                    </article>
+
+                    <article class="info-card feature-card">
+                        <p class="card-eyebrow">Solver</p>
+                        <h2>Use constraint-based filling when the crossings get tough.</h2>
+                        <p>
+                            Crossworder narrows domains by slot length and crossings, then searches for valid fills
+                            in a worker so the UI stays responsive.
+                        </p>
+                    </article>
+
+                    <article class="info-card feature-card">
+                        <p class="card-eyebrow">Play</p>
+                        <h2>Turn a finished grid into a playable puzzle immediately.</h2>
+                        <p>
+                            Switch into play mode for clue browsing, timer tracking, pause controls, and
+                            check/reveal tools inspired by digital crossword apps.
+                        </p>
+                    </article>
+                </section>
+
+                <section class="home-flow section" aria-labelledby="workflow-heading">
+                    <h2 id="workflow-heading">How It Flows</h2>
+                    <div class="workflow-grid">
+                        <article class="workflow-step">
+                            <span class="workflow-number">01</span>
+                            <h3>Sketch the grid</h3>
+                            <p>Start from a bundled puzzle or generate a blank board with your own dimensions.</p>
+                        </article>
+                        <article class="workflow-step">
+                            <span class="workflow-number">02</span>
+                            <h3>Guide the fill</h3>
+                            <p>Enter letters, search patterns like <code>C??T</code>, and shape the constraint space.</p>
+                        </article>
+                        <article class="workflow-step">
+                            <span class="workflow-number">03</span>
+                            <h3>Solve or play</h3>
+                            <p>Run the solver, inspect clue history, then hand the grid off to play mode.</p>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="home-grid">
+                    <article class="info-card">
+                        <h2>Why This Exists</h2>
+                        <p>
+                            Crossworder is built for iterative construction: you can move from rough structure,
+                            to assisted fill, to live solving without bouncing between separate tools.
                         </p>
                     </article>
 
                     <article class="info-card">
-                        <h2>Directions</h2>
-                        <ul>
-                            <li><strong>Editor:</strong> Build, inspect, and solve crossword grids.</li>
-                            <li><strong>Play:</strong> Solve puzzles interactively with checks and reveals.</li>
-                        </ul>
+                        <h2>What’s Bundled</h2>
+                        <p>
+                            The project ships with local word lists, clue history by word length, and starter
+                            puzzle JSON files under <code>data/puzzles/</code>.
+                        </p>
                     </article>
-                </div>
+
+                    <article class="info-card">
+                        <h2>Good Starting Point</h2>
+                        <p>
+                            Open the editor, click <strong>Easy</strong>, inspect the slot list, and then run the
+                            solver to see how the workspace hangs together.
+                        </p>
+                    </article>
+                </section>
             </section>
 
             <!-- EDITOR -->
@@ -87,7 +207,7 @@
                         <button id="load-easy-button" class="btn secondary-btn" type="button">Easy</button>
                         <button id="load-medium-button" class="btn secondary-btn" type="button">Medium</button>
                         <button id="load-hard-button" class="btn secondary-btn" type="button">Hard</button>
-                        <button id="random-puzzle-button" class="btn accent-btn" type="button">Random Classic</button>
+                        <button id="random-puzzle-button" class="btn accent-btn" type="button">Random Puzzle</button>
                     </div>
                 </section>
 

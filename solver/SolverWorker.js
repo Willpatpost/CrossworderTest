@@ -44,11 +44,13 @@ self.onmessage = async (e) => {
                 type: 'RESULT',
                 payload: result
             });
+            self.close();
         } catch (error) {
             self.postMessage({
                 type: 'ERROR',
                 payload: error.message
             });
+            self.close();
         }
     }
 };

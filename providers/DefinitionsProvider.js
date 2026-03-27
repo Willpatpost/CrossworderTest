@@ -17,6 +17,7 @@ export class DefinitionsProvider {
         
         const defsMap = await resp.json();
         this._cache.set(len, defsMap);
+        this._promises.delete(len);
         return defsMap;
       })().catch(err => {
         this._promises.delete(len);

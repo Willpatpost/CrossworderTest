@@ -1,10 +1,10 @@
 // main.js
-import { CrosswordSolver } from './CrosswordSolver.js';
+import { CrosswordApp } from './app/CrosswordApp.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     initializeTheme();
 
-    const app = new CrosswordSolver();
+    const app = new CrosswordApp();
     await app.init();
 
     setupNavigation(app);
@@ -32,6 +32,7 @@ function setupNavigation(app) {
     const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
     const views = Array.from(document.querySelectorAll('.view-section'));
     const logo = document.getElementById('nav-logo');
+    const homeActionButtons = Array.from(document.querySelectorAll('[data-home-target]'));
 
     const getButtonForTarget = (targetId) =>
         navButtons.find((btn) => btn.dataset.target === targetId) || null;
@@ -139,6 +140,12 @@ function setupNavigation(app) {
             }
         });
     }
+
+    homeActionButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            switchView(button.dataset.homeTarget, { focusHeading: true });
+        });
+    });
 
     const initiallyActive =
         navButtons.find((btn) => btn.classList.contains('active'))?.dataset.target ||
