@@ -46,6 +46,8 @@ export class CrosswordApp {
         this.puzzleIndex = [];
         this.missingPuzzleFiles = new Set();
         this.puzzleOfTheDay = null;
+        this.editorHistory = [];
+        this.editorFuture = [];
 
         this._globalMouseUpBound = false;
         this._searchInputBound = false;
@@ -81,6 +83,7 @@ export class CrosswordApp {
         }
 
         this._updateRandomPuzzleButton();
+        this._updateUndoRedoButtons();
         this._updateTimerDisplay();
         this._updatePauseUI();
 
@@ -146,6 +149,14 @@ export class CrosswordApp {
         this._bindClick('auto-number-button', () => {
             this.render();
             this.display.updateStatus('Grid numbering refreshed.', true);
+        });
+
+        this._bindClick('undo-button', () => {
+            this.undoEditorChange();
+        });
+
+        this._bindClick('redo-button', () => {
+            this.redoEditorChange();
         });
 
         this._bindClick('solve-crossword-button', () => {

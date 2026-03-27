@@ -197,6 +197,27 @@ export class GridManager {
         this._boundKeyHandler = (e) => {
             const tagName = e.target?.tagName;
             if (tagName && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)) return;
+
+            if ((e.metaKey || e.ctrlKey) && !e.altKey && !coordinator?.modes?.isPlayMode) {
+                const key = e.key.toLowerCase();
+
+                if (key === 'z') {
+                    if (e.shiftKey) {
+                        coordinator.redoEditorChange?.();
+                    } else {
+                        coordinator.undoEditorChange?.();
+                    }
+                    e.preventDefault();
+                    return;
+                }
+
+                if (key === 'y') {
+                    coordinator.redoEditorChange?.();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
             if (e.metaKey || e.ctrlKey || e.altKey) return;
 
             if (!this.selectedCell) return;

@@ -1,4 +1,80 @@
 export const editorMethods = {
+    _captureEditorState() {
+        return {
+            grid: this.grid.map((row) => [...row]),
+            currentSolution: this.currentSolution ? { ...this.currentSolution } : null,
+            currentPuzzleClues: { ...this.currentPuzzleClues },
+            selectedCell: this.gridManager.selectedCell
+                ? { ...this.gridManager.selectedCell }
+                : null,
+            selectedDirection: this.gridManager.selectedDirection || 'across'
+        };
+    },
+
+    _restoreEditorState(state) {
+        if (!state) return;
+
+        this.grid = state.grid.map((row) => [...row]);
+        this.currentSolution = state.currentSolution ? { ...state.currentSolution } : null;
+        this.currentPuzzleClues = { ...state.currentPuzzleClues };
+        this.gridManager.selectedCell = state.selectedCell ? { ...state.selectedCell } : null;
+        this.gridManager.selectedDirection = state.selectedDirection || 'across';
+        this.hasCompletedPlayPuzzle = false;
+
+        this.render();
+        this.syncActiveGridToDOM();
+        this.refreshWordList();
+        this._updateUndoRedoButtons();
+    },
+
+    _recordEditorSnapshot() {
+        this.editorHistory.push(this._captureEditorState());
+        if (this.editorHistory.length > 100) {
+            this.editorHistory.shift();
+        }
+
+        this.editorFuture = [];
+        this._updateUndoRedoButtons();
+    },
+
+    _resetEditorHistory() {
+        this.editorHistory = [];
+        this.editorFuture = [];
+        this._updateUndoRedoButtons();
+    },
+
+    _updateUndoRedoButtons() {
+        const undoButton = document.getElementById('undo-button');
+        const redoButton = document.getElementById('redo-button');
+        const isEditorActive = !this.modes?.isPlayMode;
+
+        if (undoButton) {
+            undoButton.disabled = !isEditorActive || this.editorHistory.length === 0;
+        }
+
+        if (redoButton) {
+            redoButton.disabled = !isEditorActive || this.editorFuture.length === 0;
+        }
+    },
+
+    undoEditorChange() {
+        if (this.modes.isPlayMode || this.isSolving || !this.editorHistory.length) return;
+
+        this.editorFuture.push(this._captureEditorState());
+        const previous = this.editorHistory.pop();
+        this._restoreEditorState(previous);
+        this.display.updateStatus('Undid the last editor change.', true);
+    },
+
+    redoEditorChange() {
+        if (this.modes.isPlayMode || this.isSolving || !this.editorFuture.length) return;
+
+        this.editorHistory.push(this._captureEditorState());
+        const next = this.editorFuture.pop();
+        this._restoreEditorState(next);
+        this.display.updateStatus('Redid the last editor change.', true);
+    },
+
     handleMouseDown(_event, r, c) {
         if (this.modes.isPlayMode) return;
         if (this.modes.currentMode !== 'drag') return;
@@ -91,6 +167,7 @@ export const editorMethods = {
         const { r, c } = selected;
         if (!this._isInBounds(r, c) || this.grid[r][c] === '#') return;
 
+        this._recordEditorSnapshot();
         this.grid[r][c] = normalized;
         this._finalizeEditorLetterChange();
         this.gridManager._moveWithinWord(1, this);
@@ -109,6 +186,7 @@ export const editorMethods = {
             ({ r, c } = this.gridManager.selectedCell);
         }
 
+        this._recordEditorSnapshot();
         this.grid[r][c] = '';
         this._finalizeEditorLetterChange();
         this.gridManager._updateHighlights(this);
@@ -121,6 +199,7 @@ export const editorMethods = {
         const { r, c } = selected;
         if (!this._isInBounds(r, c) || this.grid[r][c] === '#') return;
 
+        this._recordEditorSnapshot();
         this.grid[r][c] = '';
         this._finalizeEditorLetterChange();
         this.gridManager._updateHighlights(this);
@@ -144,6 +223,7 @@ export const editorMethods = {
 
         if (this.grid[r][c] === nextValue) return;
 
+        this._recordEditorSnapshot();
         this.grid[r][c] = nextValue;
 
         if (this.modes.isSymmetryEnabled) {
@@ -160,6 +240,7 @@ export const editorMethods = {
     },
 
     generateNewGrid(rows, cols) {
+        this._recordEditorSnapshot();
         this.grid = Array.from({ length: rows }, () => Array(cols).fill(''));
         this.currentSolution = null;
         this.currentPuzzleClues = {};
@@ -170,5 +251,6 @@ export const editorMethods = {
             `Generated ${rows}×${cols} grid. Add blocks, type letters, or load a bundled puzzle to get started.`,
             true
         );
+        this._updateUndoRedoButtons();
     }
 };

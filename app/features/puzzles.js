@@ -100,6 +100,7 @@ export const puzzleMethods = {
     },
 
     importPuzzleGrid(rawGrid, { sourceLabel = 'puzzle' } = {}) {
+        this._recordEditorSnapshot?.();
         this._assertValidPuzzleGrid(rawGrid, sourceLabel);
 
         this.grid = rawGrid.map((row) => {
@@ -118,6 +119,7 @@ export const puzzleMethods = {
         this.editorGridSnapshot = null;
         this.hasCompletedPlayPuzzle = false;
         this.render();
+        this._updateUndoRedoButtons?.();
     },
 
     async loadPuzzleOfTheDaySummary() {

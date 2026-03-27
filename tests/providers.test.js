@@ -84,6 +84,7 @@ test('Direct editor letter entry keeps authored clues while invalidating the sav
         _isInBounds(r, c) {
             return r >= 0 && c >= 0 && r < 1 && c < 2;
         },
+        _recordEditorSnapshot() {},
         display: { updateStatus() {} },
         rebuildGridState() {},
         syncActiveGridToDOM() {},

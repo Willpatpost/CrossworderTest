@@ -223,6 +223,7 @@ test('paintCell mirrors block edits across the grid when symmetry is enabled', (
         _isInBounds(r, c) {
             return r >= 0 && c >= 0 && r < 3 && c < 3;
         },
+        _recordEditorSnapshot() {},
         rebuildGridState() {},
         syncActiveGridToDOM() {},
         refreshWordList() {
@@ -255,6 +256,7 @@ test('paintCell handles the center cell once on odd-sized symmetric grids', () =
         _isInBounds(r, c) {
             return r >= 0 && c >= 0 && r < 3 && c < 3;
         },
+        _recordEditorSnapshot() {},
         rebuildGridState() {
             rebuilds++;
         },
@@ -324,6 +326,7 @@ test('editor backspace clears the previous cell when the current one is already 
         _isInBounds(r, c) {
             return r >= 0 && c >= 0 && r < 1 && c < 2;
         },
+        _recordEditorSnapshot() {},
         rebuildGridState() {},
         syncActiveGridToDOM() {},
         refreshWordList() {},
@@ -336,6 +339,92 @@ test('editor backspace clears the previous cell when the current one is already 
     assert.equal(app.grid[0][0], '');
     assert.equal(app.currentSolution, null);
     assert.equal(highlightCount, 1);
+});
+
+test('undoEditorChange restores the previous editor snapshot and queues redo state', () => {
+    const statuses = [];
+    let restored = null;
+
+    const app = {
+        modes: { isPlayMode: false },
+        isSolving: false,
+        editorHistory: [
+            {
+                grid: [['A']],
+                currentSolution: { '1-across': 'A' },
+                currentPuzzleClues: { '1-across': 'Clue' },
+                selectedCell: { r: 0, c: 0 },
+                selectedDirection: 'across'
+            }
+        ],
+        editorFuture: [],
+        grid: [['B']],
+        currentSolution: null,
+        currentPuzzleClues: {},
+        gridManager: {
+            selectedCell: { r: 0, c: 0 },
+            selectedDirection: 'down'
+        },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _captureEditorState: editorMethods._captureEditorState,
+        _restoreEditorState(state) {
+            restored = state;
+        }
+    };
+
+    editorMethods.undoEditorChange.call(app);
+
+    assert.deepEqual(restored.grid, [['A']]);
+    assert.equal(app.editorHistory.length, 0);
+    assert.equal(app.editorFuture.length, 1);
+    assert.match(statuses.at(-1), /Undid the last editor change/);
+});
+
+test('redoEditorChange restores the queued future snapshot', () => {
+    const statuses = [];
+    let restored = null;
+
+    const app = {
+        modes: { isPlayMode: false },
+        isSolving: false,
+        editorHistory: [],
+        editorFuture: [
+            {
+                grid: [['B']],
+                currentSolution: null,
+                currentPuzzleClues: {},
+                selectedCell: { r: 0, c: 0 },
+                selectedDirection: 'down'
+            }
+        ],
+        grid: [['A']],
+        currentSolution: { '1-across': 'A' },
+        currentPuzzleClues: { '1-across': 'Clue' },
+        gridManager: {
+            selectedCell: { r: 0, c: 0 },
+            selectedDirection: 'across'
+        },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _captureEditorState: editorMethods._captureEditorState,
+        _restoreEditorState(state) {
+            restored = state;
+        }
+    };
+
+    editorMethods.redoEditorChange.call(app);
+
+    assert.deepEqual(restored.grid, [['B']]);
+    assert.equal(app.editorHistory.length, 1);
+    assert.equal(app.editorFuture.length, 0);
+    assert.match(statuses.at(-1), /Redid the last editor change/);
 });
 
 test('handleSolve ignores stale worker results after a newer solve run starts', async () => {
