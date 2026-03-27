@@ -547,6 +547,38 @@ input[type="text"] {
     color: var(--text-main);
 }
 
+.clue-composer,
+.play-clue-panel {
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--bg-body) 58%, transparent);
+}
+
+.clue-composer {
+    display: grid;
+    gap: 10px;
+}
+
+.composer-slot-label {
+    font-family: 'Trebuchet MS', Helvetica, sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.composer-preview {
+    font-family: monospace;
+}
+
+.play-clue-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
 /* ===============================
    9. PLAY TOOLBAR
 ================================ */

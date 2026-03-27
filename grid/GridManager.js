@@ -252,6 +252,11 @@ export class GridManager {
                         e.preventDefault();
                         break;
 
+                    case 'Tab':
+                        this._jumpToNextWord(coordinator, e.shiftKey ? -1 : 1);
+                        e.preventDefault();
+                        break;
+
                     case ' ':
                     case 'Spacebar':
                         this._toggleDirection();

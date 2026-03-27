@@ -53,6 +53,7 @@ export class CrosswordApp {
         this._searchInputBound = false;
         this._searchRequestId = 0;
         this._searchDebounceTimer = null;
+        this._draftAutosaveTimer = null;
 
         this.activeSolveSession = null;
         this._solveRunId = 0;
@@ -184,6 +185,22 @@ export class CrosswordApp {
             this.clearEditorGrid();
         });
 
+        this._bindClick('clear-row-button', () => {
+            this.clearEditorRow();
+        });
+
+        this._bindClick('clear-column-button', () => {
+            this.clearEditorColumn();
+        });
+
+        this._bindClick('save-clue-button', () => {
+            this.saveSelectedEditorClue();
+        });
+
+        this._bindClick('clear-clue-button', () => {
+            this.clearSelectedEditorClue();
+        });
+
         this._bindClick('export-puzzle-button', () => {
             this.exportCurrentPuzzle();
         });
@@ -236,7 +253,20 @@ export class CrosswordApp {
         this._bindClick('reveal-puzzle-btn', () => this.handleRevealPuzzle());
 
         this._bindClick('clear-btn', () => this.handleClearPlayGrid());
+        this._bindClick('next-empty-btn', () => this.jumpToNextEmptyPlayCell());
         this._bindClick('pause-btn', () => this.togglePlayPause());
+        this._bindClick('previous-clue-button', () => this.selectPreviousPlayClue());
+        this._bindClick('next-clue-button', () => this.selectNextPlayClue());
+
+        const clueInput = document.getElementById('editor-clue-input');
+        if (clueInput) {
+            clueInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    this.saveSelectedEditorClue();
+                }
+            });
+        }
 
         if (!this._globalMouseUpBound) {
             window.addEventListener('mouseup', () => this.handleMouseUp());

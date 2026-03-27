@@ -5,6 +5,7 @@ import { editorMethods } from '../app/features/editor.js';
 import { puzzleMethods } from '../app/features/puzzles.js';
 import { playMethods } from '../app/features/play.js';
 import { solverMethods } from '../app/features/solver.js';
+import { GridManager } from '../grid/GridManager.js';
 
 test('puzzle clue extraction maps mixed clue formats onto slot ids', () => {
     const app = {
@@ -341,6 +342,178 @@ test('editor backspace clears the previous cell when the current one is already 
     assert.equal(highlightCount, 1);
 });
 
+test('editor letter entry jumps to the next word after filling the end of the current word', () => {
+    let movedForward = 0;
+    let jumpedForward = 0;
+
+    const app = {
+        grid: [['A', '']],
+        currentSolution: { '1-across': 'AB' },
+        currentPuzzleClues: { '1-across': 'Clue' },
+        gridManager: {
+            selectedCell: { r: 0, c: 1 },
+            _moveWithinWord(delta) {
+                movedForward = delta;
+            },
+            _jumpToNextWord(_coordinator, delta) {
+                jumpedForward = delta;
+            }
+        },
+        _isInBounds(r, c) {
+            return r >= 0 && c >= 0 && r < 1 && c < 2;
+        },
+        _recordEditorSnapshot() {},
+        rebuildGridState() {},
+        syncActiveGridToDOM() {},
+        refreshWordList() {},
+        _finalizeEditorLetterChange: editorMethods._finalizeEditorLetterChange,
+        _scheduleEditorAutosave() {}
+    };
+
+    editorMethods.handleEditorLetterInput.call(app, 'T');
+
+    assert.equal(app.grid[0][1], 'T');
+    assert.equal(movedForward, 1);
+    assert.equal(jumpedForward, 1);
+    assert.equal(app.currentSolution, null);
+});
+
+test('editor key handling uses tab to jump between words', () => {
+    const originalWindow = globalThis.window;
+    const listeners = new Map();
+    let jumpDelta = 0;
+    let prevented = false;
+
+    globalThis.window = {
+        addEventListener(type, handler) {
+            listeners.set(type, handler);
+        },
+        removeEventListener(type) {
+            listeners.delete(type);
+        }
+    };
+
+    try {
+        const manager = new GridManager();
+        manager.selectedCell = { r: 0, c: 0 };
+        manager._jumpToNextWord = (_coordinator, delta) => {
+            jumpDelta = delta;
+        };
+
+        manager._setupGlobalListeners({
+            modes: { isPlayMode: false, currentMode: 'letter' }
+        });
+
+        const keydown = listeners.get('keydown');
+        keydown({
+            key: 'Tab',
+            shiftKey: true,
+            metaKey: false,
+            ctrlKey: false,
+            altKey: false,
+            target: {},
+            preventDefault() {
+                prevented = true;
+            }
+        });
+
+        assert.equal(jumpDelta, -1);
+        assert.equal(prevented, true);
+    } finally {
+        globalThis.window = originalWindow;
+    }
+});
+
+test('saveSelectedEditorClue stores clue text for the selected slot', () => {
+    const originalDocument = globalThis.document;
+    const statuses = [];
+    let snapshotCount = 0;
+    let refreshed = 0;
+    let autosaved = 0;
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'editor-clue-input') {
+                return { value: 'A feline friend' };
+            }
+            return null;
+        }
+    };
+
+    try {
+        const app = {
+            modes: { isPlayMode: false },
+            currentPuzzleClues: {},
+            display: {
+                updateStatus(message) {
+                    statuses.push(message);
+                }
+            },
+            _getSelectedEditorSlot() {
+                return { id: '1-across', number: 1, direction: 'across', length: 3 };
+            },
+            _recordEditorSnapshot() {
+                snapshotCount++;
+            },
+            refreshWordList() {
+                refreshed++;
+            },
+            updateEditorClueComposer() {},
+            _updateDraftButtons() {},
+            _scheduleEditorAutosave() {
+                autosaved++;
+            }
+        };
+
+        const saved = editorMethods.saveSelectedEditorClue.call(app);
+
+        assert.equal(saved, true);
+        assert.equal(snapshotCount, 1);
+        assert.equal(refreshed, 1);
+        assert.equal(autosaved, 1);
+        assert.deepEqual(app.currentPuzzleClues, { '1-across': 'A feline friend' });
+        assert.match(statuses.at(-1), /Saved a clue for 1 across/);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('clearSelectedEditorClue removes the authored clue for the selected slot', () => {
+    const statuses = [];
+    let snapshotCount = 0;
+    let refreshed = 0;
+
+    const app = {
+        modes: { isPlayMode: false },
+        currentPuzzleClues: { '1-across': 'Old clue' },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _getSelectedEditorSlot() {
+            return { id: '1-across', number: 1, direction: 'across', length: 3 };
+        },
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        refreshWordList() {
+            refreshed++;
+        },
+        updateEditorClueComposer() {},
+        _updateDraftButtons() {},
+        _scheduleEditorAutosave() {}
+    };
+
+    const cleared = editorMethods.clearSelectedEditorClue.call(app);
+
+    assert.equal(cleared, true);
+    assert.equal(snapshotCount, 1);
+    assert.equal(refreshed, 1);
+    assert.deepEqual(app.currentPuzzleClues, {});
+    assert.match(statuses.at(-1), /Cleared the clue for 1 across/);
+});
+
 test('undoEditorChange restores the previous editor snapshot and queues redo state', () => {
     const statuses = [];
     let restored = null;
@@ -478,6 +651,46 @@ test('saveEditorDraft writes the current editor state to local storage', () => {
     } finally {
         globalThis.localStorage = originalLocalStorage;
         globalThis.document = originalDocument;
+    }
+});
+
+test('scheduleEditorAutosave debounces draft saves and uses silent mode', async () => {
+    const originalWindow = globalThis.window;
+    const scheduled = [];
+    let clearedTimer = null;
+    const saveCalls = [];
+
+    globalThis.window = {
+        setTimeout(fn, delay) {
+            scheduled.push({ fn, delay });
+            return scheduled.length;
+        },
+        clearTimeout(id) {
+            clearedTimer = id;
+        }
+    };
+
+    const app = {
+        modes: { isPlayMode: false },
+        grid: [['A']],
+        _draftAutosaveTimer: 1,
+        saveEditorDraft(options) {
+            saveCalls.push(options);
+        }
+    };
+
+    try {
+        const scheduledResult = editorMethods._scheduleEditorAutosave.call(app);
+        assert.equal(scheduledResult, true);
+        assert.equal(clearedTimer, 1);
+        assert.equal(scheduled[0].delay, 400);
+
+        scheduled[0].fn();
+
+        assert.equal(app._draftAutosaveTimer, null);
+        assert.deepEqual(saveCalls, [{ silent: true }]);
+    } finally {
+        globalThis.window = originalWindow;
     }
 });
 
@@ -630,6 +843,82 @@ test('clearEditorGrid removes all editor content and selection', () => {
     assert.deepEqual(app.currentPuzzleClues, {});
     assert.equal(app.gridManager.selectedCell, null);
     assert.match(statuses.at(-1), /Cleared the entire editor grid/);
+});
+
+test('clearEditorRow clears the selected row and resets puzzle metadata', () => {
+    const statuses = [];
+    let snapshotCount = 0;
+
+    const app = {
+        modes: { isPlayMode: false },
+        grid: [['A', '#', 'T'], ['D', 'O', 'G']],
+        currentSolution: { '1-across': 'AT' },
+        currentPuzzleClues: { '1-across': 'Clue' },
+        gridManager: {
+            selectedCell: { r: 0, c: 2 }
+        },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        _clearEditorLine: editorMethods._clearEditorLine,
+        _isInBounds(r, c) {
+            return r >= 0 && c >= 0 && r < this.grid.length && c < this.grid[0].length;
+        },
+        render() {},
+        _updateDraftButtons() {}
+    };
+
+    const cleared = editorMethods.clearEditorRow.call(app);
+
+    assert.equal(cleared, true);
+    assert.equal(snapshotCount, 1);
+    assert.deepEqual(app.grid, [['', '', ''], ['D', 'O', 'G']]);
+    assert.equal(app.currentSolution, null);
+    assert.deepEqual(app.currentPuzzleClues, {});
+    assert.match(statuses.at(-1), /Cleared editor row 1/);
+});
+
+test('clearEditorColumn clears the selected column and preserves other cells', () => {
+    const statuses = [];
+    let snapshotCount = 0;
+
+    const app = {
+        modes: { isPlayMode: false },
+        grid: [['A', '#', 'T'], ['D', 'O', 'G']],
+        currentSolution: { '1-across': 'AT' },
+        currentPuzzleClues: { '1-across': 'Clue' },
+        gridManager: {
+            selectedCell: { r: 1, c: 1 }
+        },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        _clearEditorLine: editorMethods._clearEditorLine,
+        _isInBounds(r, c) {
+            return r >= 0 && c >= 0 && r < this.grid.length && c < this.grid[0].length;
+        },
+        render() {},
+        _updateDraftButtons() {}
+    };
+
+    const cleared = editorMethods.clearEditorColumn.call(app);
+
+    assert.equal(cleared, true);
+    assert.equal(snapshotCount, 1);
+    assert.deepEqual(app.grid, [['A', '', 'T'], ['D', '', 'G']]);
+    assert.equal(app.currentSolution, null);
+    assert.deepEqual(app.currentPuzzleClues, {});
+    assert.match(statuses.at(-1), /Cleared editor column 2/);
 });
 
 test('serializeCurrentPuzzle exports the editor grid and numbered clues as JSON-ready data', () => {
@@ -1306,4 +1595,155 @@ test('loadRandomPuzzle loads the first successful candidate and records authored
     assert.deepEqual(app.currentSolution, { '1-across': 'AT' });
     assert.deepEqual(buttonStates.at(-1), { disabled: false, reason: undefined });
     assert.match(statuses.at(-1), /Loaded Candidate A \(Author A, 2026-03-26\)\. Loaded 1 authored clues\./);
+});
+
+test('selectNextPlayClue advances through play clues using the grid manager', () => {
+    let jumpDelta = 0;
+    let highlighted = null;
+
+    const app = {
+        modes: { isPlayMode: true },
+        isPlayPaused: false,
+        _stepPlayClue: playMethods._stepPlayClue,
+        gridManager: {
+            _jumpToNextWord(_coordinator, delta) {
+                jumpDelta = delta;
+            },
+            _getActiveSlot() {
+                return { id: '2-down' };
+            }
+        },
+        display: {
+            highlightSlotInList(slotId) {
+                highlighted = slotId;
+            }
+        },
+        _syncPlayActiveClue: playMethods._syncPlayActiveClue
+    };
+
+    const advanced = playMethods.selectNextPlayClue.call(app);
+
+    assert.equal(advanced, true);
+    assert.equal(jumpDelta, 1);
+    assert.equal(highlighted, '2-down');
+});
+
+test('jumpToNextEmptyPlayCell moves within the active slot before advancing elsewhere', () => {
+    const statuses = [];
+    let highlightCount = 0;
+    let activeClueSyncs = 0;
+
+    const app = {
+        modes: { isPlayMode: true },
+        isPlayPaused: false,
+        hasCompletedPlayPuzzle: false,
+        currentSolution: { '1-across': 'CAT', '2-down': 'DOG' },
+        grid: [['C', '', ''], ['D', 'O', 'G']],
+        slots: {
+            '1-across': {
+                id: '1-across',
+                number: 1,
+                direction: 'across',
+                positions: [[0, 0], [0, 1], [0, 2]]
+            },
+            '2-down': {
+                id: '2-down',
+                number: 2,
+                direction: 'down',
+                positions: [[0, 0], [1, 0], [2, 0]]
+            }
+        },
+        gridManager: {
+            selectedCell: { r: 0, c: 0 },
+            selectedDirection: 'across',
+            _getActiveSlot() {
+                return {
+                    id: '1-across',
+                    number: 1,
+                    direction: 'across',
+                    positions: [[0, 0], [0, 1], [0, 2]]
+                };
+            },
+            _updateHighlights() {
+                highlightCount++;
+            }
+        },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _canUsePlayTools: playMethods._canUsePlayTools,
+        _findNextEmptyPlayCell: playMethods._findNextEmptyPlayCell,
+        _syncPlayActiveClue() {
+            activeClueSyncs++;
+        }
+    };
+
+    const moved = playMethods.jumpToNextEmptyPlayCell.call(app);
+
+    assert.equal(moved, true);
+    assert.deepEqual(app.gridManager.selectedCell, { r: 0, c: 1 });
+    assert.equal(app.gridManager.selectedDirection, 'across');
+    assert.equal(highlightCount, 1);
+    assert.equal(activeClueSyncs, 1);
+    assert.match(statuses.at(-1), /Moved to the next empty cell in 1 across/);
+});
+
+test('updatePauseUI reflects completed play state in the toolbar', () => {
+    const originalDocument = globalThis.document;
+    const elements = new Map();
+
+    const makeEl = () => ({
+        disabled: false,
+        textContent: '',
+        attrs: {},
+        classList: { toggle() {} },
+        setAttribute(name, value) {
+            this.attrs[name] = value;
+        }
+    });
+
+    [
+        'pause-btn',
+        'play-paused-overlay',
+        'play-grid-container',
+        'check-menu-btn',
+        'reveal-menu-btn',
+        'check-square-btn',
+        'check-word-btn',
+        'check-puzzle-btn',
+        'reveal-square-btn',
+        'reveal-word-btn',
+        'reveal-puzzle-btn',
+        'clear-btn',
+        'next-empty-btn',
+        'previous-clue-button',
+        'next-clue-button'
+    ].forEach((id) => {
+        elements.set(id, makeEl());
+    });
+
+    globalThis.document = {
+        getElementById(id) {
+            return elements.get(id) || null;
+        }
+    };
+
+    try {
+        playMethods._updatePauseUI.call({
+            modes: { isPlayMode: true },
+            isPlayPaused: false,
+            hasCompletedPlayPuzzle: true
+        });
+
+        assert.equal(elements.get('pause-btn').disabled, true);
+        assert.equal(elements.get('pause-btn').textContent, 'Complete');
+        assert.equal(elements.get('pause-btn').attrs['aria-label'], 'Puzzle complete');
+        assert.equal(elements.get('clear-btn').disabled, true);
+        assert.equal(elements.get('next-empty-btn').disabled, true);
+        assert.equal(elements.get('previous-clue-button').disabled, false);
+    } finally {
+        globalThis.document = originalDocument;
+    }
 });

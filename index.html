@@ -275,6 +275,12 @@
                             <button id="clear-grid-button" class="btn secondary-btn" type="button">
                                 Clear Grid
                             </button>
+                            <button id="clear-row-button" class="btn secondary-btn" type="button">
+                                Clear Row
+                            </button>
+                            <button id="clear-column-button" class="btn secondary-btn" type="button">
+                                Clear Column
+                            </button>
                             <button id="export-puzzle-button" class="btn secondary-btn" type="button">
                                 Export Puzzle
                             </button>
@@ -351,6 +357,27 @@
                         <aside class="clues-panel" aria-labelledby="editor-clues-heading">
                             <h3 id="editor-clues-heading">Entries</h3>
 
+                            <section class="clue-composer" aria-labelledby="editor-clue-composer-heading">
+                                <h4 id="editor-clue-composer-heading">Clue Composer</h4>
+                                <p id="editor-clue-slot-label" class="composer-slot-label muted-text">
+                                    Select an entry to add or edit its clue.
+                                </p>
+                                <p id="editor-clue-preview" class="composer-preview muted-text">
+                                    Entry preview will appear here.
+                                </p>
+                                <label for="editor-clue-input" class="sr-only">Clue text for the selected entry</label>
+                                <input type="text" id="editor-clue-input" placeholder="Write a clue for the selected entry"
+                                    autocomplete="off" spellcheck="false" />
+                                <div class="button-group">
+                                    <button id="save-clue-button" class="btn secondary-btn" type="button">
+                                        Save Clue
+                                    </button>
+                                    <button id="clear-clue-button" class="btn secondary-btn" type="button">
+                                        Clear Clue
+                                    </button>
+                                </div>
+                            </section>
+
                             <div class="word-list">
                                 <h4>Across</h4>
                                 <div id="across-display" class="word-list-display"></div>
@@ -405,6 +432,7 @@
                         </div>
 
                         <button class="toolbar-btn" id="clear-btn" type="button">Clear</button>
+                        <button class="toolbar-btn" id="next-empty-btn" type="button">Next Empty</button>
                         <button class="toolbar-btn icon-btn" id="pause-btn" type="button" aria-label="Pause game">
                             Pause
                         </button>
@@ -433,6 +461,24 @@
 
                     <aside class="clues-panel" aria-labelledby="play-clues-heading">
                         <h3 id="play-clues-heading">Clues</h3>
+
+                        <section class="play-clue-panel" aria-labelledby="play-active-clue-heading">
+                            <div class="play-clue-nav">
+                                <button class="toolbar-btn" id="previous-clue-button" type="button">
+                                    Previous Clue
+                                </button>
+                                <button class="toolbar-btn" id="next-clue-button" type="button">
+                                    Next Clue
+                                </button>
+                            </div>
+                            <h4 id="play-active-clue-heading">Active Clue</h4>
+                            <p id="play-active-clue-label" class="composer-slot-label muted-text">
+                                Select a clue to begin.
+                            </p>
+                            <p id="play-active-clue-text" class="composer-preview muted-text">
+                                The current clue will appear here.
+                            </p>
+                        </section>
 
                         <div class="word-list">
                             <h4>Across</h4>

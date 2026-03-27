@@ -3,6 +3,21 @@ export const editorMethods = {
         return 'crossworder.editor.draft';
     },
 
+    _scheduleEditorAutosave() {
+        if (this.modes?.isPlayMode || !this.grid.length) return false;
+
+        if (this._draftAutosaveTimer) {
+            window.clearTimeout(this._draftAutosaveTimer);
+        }
+
+        this._draftAutosaveTimer = window.setTimeout(() => {
+            this._draftAutosaveTimer = null;
+            this.saveEditorDraft({ silent: true });
+        }, 400);
+
+        return true;
+    },
+
     _captureEditorState() {
         return {
             grid: this.grid.map((row) => [...row]),
@@ -30,6 +45,7 @@ export const editorMethods = {
         this.refreshWordList();
         this._updateUndoRedoButtons();
         this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
     },
 
     _recordEditorSnapshot() {
@@ -85,7 +101,7 @@ export const editorMethods = {
         }
     },
 
-    saveEditorDraft() {
+    saveEditorDraft({ silent = false } = {}) {
         if (this.modes.isPlayMode || !this.grid.length) return false;
 
         try {
@@ -97,11 +113,16 @@ export const editorMethods = {
                 })
             );
             this._updateDraftButtons();
-            this.display.updateStatus('Saved the current editor draft locally.', true);
+            if (!silent) {
+                this.display.updateStatus('Saved the current editor draft locally.', true);
+            }
             return true;
         } catch (error) {
             console.warn('Could not save editor draft.', error);
-            this.display.updateStatus('Could not save the editor draft on this device.', true);
+            const message = silent
+                ? 'Autosave could not update the local editor draft on this device.'
+                : 'Could not save the editor draft on this device.';
+            this.display.updateStatus(message, true);
             return false;
         }
     },
@@ -132,6 +153,10 @@ export const editorMethods = {
 
     clearSavedEditorDraft() {
         try {
+            if (this._draftAutosaveTimer) {
+                window.clearTimeout(this._draftAutosaveTimer);
+                this._draftAutosaveTimer = null;
+            }
             localStorage.removeItem(this._getEditorDraftStorageKey());
             this._updateDraftButtons();
             this.display.updateStatus('Cleared the saved editor draft.', true);
@@ -157,6 +182,7 @@ export const editorMethods = {
         this.render();
         this.display.updateStatus('Cleared all entered letters from the editor grid.', true);
         this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
         return true;
     },
 
@@ -175,6 +201,7 @@ export const editorMethods = {
         this.render();
         this.display.updateStatus('Cleared all blocks from the editor grid.', true);
         this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
         return true;
     },
 
@@ -192,6 +219,154 @@ export const editorMethods = {
         this.render();
         this.display.updateStatus('Cleared the entire editor grid.', true);
         this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
+        return true;
+    },
+
+    _clearEditorLine(axis) {
+        if (this.modes.isPlayMode || !this.grid.length) return false;
+
+        const selected = this.gridManager?.selectedCell;
+        if (!selected || !this._isInBounds(selected.r, selected.c)) {
+            this.display.updateStatus('Select a cell in the editor before clearing a row or column.', true);
+            return false;
+        }
+
+        const index = axis === 'row' ? selected.r : selected.c;
+        const hasContent = this.grid.some((row, r) =>
+            row.some((cell, c) => (axis === 'row' ? r === index : c === index) && Boolean(cell))
+        );
+        if (!hasContent) return false;
+
+        this._recordEditorSnapshot();
+        this.grid = this.grid.map((row, r) =>
+            row.map((cell, c) => ((axis === 'row' ? r === index : c === index) ? '' : cell))
+        );
+        this.currentSolution = null;
+        this.currentPuzzleClues = {};
+        this.render();
+        this.display.updateStatus(
+            `Cleared editor ${axis} ${index + 1}.`,
+            true
+        );
+        this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
+        return true;
+    },
+
+    clearEditorRow() {
+        return this._clearEditorLine('row');
+    },
+
+    clearEditorColumn() {
+        return this._clearEditorLine('column');
+    },
+
+    _getSelectedEditorSlot() {
+        if (!this.gridManager?.selectedCell) return null;
+        return this.gridManager._getActiveSlot?.(this) || null;
+    },
+
+    updateEditorClueComposer() {
+        const slotLabel = document.getElementById('editor-clue-slot-label');
+        const preview = document.getElementById('editor-clue-preview');
+        const input = document.getElementById('editor-clue-input');
+        const saveButton = document.getElementById('save-clue-button');
+        const clearButton = document.getElementById('clear-clue-button');
+        const slot = this._getSelectedEditorSlot?.();
+        const isEditorActive = !this.modes?.isPlayMode;
+
+        if (!slotLabel || !preview || !input) return;
+
+        if (!isEditorActive || !slot) {
+            slotLabel.textContent = 'Select an entry to add or edit its clue.';
+            slotLabel.classList.add('muted-text');
+            preview.textContent = 'Entry preview will appear here.';
+            preview.classList.add('muted-text');
+            input.value = '';
+            input.disabled = true;
+            if (saveButton) saveButton.disabled = true;
+            if (clearButton) clearButton.disabled = true;
+            return;
+        }
+
+        const clue = this.currentPuzzleClues?.[slot.id] || '';
+        const entryPreview = this._extractSlotWord?.(slot) || '';
+        slotLabel.textContent = `${slot.number} ${slot.direction}`;
+        slotLabel.classList.remove('muted-text');
+        preview.textContent = entryPreview
+            ? `${entryPreview} (${slot.length})`
+            : `${'•'.repeat(slot.length)} (${slot.length})`;
+        preview.classList.toggle('muted-text', !entryPreview);
+        input.disabled = false;
+        input.value = clue;
+        if (saveButton) saveButton.disabled = false;
+        if (clearButton) clearButton.disabled = !clue;
+    },
+
+    focusEditorSlot(slot, { announce = true } = {}) {
+        if (!slot?.positions?.length) return false;
+
+        const [r, c] = slot.positions[0];
+        this.gridManager.selectedCell = { r, c };
+        this.gridManager.selectedDirection = slot.direction;
+        this.gridManager._updateHighlights(this);
+        this.updateEditorClueComposer?.();
+
+        if (announce) {
+            this.display.updateStatus(`Selected ${slot.number} ${slot.direction} in the editor.`, true);
+        }
+
+        return true;
+    },
+
+    saveSelectedEditorClue() {
+        if (this.modes.isPlayMode) return false;
+
+        const slot = this._getSelectedEditorSlot?.();
+        const input = document.getElementById('editor-clue-input');
+        if (!slot || !input) {
+            this.display.updateStatus('Select an entry before saving a clue.', true);
+            return false;
+        }
+
+        const nextClue = input.value.trim();
+        if (!nextClue) {
+            this.display.updateStatus('Enter clue text before saving.', true);
+            return false;
+        }
+
+        this._recordEditorSnapshot();
+        this.currentPuzzleClues = {
+            ...this.currentPuzzleClues,
+            [slot.id]: nextClue
+        };
+        this.refreshWordList();
+        this.updateEditorClueComposer?.();
+        this.display.updateStatus(`Saved a clue for ${slot.number} ${slot.direction}.`, true);
+        this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
+        return true;
+    },
+
+    clearSelectedEditorClue() {
+        if (this.modes.isPlayMode) return false;
+
+        const slot = this._getSelectedEditorSlot?.();
+        if (!slot || !this.currentPuzzleClues?.[slot.id]) {
+            this.display.updateStatus('No authored clue is set for the selected entry.', true);
+            return false;
+        }
+
+        this._recordEditorSnapshot();
+        const nextClues = { ...this.currentPuzzleClues };
+        delete nextClues[slot.id];
+        this.currentPuzzleClues = nextClues;
+        this.refreshWordList();
+        this.updateEditorClueComposer?.();
+        this.display.updateStatus(`Cleared the clue for ${slot.number} ${slot.direction}.`, true);
+        this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
         return true;
     },
 
@@ -387,6 +562,7 @@ export const editorMethods = {
         }
 
         this.gridManager._updateHighlights(this);
+        this.updateEditorClueComposer?.();
         this.display.updateStatus(
             'Letter mode active. Type to fill, use arrows to move, and Backspace/Delete to clear.',
             true
@@ -409,7 +585,15 @@ export const editorMethods = {
         this._recordEditorSnapshot();
         this.grid[r][c] = normalized;
         this._finalizeEditorLetterChange();
+        const previousCell = { r, c };
         this.gridManager._moveWithinWord(1, this);
+        if (
+            this.gridManager.selectedCell &&
+            this.gridManager.selectedCell.r === previousCell.r &&
+            this.gridManager.selectedCell.c === previousCell.c
+        ) {
+            this.gridManager._jumpToNextWord?.(this, 1);
+        }
     },
 
     handleEditorBackspace() {
@@ -453,6 +637,7 @@ export const editorMethods = {
         this.syncActiveGridToDOM();
         this.refreshWordList();
         this.currentSolution = null;
+        this._scheduleEditorAutosave?.();
     },
 
     paintCell(r, c, value) {
@@ -476,6 +661,7 @@ export const editorMethods = {
         this.refreshWordList();
         this.currentSolution = null;
         this.currentPuzzleClues = {};
+        this._scheduleEditorAutosave?.();
     },
 
     generateNewGrid(rows, cols) {
@@ -492,5 +678,6 @@ export const editorMethods = {
         );
         this._updateUndoRedoButtons();
         this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
     }
 };

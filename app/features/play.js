@@ -217,6 +217,26 @@ export const playMethods = {
         this.display.updateStatus('Cleared all entered letters from the play grid.', true);
     },
 
+    jumpToNextEmptyPlayCell() {
+        if (!this._canUsePlayTools() || this.hasCompletedPlayPuzzle) return false;
+
+        const nextTarget = this._findNextEmptyPlayCell();
+        if (!nextTarget) {
+            this.display.updateStatus('No empty cells remain in the puzzle.', true);
+            return false;
+        }
+
+        this.gridManager.selectedCell = { r: nextTarget.r, c: nextTarget.c };
+        this.gridManager.selectedDirection = nextTarget.direction;
+        this.gridManager._updateHighlights(this);
+        this._syncPlayActiveClue();
+        this.display.updateStatus(
+            `Moved to the next empty cell in ${nextTarget.slot.number} ${nextTarget.slot.direction}.`,
+            true
+        );
+        return true;
+    },
+
     togglePlayPause() {
         if (!this.modes.isPlayMode) return;
 
@@ -233,6 +253,66 @@ export const playMethods = {
         }
 
         this._updatePauseUI();
+    },
+
+    _stepPlayClue(delta) {
+        if (!this.modes.isPlayMode || this.isPlayPaused) return false;
+
+        this.gridManager._jumpToNextWord(this, delta);
+        this._syncPlayActiveClue();
+        return true;
+    },
+
+    selectPreviousPlayClue() {
+        return this._stepPlayClue(-1);
+    },
+
+    selectNextPlayClue() {
+        return this._stepPlayClue(1);
+    },
+
+    _syncPlayActiveClue() {
+        if (!this.modes.isPlayMode) return;
+
+        const slot = this.gridManager._getActiveSlot(this);
+        if (!slot) return;
+
+        this.display.highlightSlotInList(slot.id);
+    },
+
+    _findNextEmptyPlayCell() {
+        const slots = Object.values(this.slots || {})
+            .sort((a, b) => a.number - b.number || a.direction.localeCompare(b.direction));
+        if (!slots.length) return null;
+
+        const activeSlot = this.gridManager._getActiveSlot(this);
+        if (activeSlot && this.gridManager.selectedCell) {
+            const activeIndex = activeSlot.positions.findIndex(
+                ([r, c]) => r === this.gridManager.selectedCell.r && c === this.gridManager.selectedCell.c
+            );
+
+            for (let i = activeIndex + 1; i < activeSlot.positions.length; i++) {
+                const [r, c] = activeSlot.positions[i];
+                if (!this.grid[r][c]) {
+                    return { r, c, direction: activeSlot.direction, slot: activeSlot };
+                }
+            }
+        }
+
+        const startIndex = activeSlot
+            ? slots.findIndex((slot) => slot.id === activeSlot.id)
+            : -1;
+
+        for (let step = 1; step <= slots.length; step++) {
+            const slot = slots[(startIndex + step + slots.length) % slots.length];
+            const emptyPosition = slot.positions.find(([r, c]) => !this.grid[r][c]);
+            if (emptyPosition) {
+                const [r, c] = emptyPosition;
+                return { r, c, direction: slot.direction, slot };
+            }
+        }
+
+        return null;
     },
 
     _getSolutionLetterAt(r, c) {
@@ -307,7 +387,7 @@ export const playMethods = {
         if (!copy) return;
 
         if (state === 'completed') {
-            copy.textContent = `Puzzle finished in ${timeLabel}. You can review the grid, reveal entries, or return to the editor.`;
+            copy.textContent = `Puzzle finished in ${timeLabel}. Use clue navigation to review the finished grid, or return to the editor to keep building.`;
             return;
         }
 
@@ -391,14 +471,18 @@ export const playMethods = {
             'reveal-square-btn',
             'reveal-word-btn',
             'reveal-puzzle-btn',
-            'clear-btn'
+            'clear-btn',
+            'next-empty-btn'
         ];
 
         if (pauseBtn) {
             const isPlaying = this.modes.isPlayMode;
-            pauseBtn.disabled = !isPlaying;
-            pauseBtn.textContent = this.isPlayPaused ? 'Resume' : 'Pause';
-            pauseBtn.setAttribute('aria-label', this.isPlayPaused ? 'Resume game' : 'Pause game');
+            pauseBtn.disabled = !isPlaying || this.hasCompletedPlayPuzzle;
+            pauseBtn.textContent = this.hasCompletedPlayPuzzle ? 'Complete' : (this.isPlayPaused ? 'Resume' : 'Pause');
+            pauseBtn.setAttribute(
+                'aria-label',
+                this.hasCompletedPlayPuzzle ? 'Puzzle complete' : (this.isPlayPaused ? 'Resume game' : 'Pause game')
+            );
         }
 
         if (overlay) {
@@ -413,6 +497,12 @@ export const playMethods = {
         }
 
         disableWhilePaused.forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.disabled = this.isPlayPaused || !this.modes.isPlayMode || this.hasCompletedPlayPuzzle;
+        });
+
+        ['previous-clue-button', 'next-clue-button'].forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
             el.disabled = this.isPlayPaused || !this.modes.isPlayMode;

@@ -121,6 +121,7 @@ export const puzzleMethods = {
         this.render();
         this._updateUndoRedoButtons?.();
         this._updateDraftButtons?.();
+        this._scheduleEditorAutosave?.();
     },
 
     async loadPuzzleOfTheDaySummary() {

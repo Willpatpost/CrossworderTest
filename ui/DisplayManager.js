@@ -9,6 +9,8 @@ export class DisplayManager {
 
         this.playAcrossDisplay = document.getElementById('play-across-display');
         this.playDownDisplay = document.getElementById('play-down-display');
+        this.playActiveClueLabel = document.getElementById('play-active-clue-label');
+        this.playActiveClueText = document.getElementById('play-active-clue-text');
 
         this.dropdown = document.getElementById('search-dropdown');
         this.matchesCount = document.getElementById('matches-count');
@@ -152,6 +154,7 @@ export class DisplayManager {
             item.className = 'word-list-item';
             item.dataset.slotId = slot.id;
             item.dataset.direction = slot.direction;
+            item.dataset.number = String(slot.number);
 
             const number = document.createElement('span');
             number.className = 'clue-number';
@@ -291,6 +294,10 @@ export class DisplayManager {
 
         text.textContent = value;
         text.classList.toggle('muted-text', muted);
+
+        if (item.classList.contains('selected-clue')) {
+            this._updateActiveCluePanelFromItem(item);
+        }
     }
 
     _setSourceBadge(container, slotId, source) {
@@ -393,6 +400,7 @@ export class DisplayManager {
 
             if (target) {
                 target.classList.add('selected-clue');
+                this._updateActiveCluePanelFromItem(target);
                 target.scrollIntoView({
                     block: 'nearest',
                     behavior: 'smooth'
@@ -400,6 +408,23 @@ export class DisplayManager {
                 break;
             }
         }
+    }
+
+    _updateActiveCluePanelFromItem(item) {
+        if (!item || this._activeListMode !== 'play') return;
+
+        const label = this.playActiveClueLabel;
+        const text = this.playActiveClueText;
+        if (!label || !text) return;
+
+        const clueText = item.querySelector('.clue-text')?.textContent || 'No clue available.';
+        const direction = item.dataset.direction || '';
+        const number = item.dataset.number || '';
+
+        label.textContent = number && direction ? `${number} ${direction}` : 'Active clue';
+        label.classList.remove('muted-text');
+        text.textContent = clueText;
+        text.classList.toggle('muted-text', /loading clue|no clue found|\[error loading clue\]/i.test(clueText));
     }
 
     updatePuzzleSummary(grid, slots, clueMap = {}) {

@@ -28,8 +28,7 @@ export const renderingMethods = {
                 return;
             }
 
-            const word = this.currentSolution?.[slot.id] || this._extractSlotWord(slot);
-            this.popups.show(word);
+            this.focusEditorSlot?.(slot);
         };
 
         this.display.updateWordLists(
@@ -47,6 +46,15 @@ export const renderingMethods = {
             this.currentPuzzleClues
         );
         this.display.updatePuzzleSummary(this.grid, this.slots, this.currentPuzzleClues);
+
+        const activeSlot = this.gridManager._getActiveSlot?.(this);
+        if (activeSlot) {
+            this.display.highlightSlotInList(activeSlot.id);
+        }
+
+        if (!this.modes.isPlayMode) {
+            this.updateEditorClueComposer?.();
+        }
     },
 
     syncActiveGridToDOM() {

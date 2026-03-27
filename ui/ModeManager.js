@@ -136,6 +136,11 @@ export class ModeManager {
         this._setDisabled('clear-letters-button', this.isPlayMode);
         this._setDisabled('clear-blocks-button', this.isPlayMode);
         this._setDisabled('clear-grid-button', this.isPlayMode);
+        this._setDisabled('clear-row-button', this.isPlayMode);
+        this._setDisabled('clear-column-button', this.isPlayMode);
+        this._setDisabled('editor-clue-input', this.isPlayMode);
+        this._setDisabled('save-clue-button', this.isPlayMode);
+        this._setDisabled('clear-clue-button', this.isPlayMode);
         this._setDisabled('export-puzzle-button', this.isPlayMode);
         this._setDisabled('import-puzzle-button', this.isPlayMode);
         this._setDisabled('word-search-input', this.isPlayMode);
