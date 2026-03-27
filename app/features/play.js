@@ -9,9 +9,10 @@ export const playMethods = {
         if (!this.currentSolution) {
             const extractedSolution = this.extractSolutionFromGrid({ requireComplete: true });
             if (!extractedSolution) {
-                this.display.updateStatus(
-                    'Play mode requires a fully solved grid or imported puzzle.',
-                    true
+                this.popups.showMessage(
+                    'Play Mode Unavailable',
+                    'Play mode requires a fully solved grid or an imported puzzle with a saved solution.',
+                    'Play Mode'
                 );
                 return false;
             }
