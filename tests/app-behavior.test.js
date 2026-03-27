@@ -427,6 +427,116 @@ test('redoEditorChange restores the queued future snapshot', () => {
     assert.match(statuses.at(-1), /Redid the last editor change/);
 });
 
+test('saveEditorDraft writes the current editor state to local storage', () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalDocument = globalThis.document;
+    let storedKey = '';
+    let storedValue = '';
+
+    globalThis.localStorage = {
+        setItem(key, value) {
+            storedKey = key;
+            storedValue = value;
+        },
+        getItem() {
+            return storedValue;
+        },
+        removeItem() {}
+    };
+
+    globalThis.document = {
+        getElementById() {
+            return null;
+        }
+    };
+
+    const app = {
+        modes: { isPlayMode: false },
+        grid: [['A', 'T']],
+        currentSolution: { '1-across': 'AT' },
+        currentPuzzleClues: { '1-across': 'Clue' },
+        gridManager: {
+            selectedCell: { r: 0, c: 0 },
+            selectedDirection: 'across'
+        },
+        display: {
+            updateStatus() {}
+        },
+        _captureEditorState: editorMethods._captureEditorState,
+        _getEditorDraftStorageKey: editorMethods._getEditorDraftStorageKey,
+        _updateDraftButtons() {}
+    };
+
+    try {
+        const saved = editorMethods.saveEditorDraft.call(app);
+        const payload = JSON.parse(storedValue);
+
+        assert.equal(saved, true);
+        assert.equal(storedKey, 'crossworder.editor.draft');
+        assert.deepEqual(payload.grid, [['A', 'T']]);
+        assert.deepEqual(payload.currentPuzzleClues, { '1-across': 'Clue' });
+    } finally {
+        globalThis.localStorage = originalLocalStorage;
+        globalThis.document = originalDocument;
+    }
+});
+
+test('loadEditorDraft restores a saved draft into the editor', () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalDocument = globalThis.document;
+    let restoredDraft = null;
+    let snapshotCount = 0;
+
+    globalThis.localStorage = {
+        getItem() {
+            return JSON.stringify({
+                grid: [['C', 'A', 'T']],
+                currentSolution: null,
+                currentPuzzleClues: { '1-across': 'Saved clue' },
+                selectedCell: { r: 0, c: 1 },
+                selectedDirection: 'across'
+            });
+        },
+        setItem() {},
+        removeItem() {}
+    };
+
+    globalThis.document = {
+        getElementById() {
+            return null;
+        }
+    };
+
+    const app = {
+        modes: { isPlayMode: false },
+        display: {
+            updateStatus() {}
+        },
+        _getEditorDraftStorageKey: editorMethods._getEditorDraftStorageKey,
+        _readSavedEditorDraft: editorMethods._readSavedEditorDraft,
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        _assertValidPuzzleGrid: puzzleMethods._assertValidPuzzleGrid,
+        _restoreEditorState(state) {
+            restoredDraft = state;
+        },
+        _updateDraftButtons() {}
+    };
+
+    try {
+        const loaded = editorMethods.loadEditorDraft.call(app);
+
+        assert.equal(loaded, true);
+        assert.equal(snapshotCount, 1);
+        assert.deepEqual(restoredDraft.grid, [['C', 'A', 'T']]);
+        assert.deepEqual(restoredDraft.currentPuzzleClues, { '1-across': 'Saved clue' });
+    } finally {
+        globalThis.localStorage = originalLocalStorage;
+        globalThis.document = originalDocument;
+    }
+});
+
 test('handleSolve ignores stale worker results after a newer solve run starts', async () => {
     const originalWorker = globalThis.Worker;
     const originalDocument = globalThis.document;

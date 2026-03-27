@@ -1,4 +1,8 @@
 export const editorMethods = {
+    _getEditorDraftStorageKey() {
+        return 'crossworder.editor.draft';
+    },
+
     _captureEditorState() {
         return {
             grid: this.grid.map((row) => [...row]),
@@ -25,6 +29,7 @@ export const editorMethods = {
         this.syncActiveGridToDOM();
         this.refreshWordList();
         this._updateUndoRedoButtons();
+        this._updateDraftButtons?.();
     },
 
     _recordEditorSnapshot() {
@@ -41,6 +46,101 @@ export const editorMethods = {
         this.editorHistory = [];
         this.editorFuture = [];
         this._updateUndoRedoButtons();
+    },
+
+    _readSavedEditorDraft() {
+        try {
+            const raw = localStorage.getItem(this._getEditorDraftStorageKey());
+            if (!raw) return null;
+
+            const parsed = JSON.parse(raw);
+            return parsed?.grid ? parsed : null;
+        } catch (error) {
+            console.warn('Could not read saved editor draft.', error);
+            return null;
+        }
+    },
+
+    _hasSavedEditorDraft() {
+        return Boolean(this._readSavedEditorDraft());
+    },
+
+    _updateDraftButtons() {
+        const saveButton = document.getElementById('save-draft-button');
+        const loadButton = document.getElementById('load-draft-button');
+        const clearButton = document.getElementById('clear-draft-button');
+        const isEditorActive = !this.modes?.isPlayMode;
+        const hasSavedDraft = this._hasSavedEditorDraft();
+
+        if (saveButton) {
+            saveButton.disabled = !isEditorActive || !this.grid.length;
+        }
+
+        if (loadButton) {
+            loadButton.disabled = !isEditorActive || !hasSavedDraft;
+        }
+
+        if (clearButton) {
+            clearButton.disabled = !isEditorActive || !hasSavedDraft;
+        }
+    },
+
+    saveEditorDraft() {
+        if (this.modes.isPlayMode || !this.grid.length) return false;
+
+        try {
+            localStorage.setItem(
+                this._getEditorDraftStorageKey(),
+                JSON.stringify({
+                    savedAt: new Date().toISOString(),
+                    ...this._captureEditorState()
+                })
+            );
+            this._updateDraftButtons();
+            this.display.updateStatus('Saved the current editor draft locally.', true);
+            return true;
+        } catch (error) {
+            console.warn('Could not save editor draft.', error);
+            this.display.updateStatus('Could not save the editor draft on this device.', true);
+            return false;
+        }
+    },
+
+    loadEditorDraft() {
+        if (this.modes.isPlayMode) return false;
+
+        const draft = this._readSavedEditorDraft();
+        if (!draft) {
+            this._updateDraftButtons();
+            this.display.updateStatus('No saved editor draft is available.', true);
+            return false;
+        }
+
+        try {
+            this._assertValidPuzzleGrid?.(draft.grid, 'saved draft');
+            this._recordEditorSnapshot();
+            this._restoreEditorState(draft);
+            this.display.updateStatus('Loaded the saved editor draft.', true);
+            this._updateDraftButtons();
+            return true;
+        } catch (error) {
+            console.warn('Could not load saved editor draft.', error);
+            this.display.updateStatus('The saved editor draft is invalid and could not be loaded.', true);
+            return false;
+        }
+    },
+
+    clearSavedEditorDraft() {
+        try {
+            localStorage.removeItem(this._getEditorDraftStorageKey());
+            this._updateDraftButtons();
+            this.display.updateStatus('Cleared the saved editor draft.', true);
+            return true;
+        } catch (error) {
+            console.warn('Could not clear saved editor draft.', error);
+            this.display.updateStatus('Could not clear the saved editor draft on this device.', true);
+            return false;
+        }
     },
 
     _updateUndoRedoButtons() {
@@ -252,5 +352,6 @@ export const editorMethods = {
             true
         );
         this._updateUndoRedoButtons();
+        this._updateDraftButtons?.();
     }
 };

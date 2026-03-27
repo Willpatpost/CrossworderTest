@@ -130,6 +130,9 @@ export class ModeManager {
         this._setDisabled('auto-number-button', this.isPlayMode);
         this._setDisabled('undo-button', this.isPlayMode);
         this._setDisabled('redo-button', this.isPlayMode);
+        this._setDisabled('save-draft-button', this.isPlayMode);
+        this._setDisabled('load-draft-button', this.isPlayMode);
+        this._setDisabled('clear-draft-button', this.isPlayMode);
         this._setDisabled('word-search-input', this.isPlayMode);
         this._setDisabled('allow-reuse-toggle', this.isPlayMode);
         this._setDisabled('visualize-solve-toggle', this.isPlayMode);

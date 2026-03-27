@@ -120,6 +120,7 @@ export const puzzleMethods = {
         this.hasCompletedPlayPuzzle = false;
         this.render();
         this._updateUndoRedoButtons?.();
+        this._updateDraftButtons?.();
     },
 
     async loadPuzzleOfTheDaySummary() {

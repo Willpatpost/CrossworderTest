@@ -84,6 +84,7 @@ export class CrosswordApp {
 
         this._updateRandomPuzzleButton();
         this._updateUndoRedoButtons();
+        this._updateDraftButtons();
         this._updateTimerDisplay();
         this._updatePauseUI();
 
@@ -157,6 +158,18 @@ export class CrosswordApp {
 
         this._bindClick('redo-button', () => {
             this.redoEditorChange();
+        });
+
+        this._bindClick('save-draft-button', () => {
+            this.saveEditorDraft();
+        });
+
+        this._bindClick('load-draft-button', () => {
+            this.loadEditorDraft();
+        });
+
+        this._bindClick('clear-draft-button', () => {
+            this.clearSavedEditorDraft();
         });
 
         this._bindClick('solve-crossword-button', () => {
