@@ -30,9 +30,15 @@ export class GridManager {
 
         const table = document.createElement('table');
         table.className = 'crossword-table';
+        table.setAttribute('role', 'grid');
+        table.setAttribute(
+            'aria-label',
+            coordinator?.modes?.isPlayMode ? 'Crossword puzzle grid' : 'Crossword editor grid'
+        );
 
         for (let r = 0; r < grid.length; r++) {
             const tr = document.createElement('tr');
+            tr.setAttribute('role', 'row');
 
             for (let c = 0; c < grid[0].length; c++) {
                 const td = this._createCell(grid, r, c, coordinator);
@@ -70,13 +76,22 @@ export class GridManager {
         td.className = 'grid-cell';
         td.dataset.row = String(r);
         td.dataset.col = String(c);
+        td.setAttribute('role', 'gridcell');
 
         const value = grid[r][c];
 
         if (value === '#') {
             td.classList.add('block');
+            td.setAttribute('aria-label', `Block cell row ${r + 1} column ${c + 1}`);
+            td.setAttribute('aria-readonly', 'true');
         } else {
             td.appendChild(this._createLetterSpan(this._displayLetter(value)));
+            td.setAttribute('tabindex', '-1');
+            td.setAttribute('aria-selected', 'false');
+            td.setAttribute(
+                'aria-label',
+                `Row ${r + 1} column ${c + 1}${value ? `, ${this._displayLetter(value)}` : ', empty'}`
+            );
         }
 
         this._bindCellEvents(td, r, c, coordinator);
@@ -197,6 +212,27 @@ export class GridManager {
         this._boundKeyHandler = (e) => {
             const tagName = e.target?.tagName;
             if (tagName && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)) return;
+
+            if ((e.metaKey || e.ctrlKey) && !e.altKey && !coordinator?.modes?.isPlayMode) {
+                const key = e.key.toLowerCase();
+
+                if (key === 'z') {
+                    if (e.shiftKey) {
+                        coordinator.redoEditorChange?.();
+                    } else {
+                        coordinator.undoEditorChange?.();
+                    }
+                    e.preventDefault();
+                    return;
+                }
+
+                if (key === 'y') {
+                    coordinator.redoEditorChange?.();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
             if (e.metaKey || e.ctrlKey || e.altKey) return;
 
             if (!this.selectedCell) return;
@@ -228,6 +264,11 @@ export class GridManager {
                     case 'ArrowLeft':
                     case 'ArrowRight':
                         coordinator.handleEditorArrow?.(key);
+                        e.preventDefault();
+                        break;
+
+                    case 'Tab':
+                        this._jumpToNextWord(coordinator, e.shiftKey ? -1 : 1);
                         e.preventDefault();
                         break;
 
@@ -465,6 +506,8 @@ export class GridManager {
 
         span.textContent = normalized;
         td.classList.remove('correct', 'incorrect');
+        coordinator._applyInstantMistakeStateAt?.(r, c);
+        coordinator._scheduleRecentPuzzleSave?.();
     }
 
     _normalizeLetter(value) {
@@ -506,6 +549,10 @@ export class GridManager {
     clearHighlights() {
         Object.values(this.cells).forEach((td) => {
             td.classList.remove('active-cell', 'active-word');
+            if (!td.classList.contains('block')) {
+                td.setAttribute('aria-selected', 'false');
+                td.setAttribute('tabindex', '-1');
+            }
         });
     }
 
@@ -517,6 +564,11 @@ export class GridManager {
         const { r, c } = this.selectedCell;
         const active = this.cells[`${r},${c}`];
         active?.classList.add('active-cell');
+        if (active && !active.classList.contains('block')) {
+            active.setAttribute('aria-selected', 'true');
+            active.setAttribute('tabindex', '0');
+            active.focus?.({ preventScroll: true });
+        }
 
         const slot = this._getActiveSlot(coordinator);
 
@@ -555,12 +607,18 @@ export class GridManager {
 
                 let span = td.querySelector('.cell-letter');
                 if (!span) {
-                    span = this._createLetterSpan();
-                    td.appendChild(span);
-                }
-
-                span.textContent = this._displayLetter(val);
+                span = this._createLetterSpan();
+                td.appendChild(span);
             }
+
+            span.textContent = this._displayLetter(val);
+            if (!td.classList.contains('block')) {
+                td.setAttribute(
+                    'aria-label',
+                    `Row ${r + 1} column ${c + 1}${val ? `, ${this._displayLetter(val)}` : ', empty'}`
+                );
+            }
+        }
         }
 
         if (slots) {

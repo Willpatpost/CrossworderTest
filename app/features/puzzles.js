@@ -1,21 +1,54 @@
 import { DAILY_PUZZLE_FILE, PUZZLES_BASE_PATH } from '../constants.js';
+import { libraryMethods } from './library.js';
 
 export const puzzleMethods = {
     async loadPredefinedPuzzle(name) {
         const file = `${name.toLowerCase()}.json`;
 
         try {
-            const puzzleData = await this._fetchPuzzleFile(file);
-            this.importPuzzleGrid(puzzleData.grid, {
-                sourceLabel: `${name} puzzle`
+            await this.loadBundledPuzzleByFile(file, 'editor', {
+                title: name,
+                label: `${name} puzzle`
             });
-            this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
-            this.currentSolution = null;
-            this.display.updateStatus(`Loaded ${name} puzzle.`, true);
         } catch (error) {
             console.error(error);
             this.display.updateStatus(this._formatPuzzleLoadError(name, error), true);
         }
+    },
+
+    async loadBundledPuzzleByFile(file, mode = 'editor', entryOverride = null) {
+        const fallbackEntry = this.puzzleIndex.find((entry) => entry.file === file) || {};
+        const entry = { ...fallbackEntry, ...(entryOverride || {}), file };
+        const label = entry.label || entry.title || entry.id || file;
+        const puzzleData = await this._fetchPuzzleFile(file);
+
+        this.importPuzzleGrid(puzzleData.grid, {
+            sourceLabel: label
+        });
+        this.activePuzzleSource = {
+            kind: 'bundled',
+            id: file,
+            label,
+            author: entry.author || '',
+            date: entry.date || ''
+        };
+        this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
+        this.currentPuzzleMetadata = this._extractPuzzleMetadata(puzzleData);
+        this.currentSolution = mode === 'play'
+            ? (puzzleData.solution || this.extractSolutionFromGrid({ requireComplete: true }))
+            : null;
+        this.syncPuzzleMetadataInputs?.();
+        this._updateRecentPuzzleUI?.();
+        this._saveRecentPuzzleRecord?.({ silent: true });
+
+        if (mode === 'play') {
+            document.getElementById('nav-play')?.click();
+            return true;
+        }
+
+        this.display.updateStatus(`Loaded ${label}.`, true);
+        document.getElementById('nav-editor')?.click();
+        return true;
     },
 
     async loadRandomPuzzle() {
@@ -56,9 +89,20 @@ export const puzzleMethods = {
                 this.importPuzzleGrid(puzzleData.grid, {
                     sourceLabel: randomEntry.title || randomEntry.id || randomEntry.file
                 });
+                this.activePuzzleSource = {
+                    kind: 'bundled',
+                    id: randomEntry.file,
+                    label: randomEntry.title || randomEntry.id || randomEntry.file,
+                    author: randomEntry.author || '',
+                    date: randomEntry.date || ''
+                };
                 this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
+                this.currentPuzzleMetadata = this._extractPuzzleMetadata(puzzleData);
                 this.currentSolution = this.extractSolutionFromGrid({ requireComplete: true });
+                this.syncPuzzleMetadataInputs?.();
                 this._updateRandomPuzzleButton(false);
+                this._updateRecentPuzzleUI?.();
+                this._saveRecentPuzzleRecord?.({ silent: true });
 
                 const authoredClueCount = Object.keys(this.currentPuzzleClues).length;
                 const clueSuffix = authoredClueCount
@@ -100,6 +144,7 @@ export const puzzleMethods = {
     },
 
     importPuzzleGrid(rawGrid, { sourceLabel = 'puzzle' } = {}) {
+        this._recordEditorSnapshot?.();
         this._assertValidPuzzleGrid(rawGrid, sourceLabel);
 
         this.grid = rawGrid.map((row) => {
@@ -114,10 +159,21 @@ export const puzzleMethods = {
         });
 
         this.currentPuzzleClues = {};
+        this.currentPuzzleMetadata = {};
+        this.activePuzzleSource = {
+            kind: 'workspace',
+            label: sourceLabel || 'Puzzle workspace'
+        };
         this.currentSolution = null;
+        this.slotBlacklist = {};
         this.editorGridSnapshot = null;
         this.hasCompletedPlayPuzzle = false;
         this.render();
+        this.syncPuzzleMetadataInputs?.();
+        this._updateUndoRedoButtons?.();
+        this._updateDraftButtons?.();
+        this._updateRecentPuzzleUI?.();
+        this._scheduleEditorAutosave?.();
     },
 
     async loadPuzzleOfTheDaySummary() {
@@ -147,7 +203,7 @@ export const puzzleMethods = {
                     ? `${sourceTitle} from ${puzzleData.sourceTitle}`
                     : sourceTitle;
                 summaryEl.textContent = sourceDate
-                    ? `${puzzleName} is ready for ${sourceDate}. Load it into the editor or jump straight into play mode.`
+                    ? `${puzzleName} is ready for ${sourceDate}. Load it into the editor to inspect the fill, or jump straight into play mode if you want a clean solve.`
                     : `${puzzleName} is ready to play.`;
             }
 
@@ -155,19 +211,21 @@ export const puzzleMethods = {
                 button.disabled = false;
                 button.title = 'Load the current daily puzzle';
             });
+            this.renderHomeDashboard?.();
         } catch (error) {
             console.warn('Could not load puzzle of the day.', error);
             this.puzzleOfTheDay = null;
 
             if (summaryEl) {
                 summaryEl.textContent =
-                    'The daily puzzle has not been generated yet. You can still use the bundled quick-load puzzles.';
+                    'The daily puzzle has not been generated yet. In the meantime, the bundled puzzle library is ready and your recent workspace is still available below.';
             }
 
             actionButtons.forEach((button) => {
                 button.disabled = true;
                 button.title = 'The daily puzzle is not available right now.';
             });
+            this.renderHomeDashboard?.();
         }
     },
 
@@ -179,9 +237,18 @@ export const puzzleMethods = {
             this.importPuzzleGrid(dailyPuzzle.grid, {
                 sourceLabel: 'daily puzzle'
             });
+            this.activePuzzleSource = {
+                kind: 'daily',
+                id: dailyPuzzle.dateKey || dailyPuzzle.generatedFor || 'daily',
+                label: dailyPuzzle.title || dailyPuzzle.sourceTitle || 'Daily puzzle'
+            };
             this.currentPuzzleClues = dailyPuzzle.clues || {};
+            this.currentPuzzleMetadata = this._extractPuzzleMetadata(dailyPuzzle);
             this.currentSolution = mode === 'play' ? (dailyPuzzle.solution || null) : null;
             this.hasCompletedPlayPuzzle = false;
+            this.syncPuzzleMetadataInputs?.();
+            this._updateRecentPuzzleUI?.();
+            this._saveRecentPuzzleRecord?.({ silent: true });
 
             if (mode === 'play') {
                 document.getElementById('nav-play')?.click();
@@ -198,6 +265,8 @@ export const puzzleMethods = {
             );
         }
     },
+
+    ...libraryMethods,
 
     _updateRandomPuzzleButton(disabled = false, reason = '') {
         const randomBtn = document.getElementById('random-puzzle-button');
@@ -250,6 +319,19 @@ export const puzzleMethods = {
                 downSlots,
                 'down'
             )
+        };
+    },
+
+    _extractPuzzleMetadata(puzzleData) {
+        const metadata = puzzleData?.metadata || {};
+        return {
+            title: metadata.title || puzzleData?.title || '',
+            author: metadata.author || puzzleData?.author || puzzleData?.sourceAuthor || '',
+            difficulty: metadata.difficulty || puzzleData?.difficulty || '',
+            tags: metadata.tags || (Array.isArray(puzzleData?.tags) ? puzzleData.tags.join(', ') : puzzleData?.tags || ''),
+            copyright: metadata.copyright || puzzleData?.copyright || '',
+            sourceUrl: metadata.sourceUrl || puzzleData?.sourceUrl || '',
+            notes: metadata.notes || puzzleData?.notes || ''
         };
     },
 

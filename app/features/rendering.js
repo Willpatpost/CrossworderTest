@@ -28,8 +28,7 @@ export const renderingMethods = {
                 return;
             }
 
-            const word = this.currentSolution?.[slot.id] || this._extractSlotWord(slot);
-            this.popups.show(word);
+            this.focusEditorSlot?.(slot);
         };
 
         this.display.updateWordLists(
@@ -46,7 +45,22 @@ export const renderingMethods = {
             this.modes.isPlayMode,
             this.currentPuzzleClues
         );
-        this.display.updatePuzzleSummary(this.grid, this.slots, this.currentPuzzleClues);
+        this.display.updatePuzzleSummary(
+            this.grid,
+            this.slots,
+            this.currentPuzzleClues,
+            this.currentPuzzleMetadata
+        );
+
+        const activeSlot = this.gridManager._getActiveSlot?.(this);
+        if (activeSlot) {
+            this.display.highlightSlotInList(activeSlot.id);
+        }
+
+        if (!this.modes.isPlayMode) {
+            this.updateEditorClueComposer?.();
+            this.renderSolverBlacklist?.();
+        }
     },
 
     syncActiveGridToDOM() {
@@ -65,7 +79,16 @@ export const renderingMethods = {
             this.gridManager._updateHighlights(this);
         }
 
-        this.display.updatePuzzleSummary(this.grid, this.slots, this.currentPuzzleClues);
+        this.display.updatePuzzleSummary(
+            this.grid,
+            this.slots,
+            this.currentPuzzleClues,
+            this.currentPuzzleMetadata
+        );
+
+        if (!this.modes.isPlayMode) {
+            this.renderSolverBlacklist?.();
+        }
     },
 
     _extractSlotWord(slot) {

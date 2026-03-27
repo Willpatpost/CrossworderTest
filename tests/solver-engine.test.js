@@ -65,5 +65,111 @@ test('SolverEngine reports unsolved when AC-3 empties a domain', async () => {
         {}
     );
 
-    assert.deepEqual(result, { success: false });
+    assert.equal(result.success, false);
+    assert.equal(typeof result.stats.recursiveCalls, 'number');
+});
+
+test('SolverEngine orderDomainValues prefers least-constraining values deterministically', () => {
+    const solver = new SolverEngine();
+    const ordered = solver.orderDomainValues(
+        '1-across',
+        {
+            '1-across': ['CAT', 'CAR'],
+            '1-down': ['TEN', 'RUG', 'RAT']
+        },
+        {
+            '1-across': {
+                '1-down': [[2, 0]]
+            }
+        },
+        {},
+        {}
+    );
+
+    assert.deepEqual(ordered, ['CAR', 'CAT']);
+});
+
+test('SolverEngine returns deterministic stats when randomization is disabled', async () => {
+    const solver = new SolverEngine();
+    const result = await solver.backtrackingSolve(
+        {
+            a: { id: 'a', length: 3, positions: [[0, 0], [0, 1], [0, 2]] }
+        },
+        {
+            a: ['CAT', 'CAR']
+        },
+        {
+            a: {}
+        },
+        {},
+        {},
+        {
+            randomize: false
+        }
+    );
+
+    assert.equal(result.success, true);
+    assert.equal(result.stats.randomized, false);
+    assert.equal(typeof result.stats.elapsedMs, 'number');
+});
+
+test('SolverEngine prioritizes a preferred slot before other MRV ties', () => {
+    const solver = new SolverEngine();
+    solver.preferredSlotId = 'b';
+
+    const selected = solver.selectUnassignedVariable(
+        {},
+        {
+            a: ['AT', 'AN'],
+            b: ['TO', 'DO']
+        },
+        {
+            a: {},
+            b: {}
+        }
+    );
+
+    assert.equal(selected, 'b');
+});
+
+test('SolverEngine orderDomainValues prefers theme entries over equal alternatives', () => {
+    const solver = new SolverEngine();
+    solver.themeEntries = ['NOVA'];
+
+    const ordered = solver.orderDomainValues(
+        '1-across',
+        {
+            '1-across': ['ATOM', 'NOVA']
+        },
+        {
+            '1-across': {}
+        },
+        {},
+        {},
+        {}
+    );
+
+    assert.deepEqual(ordered, ['NOVA', 'ATOM']);
+});
+
+test('SolverEngine orderDomainValues uses clue-history scores when other heuristics tie', () => {
+    const solver = new SolverEngine();
+
+    const ordered = solver.orderDomainValues(
+        '1-across',
+        {
+            '1-across': ['ATOM', 'NOVA']
+        },
+        {
+            '1-across': {}
+        },
+        {},
+        {},
+        {
+            NOVA: 50,
+            ATOM: 10
+        }
+    );
+
+    assert.deepEqual(ordered, ['NOVA', 'ATOM']);
 });

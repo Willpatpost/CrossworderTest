@@ -13,6 +13,13 @@ import { puzzleMethods } from './features/puzzles.js';
 import { renderingMethods } from './features/rendering.js';
 import { solverMethods } from './features/solver.js';
 import { playMethods } from './features/play.js';
+import { navigationMethods } from './features/navigation.js';
+
+/** @typedef {import('./internalTypes.js').WorkspaceState} WorkspaceState */
+/** @typedef {import('./internalTypes.js').EditorState} EditorState */
+/** @typedef {import('./internalTypes.js').SolverState} SolverState */
+/** @typedef {import('./internalTypes.js').LibraryState} LibraryState */
+/** @typedef {import('./internalTypes.js').PlayState} PlayState */
 
 export class CrosswordApp {
     constructor() {
@@ -29,37 +36,24 @@ export class CrosswordApp {
         this.modes = new ModeManager();
         this.popups = new PopupManager(this.definitions, this.fallbackApi);
 
-        this.grid = [];
-        this.slots = {};
-        this.wordLengthCache = {};
-        this.letterFrequencies = {};
-
-        this.isDragging = false;
-        this.dragPaintValue = '#';
-
-        this.isSolving = false;
-        this.activeWorker = null;
-
-        this.currentSolution = null;
-        this.editorGridSnapshot = null;
-        this.currentPuzzleClues = {};
-        this.puzzleIndex = [];
-        this.missingPuzzleFiles = new Set();
-        this.puzzleOfTheDay = null;
+        /** @type {WorkspaceState} */
+        this.workspaceState = this._createInitialWorkspaceState();
+        /** @type {EditorState} */
+        this.editorState = this._createInitialEditorState();
+        /** @type {SolverState} */
+        this.solverState = this._createInitialSolverState();
+        /** @type {LibraryState} */
+        this.libraryState = this._createInitialLibraryState();
+        /** @type {PlayState} */
+        this.playState = this._createInitialPlayState();
+        this._registerStateAliases();
 
         this._globalMouseUpBound = false;
         this._searchInputBound = false;
         this._searchRequestId = 0;
         this._searchDebounceTimer = null;
-
-        this.activeSolveSession = null;
-        this._solveRunId = 0;
-
-        this.isPlayPaused = false;
-        this.playElapsedMs = 0;
-        this.playTimerStartedAt = null;
-        this.playTimerInterval = null;
-        this.hasCompletedPlayPuzzle = false;
+        this._draftAutosaveTimer = null;
+        this._recentPuzzleUpdateTimer = null;
     }
 
     async init() {
@@ -81,8 +75,16 @@ export class CrosswordApp {
         }
 
         this._updateRandomPuzzleButton();
+        this._updateUndoRedoButtons();
+        this._updateDraftButtons();
         this._updateTimerDisplay();
         this._updatePauseUI();
+        this.updateSearchModeUI();
+        this.renderSolverBlacklist?.();
+        this._updateSolverDiagnostics?.(null, null);
+        this._updateRecentPuzzleUI?.();
+        this.renderBundledPuzzleLibrary?.();
+        this.renderHomeDashboard?.();
 
         await this.loadPredefinedPuzzle('Easy');
         await this.loadPuzzleOfTheDaySummary();
@@ -90,6 +92,19 @@ export class CrosswordApp {
     }
 
     setupEventListeners() {
+        this._bindHomeActions();
+        this._bindEditorActions();
+        this._bindSolverActions();
+        this._bindPlayActions();
+        this._bindMetadataInputs();
+
+        if (!this._globalMouseUpBound) {
+            window.addEventListener('mouseup', () => this.handleMouseUp());
+            this._globalMouseUpBound = true;
+        }
+    }
+
+    _bindHomeActions() {
         this._bindClick('generate-grid-button', () => {
             this.abortActiveSolve();
             const rows = parseInt(document.getElementById('rows-input')?.value, 10) || 15;
@@ -125,6 +140,57 @@ export class CrosswordApp {
             void this.handleLoadDailyPuzzle('play');
         });
 
+        this._bindClick('resume-recent-editor-button', () => {
+            this.loadRecentPuzzle('editor');
+        });
+
+        this._bindClick('play-recent-button', () => {
+            this.loadRecentPuzzle('play');
+        });
+
+        const homePuzzleSearch = document.getElementById('home-puzzle-search');
+        if (homePuzzleSearch) {
+            homePuzzleSearch.addEventListener('input', () => {
+                this.renderBundledPuzzleLibrary?.();
+            });
+        }
+
+        const homePuzzleSort = document.getElementById('home-puzzle-sort');
+        if (homePuzzleSort) {
+            homePuzzleSort.addEventListener('change', () => {
+                this.renderBundledPuzzleLibrary?.();
+            });
+        }
+
+        this._bindClick('home-puzzle-library', (event) => {
+            const button = event.target?.closest?.('[data-puzzle-file][data-load-mode]');
+            if (!button) return;
+
+            const file = button.dataset.puzzleFile;
+            const mode = button.dataset.loadMode || 'editor';
+            if (!file) return;
+
+            void this.loadBundledPuzzleByFile(file, mode);
+        });
+
+        [
+            ['home-featured-editor-button', 'editor'],
+            ['home-featured-play-button', 'play'],
+            ['home-recommended-editor-button', 'editor'],
+            ['home-recommended-play-button', 'play']
+        ].forEach(([buttonId, mode]) => {
+            this._bindClick(buttonId, (event) => {
+                const file = event.currentTarget?.dataset?.puzzleFile || '';
+                if (!file) return;
+
+                void this.loadBundledPuzzleByFile(file, mode, {
+                    label: event.currentTarget.dataset.label || ''
+                });
+            });
+        });
+    }
+
+    _bindEditorActions() {
         this._bindClick('drag-mode-button', () => {
             this.modes.setMode('drag');
             this.display.updateStatus('Drag mode enabled.', true);
@@ -148,8 +214,97 @@ export class CrosswordApp {
             this.display.updateStatus('Grid numbering refreshed.', true);
         });
 
+        this._bindClick('undo-button', () => {
+            this.undoEditorChange();
+        });
+
+        this._bindClick('redo-button', () => {
+            this.redoEditorChange();
+        });
+
+        this._bindClick('save-draft-button', () => {
+            this.saveEditorDraft();
+        });
+
+        this._bindClick('load-draft-button', () => {
+            this.loadEditorDraft();
+        });
+
+        this._bindClick('clear-draft-button', () => {
+            this.clearSavedEditorDraft();
+        });
+
+        this._bindClick('clear-letters-button', () => {
+            this.clearEditorLetters();
+        });
+
+        this._bindClick('clear-blocks-button', () => {
+            this.clearEditorBlocks();
+        });
+
+        this._bindClick('clear-grid-button', () => {
+            this.clearEditorGrid();
+        });
+
+        this._bindClick('clear-row-button', () => {
+            this.clearEditorRow();
+        });
+
+        this._bindClick('clear-column-button', () => {
+            this.clearEditorColumn();
+        });
+
+        this._bindClick('save-clue-button', () => {
+            this.saveSelectedEditorClue();
+        });
+
+        this._bindClick('clear-clue-button', () => {
+            this.clearSelectedEditorClue();
+        });
+
+        this._bindClick('export-puzzle-button', () => {
+            this.exportCurrentPuzzle();
+        });
+
+        this._bindClick('import-puzzle-button', () => {
+            const input = document.getElementById('import-puzzle-input');
+            input?.click();
+        });
+
+        const importInput = document.getElementById('import-puzzle-input');
+        if (importInput) {
+            importInput.addEventListener('change', async (event) => {
+                const file = event.target?.files?.[0];
+                if (file) {
+                    await this.importPuzzleFile(file);
+                }
+
+                importInput.value = '';
+            });
+        }
+    }
+
+    _bindSolverActions() {
         this._bindClick('solve-crossword-button', () => {
             this.handleSolve();
+        });
+
+        this._bindClick('solve-selected-word-button', () => {
+            this.solveSelectedWord();
+        });
+
+        this._bindClick('suggest-fill-button', () => {
+            this.suggestSelectedWord();
+        });
+
+        this._bindClick('blacklist-entry-button', () => {
+            this.blacklistSelectedSlotWord();
+        });
+
+        this._bindClick('solver-blacklist-list', (event) => {
+            const button = event.target?.closest?.('[data-slot-id][data-word]');
+            if (!button) return;
+            this.removeBlacklistedWord(button.dataset.slotId, button.dataset.word);
         });
 
         this._bindClick('cancel-solve-button', () => {
@@ -170,6 +325,18 @@ export class CrosswordApp {
             this._searchInputBound = true;
         }
 
+        const searchMode = document.getElementById('word-search-mode');
+        if (searchMode) {
+            searchMode.addEventListener('change', () => {
+                this.updateSearchModeUI?.();
+                if (searchInput) {
+                    void this.handleSearch(searchInput.value);
+                }
+            });
+        }
+    }
+
+    _bindPlayActions() {
         this._bindClick('check-square-btn', () => this.handleCheckSquare());
         this._bindClick('check-word-btn', () => this.handleCheckWord());
         this._bindClick('check-puzzle-btn', () => this.handleCheckPuzzle());
@@ -179,18 +346,156 @@ export class CrosswordApp {
         this._bindClick('reveal-puzzle-btn', () => this.handleRevealPuzzle());
 
         this._bindClick('clear-btn', () => this.handleClearPlayGrid());
+        this._bindClick('instant-mistake-btn', () => this.toggleInstantMistakeMode());
+        this._bindClick('next-empty-btn', () => this.jumpToNextEmptyPlayCell());
         this._bindClick('pause-btn', () => this.togglePlayPause());
+        this._bindClick('previous-clue-button', () => this.selectPreviousPlayClue());
+        this._bindClick('next-clue-button', () => this.selectNextPlayClue());
+    }
 
-        if (!this._globalMouseUpBound) {
-            window.addEventListener('mouseup', () => this.handleMouseUp());
-            this._globalMouseUpBound = true;
+    _bindMetadataInputs() {
+        const clueInput = document.getElementById('editor-clue-input');
+        if (clueInput) {
+            clueInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    this.saveSelectedEditorClue();
+                }
+            });
         }
+
+        [
+            'puzzle-title-input',
+            'puzzle-author-input',
+            'puzzle-difficulty-input',
+            'puzzle-tags-input',
+            'puzzle-copyright-input',
+            'puzzle-source-url-input',
+            'puzzle-notes-input'
+        ].forEach((id) => {
+            const input = document.getElementById(id);
+            if (!input) return;
+
+            input.addEventListener('input', () => {
+                this.updatePuzzleMetadataFromInputs();
+            });
+        });
     }
 
     _bindClick(id, handler) {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('click', handler);
+    }
+
+    _registerStateAliases() {
+        const aliases = [
+            ['grid', 'workspaceState', 'grid'],
+            ['slots', 'workspaceState', 'slots'],
+            ['wordLengthCache', 'workspaceState', 'wordLengthCache'],
+            ['letterFrequencies', 'workspaceState', 'letterFrequencies'],
+            ['currentSolution', 'workspaceState', 'currentSolution'],
+            ['editorGridSnapshot', 'workspaceState', 'editorGridSnapshot'],
+            ['currentPuzzleClues', 'workspaceState', 'currentPuzzleClues'],
+            ['currentPuzzleMetadata', 'workspaceState', 'currentPuzzleMetadata'],
+            ['activePuzzleSource', 'workspaceState', 'activePuzzleSource'],
+            ['slotBlacklist', 'workspaceState', 'slotBlacklist'],
+            ['isDragging', 'editorState', 'isDragging'],
+            ['dragPaintValue', 'editorState', 'dragPaintValue'],
+            ['editorHistory', 'editorState', 'history'],
+            ['editorFuture', 'editorState', 'future'],
+            ['isSolving', 'solverState', 'isSolving'],
+            ['activeWorker', 'solverState', 'activeWorker'],
+            ['activeSolveSession', 'solverState', 'activeSession'],
+            ['_solveRunId', 'solverState', 'solveRunId'],
+            ['puzzleIndex', 'libraryState', 'puzzleIndex'],
+            ['missingPuzzleFiles', 'libraryState', 'missingPuzzleFiles'],
+            ['puzzleOfTheDay', 'libraryState', 'puzzleOfTheDay'],
+            ['isPlayPaused', 'playState', 'isPaused'],
+            ['playElapsedMs', 'playState', 'elapsedMs'],
+            ['playTimerStartedAt', 'playState', 'timerStartedAt'],
+            ['playTimerInterval', 'playState', 'timerInterval'],
+            ['hasCompletedPlayPuzzle', 'playState', 'hasCompletedPuzzle'],
+            ['isInstantMistakeMode', 'playState', 'isInstantMistakeMode']
+        ];
+
+        aliases.forEach(([publicKey, stateKey, nestedKey]) => {
+            Object.defineProperty(this, publicKey, {
+                configurable: true,
+                enumerable: true,
+                get: () => this[stateKey][nestedKey],
+                set: (value) => {
+                    this[stateKey][nestedKey] = value;
+                }
+            });
+        });
+    }
+
+    /**
+     * @returns {WorkspaceState}
+     */
+    _createInitialWorkspaceState() {
+        return {
+            grid: [],
+            slots: {},
+            wordLengthCache: {},
+            letterFrequencies: {},
+            currentSolution: null,
+            editorGridSnapshot: null,
+            currentPuzzleClues: {},
+            currentPuzzleMetadata: {},
+            activePuzzleSource: null,
+            slotBlacklist: {}
+        };
+    }
+
+    /**
+     * @returns {EditorState}
+     */
+    _createInitialEditorState() {
+        return {
+            isDragging: false,
+            dragPaintValue: '#',
+            history: [],
+            future: []
+        };
+    }
+
+    /**
+     * @returns {SolverState}
+     */
+    _createInitialSolverState() {
+        return {
+            isSolving: false,
+            activeWorker: null,
+            activeSession: null,
+            solveRunId: 0
+        };
+    }
+
+    /**
+     * @returns {LibraryState}
+     */
+    _createInitialLibraryState() {
+        return {
+            puzzleIndex: [],
+            missingPuzzleFiles: new Set(),
+            puzzleOfTheDay: null
+        };
+    }
+
+    /**
+     * @returns {PlayState}
+     */
+    _createInitialPlayState() {
+        return {
+            isPaused: false,
+            elapsedMs: 0,
+            timerStartedAt: null,
+            timerInterval: null,
+            hasCompletedPuzzle: false,
+            isInstantMistakeMode: false
+        };
     }
 
     abortActiveSolve(isManualCancel = false) {
@@ -220,6 +525,7 @@ export class CrosswordApp {
 Object.assign(
     CrosswordApp.prototype,
     editorMethods,
+    navigationMethods,
     puzzleMethods,
     renderingMethods,
     solverMethods,
