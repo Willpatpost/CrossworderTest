@@ -4,20 +4,23 @@
     "title": "Easy",
     "author": "Crossworder",
     "date": "2026-03-26",
-    "file": "easy.json"
+    "file": "easy.json",
+    "dailyEligible": true
   },
   {
     "id": "medium",
     "title": "Medium",
     "author": "Crossworder",
     "date": "2026-03-26",
-    "file": "medium.json"
+    "file": "medium.json",
+    "dailyEligible": true
   },
   {
     "id": "hard",
     "title": "Hard",
     "author": "Crossworder",
     "date": "2026-03-26",
-    "file": "hard.json"
+    "file": "hard.json",
+    "dailyEligible": true
   }
 ]

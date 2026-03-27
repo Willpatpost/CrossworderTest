@@ -11,6 +11,7 @@ import { PopupManager } from './ui/PopupManager.js';
 import { GridUtils } from './utils/GridUtils.js';
 
 const PUZZLES_BASE_PATH = 'data/puzzles';
+const DAILY_PUZZLE_FILE = `${PUZZLES_BASE_PATH}/puzzle-of-the-day.json`;
 
 export class CrosswordSolver {
     constructor() {
@@ -55,6 +56,7 @@ export class CrosswordSolver {
         this.currentPuzzleClues = {};
         this.puzzleIndex = [];
         this.missingPuzzleFiles = new Set();
+        this.puzzleOfTheDay = null;
 
         this._globalMouseUpBound = false;
         this._searchInputBound = false;
@@ -96,6 +98,7 @@ export class CrosswordSolver {
         this._updatePauseUI();
 
         await this.loadPredefinedPuzzle('Easy');
+        await this.loadPuzzleOfTheDaySummary();
         this.display.updateStatus('System ready.', true);
     }
 
@@ -129,6 +132,14 @@ export class CrosswordSolver {
         this._bindClick('random-puzzle-button', () => {
             this.abortActiveSolve();
             void this.loadRandomPuzzle();
+        });
+
+        this._bindClick('load-daily-editor-button', () => {
+            void this.handleLoadDailyPuzzle('editor');
+        });
+
+        this._bindClick('play-daily-button', () => {
+            void this.handleLoadDailyPuzzle('play');
         });
 
         this._bindClick('drag-mode-button', () => {
@@ -541,6 +552,72 @@ export class CrosswordSolver {
         this.currentSolution = null;
         this.editorGridSnapshot = null;
         this.render();
+    }
+
+    async loadPuzzleOfTheDaySummary() {
+        const summaryEl = document.getElementById('daily-puzzle-summary');
+        const actionButtons = [
+            document.getElementById('load-daily-editor-button'),
+            document.getElementById('play-daily-button')
+        ].filter(Boolean);
+
+        actionButtons.forEach((button) => {
+            button.disabled = true;
+        });
+
+        if (summaryEl) {
+            summaryEl.textContent = 'Loading today’s puzzle details...';
+        }
+
+        try {
+            const puzzleData = await this._fetchDailyPuzzle();
+            this.puzzleOfTheDay = puzzleData;
+
+            if (summaryEl) {
+                const sourceTitle = puzzleData.title || puzzleData.sourceTitle || 'Today’s puzzle';
+                const sourceDate = puzzleData.dateKey || puzzleData.generatedFor || '';
+                const puzzleName = puzzleData.sourceTitle && puzzleData.sourceTitle !== sourceTitle
+                    ? `${sourceTitle} from ${puzzleData.sourceTitle}`
+                    : sourceTitle;
+                summaryEl.textContent = sourceDate
+                    ? `${puzzleName} is ready for ${sourceDate}. Load it into the editor or jump straight into play mode.`
+                    : `${puzzleName} is ready to play.`;
+            }
+
+            actionButtons.forEach((button) => {
+                button.disabled = false;
+            });
+        } catch (error) {
+            console.warn('Could not load puzzle of the day.', error);
+            this.puzzleOfTheDay = null;
+
+            if (summaryEl) {
+                summaryEl.textContent =
+                    'The daily puzzle has not been generated yet. You can still use the bundled quick-load puzzles.';
+            }
+        }
+    }
+
+    async handleLoadDailyPuzzle(mode = 'editor') {
+        try {
+            const dailyPuzzle = this.puzzleOfTheDay || await this._fetchDailyPuzzle();
+            this.puzzleOfTheDay = dailyPuzzle;
+
+            this.importPuzzleGrid(dailyPuzzle.grid);
+            this.currentPuzzleClues = dailyPuzzle.clues || {};
+            this.currentSolution = mode === 'play' ? (dailyPuzzle.solution || null) : null;
+
+            if (mode === 'play') {
+                document.getElementById('nav-play')?.click();
+                return;
+            }
+
+            this.display.updateStatus('Loaded the puzzle of the day into the editor.', true);
+            document.getElementById('nav-editor')?.click();
+        } catch (error) {
+            console.error(error);
+            this.display.updateStatus('Could not load the puzzle of the day.', true);
+        }
     }
 
     /* ===============================
@@ -1277,6 +1354,15 @@ export class CrosswordSolver {
         const resp = await fetch(`${PUZZLES_BASE_PATH}/${file}`);
         if (!resp.ok) {
             throw new Error(`Failed to fetch ${file}: HTTP ${resp.status}`);
+        }
+
+        return await resp.json();
+    }
+
+    async _fetchDailyPuzzle() {
+        const resp = await fetch(DAILY_PUZZLE_FILE);
+        if (!resp.ok) {
+            throw new Error(`Failed to fetch puzzle-of-the-day.json: HTTP ${resp.status}`);
         }
 
         return await resp.json();

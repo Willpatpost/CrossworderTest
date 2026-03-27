@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "generate:potd": "node scripts/generate-puzzle-of-the-day.mjs --force"
   }
 }

@@ -339,6 +339,34 @@ body {
     margin-bottom: 24px;
 }
 
+.home-daily {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) auto;
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 24px;
+    border: 1px solid rgba(219, 138, 74, 0.28);
+    background: linear-gradient(135deg, rgba(255, 248, 238, 0.96), rgba(243, 236, 223, 0.9));
+}
+
+.daily-puzzle-copy h2 {
+    margin-bottom: 10px;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.daily-puzzle-summary {
+    max-width: 52rem;
+    color: var(--text-muted);
+}
+
+.daily-puzzle-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
 .info-card {
     background: var(--bg-section);
     padding: 25px;
@@ -872,7 +900,8 @@ input[type="text"] {
     }
 
     .home-stats,
-    .workflow-grid {
+    .workflow-grid,
+    .home-daily {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -903,7 +932,9 @@ input[type="text"] {
     .hero-actions,
     .hero-spotlight,
     .home-stats,
-    .workflow-grid {
+    .workflow-grid,
+    .home-daily,
+    .daily-puzzle-actions {
         grid-template-columns: 1fr;
     }
 

@@ -52,6 +52,13 @@ Then open the served URL in your browser.
 - Word-pattern search using `?` wildcards
 - Play mode with clue lists, timer, pause, check, and reveal tools
 - Local clue lookup with a fallback dictionary API
+- Puzzle of the day support via a generated static JSON artifact
+
+## Automation
+
+- `.github/workflows/ci.yml` runs the Node test suite on pushes and pull requests.
+- `.github/workflows/daily-puzzle.yml` generates `data/puzzles/puzzle-of-the-day.json` on a nightly schedule and commits it back to the repository.
+- `npm run generate:potd` lets you generate the daily puzzle locally on demand.
 
 ## Notes
 

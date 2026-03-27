@@ -1,0 +1,42 @@
+name: Daily Puzzle
+
+on:
+  schedule:
+    - cron: '5 4 * * *'
+    - cron: '5 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify tests
+        run: npm test
+
+      - name: Generate puzzle of the day
+        run: node scripts/generate-puzzle-of-the-day.mjs
+
+      - name: Commit updated daily puzzle
+        run: |
+          if git diff --quiet -- data/puzzles/puzzle-of-the-day.json; then
+            echo "No daily puzzle changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/puzzles/puzzle-of-the-day.json
+          git commit -m "Update puzzle of the day"
+          git push
