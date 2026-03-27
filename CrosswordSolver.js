@@ -8,8 +8,9 @@ import { GridManager } from './grid/GridManager.js';
 import { DisplayManager } from './ui/DisplayManager.js';
 import { ModeManager } from './ui/ModeManager.js';
 import { PopupManager } from './ui/PopupManager.js';
-import { predefinedPuzzles } from './utils/Puzzles.js';
 import { GridUtils } from './utils/GridUtils.js';
+
+const PUZZLES_BASE_PATH = 'data/puzzles';
 
 export class CrosswordSolver {
     constructor() {
@@ -76,11 +77,11 @@ export class CrosswordSolver {
         this.setupEventListeners();
 
         try {
-            const resp = await fetch('data/nyt_puzzles/puzzle_index.json');
+            const resp = await fetch(`${PUZZLES_BASE_PATH}/puzzle_index.json`);
             if (resp.ok) {
                 this.puzzleIndex = await resp.json();
                 this.display.updateStatus(
-                    `Loaded ${this.puzzleIndex.length} classic puzzles to index.`
+                    `Loaded ${this.puzzleIndex.length} bundled puzzles to index.`
                 );
             }
         } catch (error) {
@@ -94,7 +95,7 @@ export class CrosswordSolver {
         this._updateTimerDisplay();
         this._updatePauseUI();
 
-        this.loadPredefinedPuzzle('Easy');
+        await this.loadPredefinedPuzzle('Easy');
         this.display.updateStatus('System ready.', true);
     }
 
@@ -112,22 +113,22 @@ export class CrosswordSolver {
 
         this._bindClick('load-easy-button', () => {
             this.abortActiveSolve();
-            this.loadPredefinedPuzzle('Easy');
+            void this.loadPredefinedPuzzle('Easy');
         });
 
         this._bindClick('load-medium-button', () => {
             this.abortActiveSolve();
-            this.loadPredefinedPuzzle('Medium');
+            void this.loadPredefinedPuzzle('Medium');
         });
 
         this._bindClick('load-hard-button', () => {
             this.abortActiveSolve();
-            this.loadPredefinedPuzzle('Hard');
+            void this.loadPredefinedPuzzle('Hard');
         });
 
         this._bindClick('random-puzzle-button', () => {
             this.abortActiveSolve();
-            this.loadRandomPuzzle();
+            void this.loadRandomPuzzle();
         });
 
         this._bindClick('drag-mode-button', () => {
@@ -436,28 +437,19 @@ export class CrosswordSolver {
         this.display.updateStatus(`Generated ${rows}×${cols} grid.`, true);
     }
 
-    loadPredefinedPuzzle(name) {
-        const puzzle = predefinedPuzzles.find((p) => p.name === name);
-        if (!puzzle) {
-            this.display.updateStatus(`Puzzle "${name}" not found.`, true);
-            return;
+    async loadPredefinedPuzzle(name) {
+        const file = `${name.toLowerCase()}.json`;
+
+        try {
+            const puzzleData = await this._fetchPuzzleFile(file);
+            this.importPuzzleGrid(puzzleData.grid);
+            this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
+            this.currentSolution = null;
+            this.display.updateStatus(`Loaded ${name} puzzle.`, true);
+        } catch (error) {
+            console.error(error);
+            this.display.updateStatus(`Could not load "${name}" puzzle.`, true);
         }
-
-        this.grid = JSON.parse(JSON.stringify(puzzle.grid)).map((row) =>
-            row.map((cell) => {
-                if (cell === ' ') return '';
-                if (cell === '.') return '#';
-                if (/^[A-Z]$/i.test(cell)) return cell.toUpperCase();
-                if (cell === '#') return '#';
-                return '';
-            })
-        );
-
-        this.currentSolution = null;
-        this.currentPuzzleClues = {};
-        this.editorGridSnapshot = null;
-        this.render();
-        this.display.updateStatus(`Loaded ${name} puzzle.`, true);
     }
 
     async loadRandomPuzzle() {
@@ -473,10 +465,10 @@ export class CrosswordSolver {
         if (!candidateEntries.length) {
             this._updateRandomPuzzleButton(
                 true,
-                'Classic puzzle files are not included in this project snapshot.'
+                'Bundled puzzle files are unavailable.'
             );
             this.display.updateStatus(
-                'Random Classic is unavailable because the puzzle files are missing from this repository snapshot.',
+                'Random Puzzle is unavailable because the puzzle files are missing from this repository snapshot.',
                 true
             );
             return;
@@ -493,18 +485,8 @@ export class CrosswordSolver {
             );
 
             try {
-                const resp = await fetch(`data/nyt_puzzles/${randomEntry.file}`);
-                if (!resp.ok) {
-                    if (resp.status === 404) {
-                        this.missingPuzzleFiles.add(randomEntry.file);
-                        continue;
-                    }
-
-                    throw new Error(`HTTP ${resp.status}`);
-                }
-
-                const puzzleData = await resp.json();
-                this.importXdGrid(puzzleData.grid);
+                const puzzleData = await this._fetchPuzzleFile(randomEntry.file);
+                this.importPuzzleGrid(puzzleData.grid);
                 this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
                 this.currentSolution = this.extractSolutionFromGrid({ requireComplete: true });
                 this._updateRandomPuzzleButton(false);
@@ -513,37 +495,47 @@ export class CrosswordSolver {
                 const clueSuffix = authoredClueCount
                     ? ` Loaded ${authoredClueCount} authored clues.`
                     : ' No authored clues were included, so clue lookup will fall back to the local database.';
+                const details = [randomEntry.author, randomEntry.date]
+                    .filter(Boolean)
+                    .join(', ');
+                const detailSuffix = details ? ` (${details})` : '';
 
                 this.display.updateStatus(
-                    `Loaded ${randomEntry.title} (${randomEntry.author}, ${randomEntry.date}).${clueSuffix}`,
+                    `Loaded ${randomEntry.title}${detailSuffix}.${clueSuffix}`,
                     true
                 );
                 return;
             } catch (error) {
                 console.error(error);
+                if (/404/.test(String(error?.message))) {
+                    this.missingPuzzleFiles.add(randomEntry.file);
+                }
             }
         }
 
         this._updateRandomPuzzleButton(
             true,
-            'Classic puzzle files are not included in this project snapshot.'
+            'Bundled puzzle files are unavailable.'
         );
         this.display.updateStatus(
-            'Random Classic is unavailable because the referenced puzzle files could not be loaded.',
+            'Random Puzzle is unavailable because the referenced puzzle files could not be loaded.',
             true
         );
     }
 
-    importXdGrid(gridStrings) {
-        if (!Array.isArray(gridStrings) || !gridStrings.length) return;
+    importPuzzleGrid(rawGrid) {
+        if (!Array.isArray(rawGrid) || !rawGrid.length) return;
 
-        this.grid = gridStrings.map((row) =>
-            [...row].map((char) => {
-                if (char === '.') return '#';
-                if (/^[A-Z]$/i.test(char)) return char.toUpperCase();
+        this.grid = rawGrid.map((row) => {
+            const cells = Array.isArray(row) ? row : [...String(row)];
+            return cells.map((cell) => {
+                if (cell === ' ') return '';
+                if (cell === '.') return '#';
+                if (/^[A-Z]$/i.test(cell)) return cell.toUpperCase();
+                if (cell === '#') return '#';
                 return '';
-            })
-        );
+            });
+        });
 
         this.currentPuzzleClues = {};
         this.currentSolution = null;
@@ -718,6 +710,10 @@ export class CrosswordSolver {
                 const settle = (callback, value) => {
                     if (session.settled) return;
                     session.settled = true;
+                    if (session.worker) {
+                        session.worker.terminate();
+                        session.worker = null;
+                    }
                     if (this.activeSolveSession === session) {
                         this.activeSolveSession = null;
                     }
@@ -1049,8 +1045,8 @@ export class CrosswordSolver {
         const shouldDisable = disabled || this.puzzleIndex.length === 0;
         randomBtn.disabled = shouldDisable;
         randomBtn.title = shouldDisable
-            ? reason || 'Classic puzzle files are unavailable.'
-            : 'Load a random classic puzzle';
+            ? reason || 'Bundled puzzle files are unavailable.'
+            : 'Load a random bundled puzzle';
     }
 
     _extractPuzzleClues(puzzleData) {
@@ -1275,5 +1271,14 @@ export class CrosswordSolver {
             r < this.grid.length &&
             c < this.grid[0].length
         );
+    }
+
+    async _fetchPuzzleFile(file) {
+        const resp = await fetch(`${PUZZLES_BASE_PATH}/${file}`);
+        if (!resp.ok) {
+            throw new Error(`Failed to fetch ${file}: HTTP ${resp.status}`);
+        }
+
+        return await resp.json();
     }
 }

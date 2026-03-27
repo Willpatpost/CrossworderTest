@@ -1,0 +1,23 @@
+[
+  {
+    "id": "easy",
+    "title": "Easy",
+    "author": "Crossworder",
+    "date": "2026-03-26",
+    "file": "easy.json"
+  },
+  {
+    "id": "medium",
+    "title": "Medium",
+    "author": "Crossworder",
+    "date": "2026-03-26",
+    "file": "medium.json"
+  },
+  {
+    "id": "hard",
+    "title": "Hard",
+    "author": "Crossworder",
+    "date": "2026-03-26",
+    "file": "hard.json"
+  }
+]

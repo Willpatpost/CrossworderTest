@@ -25,7 +25,7 @@ export class PopupManager {
 
         const requestToken = ++this.currentRequestToken;
 
-        this.close();
+        this.close({ invalidateRequest: false });
 
         try {
             const localResults = await this.localProvider.lookup(normalizedWord);
@@ -46,7 +46,11 @@ export class PopupManager {
         }
     }
 
-    close() {
+    close({ invalidateRequest = true } = {}) {
+        if (invalidateRequest) {
+            this.currentRequestToken++;
+        }
+
         if (this.activeOverlay && document.body.contains(this.activeOverlay)) {
             document.body.removeChild(this.activeOverlay);
         }
@@ -95,6 +99,7 @@ export class PopupManager {
             if (requestToken !== this.currentRequestToken) return;
         }
 
+        if (requestToken !== this.currentRequestToken) return;
         this._createPopup(word, [], 'No results found');
     }
 
@@ -103,7 +108,7 @@ export class PopupManager {
     =============================== */
 
     _createPopup(word, entries, sourceLabel) {
-        this.close();
+        this.close({ invalidateRequest: false });
         this.previouslyFocusedElement = document.activeElement;
 
         const overlay = document.createElement('div');

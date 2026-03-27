@@ -399,6 +399,7 @@ export class GridManager {
         }
 
         span.textContent = normalized;
+        td.classList.remove('correct', 'incorrect');
     }
 
     _normalizeLetter(value) {
