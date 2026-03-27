@@ -54,6 +54,12 @@ export class GridManager {
         if (coordinator.modes?.isPlayMode) {
             this._restoreOrInitializePlaySelection(coordinator);
             this._updateHighlights(coordinator);
+        } else if (
+            coordinator.modes?.currentMode === 'letter' &&
+            this.selectedCell &&
+            this._isValidCell(this.selectedCell.r, this.selectedCell.c, coordinator)
+        ) {
+            this._updateHighlights(coordinator);
         } else {
             this.clearHighlights();
         }
@@ -100,6 +106,24 @@ export class GridManager {
 
     _handleClick(e, r, c, coordinator) {
         if (!coordinator?.modes?.isPlayMode) {
+            if (
+                coordinator?.modes?.currentMode === 'letter' &&
+                this._isValidCell(r, c, coordinator)
+            ) {
+                if (
+                    this.selectedCell &&
+                    this.selectedCell.r === r &&
+                    this.selectedCell.c === c
+                ) {
+                    this.selectedDirection =
+                        this.selectedDirection === 'across' ? 'down' : 'across';
+                } else {
+                    this.selectedCell = { r, c };
+                }
+
+                this._updateHighlights(coordinator);
+            }
+
             if (typeof coordinator.handleCellClick === 'function') {
                 coordinator.handleCellClick(e, r, c);
             }
@@ -171,13 +195,54 @@ export class GridManager {
         }
 
         this._boundKeyHandler = (e) => {
-            if (!coordinator?.modes?.isPlayMode) return;
-            if (coordinator?.isPlayPaused) return;
-            if (!this.selectedCell) return;
-
             const tagName = e.target?.tagName;
             if (tagName && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)) return;
             if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+            if (!this.selectedCell) return;
+
+            if (!coordinator?.modes?.isPlayMode) {
+                if (coordinator?.modes?.currentMode !== 'letter') return;
+
+                const key = e.key;
+
+                if (/^[a-zA-Z]$/.test(key)) {
+                    coordinator.handleEditorLetterInput?.(key.toUpperCase());
+                    e.preventDefault();
+                    return;
+                }
+
+                switch (key) {
+                    case 'Backspace':
+                        coordinator.handleEditorBackspace?.();
+                        e.preventDefault();
+                        break;
+
+                    case 'Delete':
+                        coordinator.handleEditorDelete?.();
+                        e.preventDefault();
+                        break;
+
+                    case 'ArrowUp':
+                    case 'ArrowDown':
+                    case 'ArrowLeft':
+                    case 'ArrowRight':
+                        coordinator.handleEditorArrow?.(key);
+                        e.preventDefault();
+                        break;
+
+                    case ' ':
+                    case 'Spacebar':
+                        this._toggleDirection();
+                        this._updateHighlights(coordinator);
+                        e.preventDefault();
+                        break;
+                }
+
+                return;
+            }
+
+            if (coordinator?.isPlayPaused) return;
 
             const key = e.key;
 

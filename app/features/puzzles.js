@@ -6,18 +6,21 @@ export const puzzleMethods = {
 
         try {
             const puzzleData = await this._fetchPuzzleFile(file);
-            this.importPuzzleGrid(puzzleData.grid);
+            this.importPuzzleGrid(puzzleData.grid, {
+                sourceLabel: `${name} puzzle`
+            });
             this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
             this.currentSolution = null;
             this.display.updateStatus(`Loaded ${name} puzzle.`, true);
         } catch (error) {
             console.error(error);
-            this.display.updateStatus(`Could not load "${name}" puzzle.`, true);
+            this.display.updateStatus(this._formatPuzzleLoadError(name, error), true);
         }
     },
 
     async loadRandomPuzzle() {
         if (!this.puzzleIndex.length) {
+            this._updateRandomPuzzleButton(true, 'Puzzle index is unavailable.');
             this.display.updateStatus('Puzzle index is empty or still loading.', true);
             return;
         }
@@ -50,7 +53,9 @@ export const puzzleMethods = {
 
             try {
                 const puzzleData = await this._fetchPuzzleFile(randomEntry.file);
-                this.importPuzzleGrid(puzzleData.grid);
+                this.importPuzzleGrid(puzzleData.grid, {
+                    sourceLabel: randomEntry.title || randomEntry.id || randomEntry.file
+                });
                 this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
                 this.currentSolution = this.extractSolutionFromGrid({ requireComplete: true });
                 this._updateRandomPuzzleButton(false);
@@ -71,6 +76,13 @@ export const puzzleMethods = {
                 return;
             } catch (error) {
                 console.error(error);
+                this.display.updateStatus(
+                    this._formatPuzzleLoadError(
+                        randomEntry.title || randomEntry.id || randomEntry.file,
+                        error
+                    ),
+                    true
+                );
                 if (/404/.test(String(error?.message))) {
                     this.missingPuzzleFiles.add(randomEntry.file);
                 }
@@ -87,8 +99,8 @@ export const puzzleMethods = {
         );
     },
 
-    importPuzzleGrid(rawGrid) {
-        if (!Array.isArray(rawGrid) || !rawGrid.length) return;
+    importPuzzleGrid(rawGrid, { sourceLabel = 'puzzle' } = {}) {
+        this._assertValidPuzzleGrid(rawGrid, sourceLabel);
 
         this.grid = rawGrid.map((row) => {
             const cells = Array.isArray(row) ? row : [...String(row)];
@@ -104,6 +116,7 @@ export const puzzleMethods = {
         this.currentPuzzleClues = {};
         this.currentSolution = null;
         this.editorGridSnapshot = null;
+        this.hasCompletedPlayPuzzle = false;
         this.render();
     },
 
@@ -116,6 +129,7 @@ export const puzzleMethods = {
 
         actionButtons.forEach((button) => {
             button.disabled = true;
+            button.title = 'Loading daily puzzle details...';
         });
 
         if (summaryEl) {
@@ -139,6 +153,7 @@ export const puzzleMethods = {
 
             actionButtons.forEach((button) => {
                 button.disabled = false;
+                button.title = 'Load the current daily puzzle';
             });
         } catch (error) {
             console.warn('Could not load puzzle of the day.', error);
@@ -148,6 +163,11 @@ export const puzzleMethods = {
                 summaryEl.textContent =
                     'The daily puzzle has not been generated yet. You can still use the bundled quick-load puzzles.';
             }
+
+            actionButtons.forEach((button) => {
+                button.disabled = true;
+                button.title = 'The daily puzzle is not available right now.';
+            });
         }
     },
 
@@ -156,9 +176,12 @@ export const puzzleMethods = {
             const dailyPuzzle = this.puzzleOfTheDay || await this._fetchDailyPuzzle();
             this.puzzleOfTheDay = dailyPuzzle;
 
-            this.importPuzzleGrid(dailyPuzzle.grid);
+            this.importPuzzleGrid(dailyPuzzle.grid, {
+                sourceLabel: 'daily puzzle'
+            });
             this.currentPuzzleClues = dailyPuzzle.clues || {};
             this.currentSolution = mode === 'play' ? (dailyPuzzle.solution || null) : null;
+            this.hasCompletedPlayPuzzle = false;
 
             if (mode === 'play') {
                 document.getElementById('nav-play')?.click();
@@ -169,7 +192,10 @@ export const puzzleMethods = {
             document.getElementById('nav-editor')?.click();
         } catch (error) {
             console.error(error);
-            this.display.updateStatus('Could not load the puzzle of the day.', true);
+            this.display.updateStatus(
+                this._formatPuzzleLoadError('puzzle of the day', error),
+                true
+            );
         }
     },
 
@@ -182,6 +208,27 @@ export const puzzleMethods = {
         randomBtn.title = shouldDisable
             ? reason || 'Bundled puzzle files are unavailable.'
             : 'Load a random bundled puzzle';
+    },
+
+    _formatPuzzleLoadError(label, error) {
+        const details = String(error?.message || '').trim();
+        if (!details) {
+            return `Could not load "${label}".`;
+        }
+
+        if (/not rectangular|valid grid|grid is empty/i.test(details)) {
+            return `Could not load "${label}" because its grid data is invalid.`;
+        }
+
+        if (/HTTP 404/i.test(details)) {
+            return `Could not load "${label}" because its puzzle file was not found.`;
+        }
+
+        if (/HTTP/i.test(details)) {
+            return `Could not load "${label}" due to a data request error.`;
+        }
+
+        return `Could not load "${label}". ${details}`;
     },
 
     _extractPuzzleClues(puzzleData) {
@@ -308,7 +355,9 @@ export const puzzleMethods = {
             throw new Error(`Failed to fetch ${file}: HTTP ${resp.status}`);
         }
 
-        return await resp.json();
+        const puzzleData = await resp.json();
+        this._assertValidPuzzleGrid(puzzleData?.grid, file);
+        return puzzleData;
     },
 
     async _fetchDailyPuzzle() {
@@ -317,6 +366,29 @@ export const puzzleMethods = {
             throw new Error(`Failed to fetch puzzle-of-the-day.json: HTTP ${resp.status}`);
         }
 
-        return await resp.json();
+        const puzzleData = await resp.json();
+        this._assertValidPuzzleGrid(puzzleData?.grid, 'puzzle-of-the-day.json');
+        return puzzleData;
+    },
+
+    _assertValidPuzzleGrid(rawGrid, sourceLabel = 'puzzle') {
+        if (!Array.isArray(rawGrid) || rawGrid.length === 0) {
+            throw new Error(`The ${sourceLabel} does not include a valid grid.`);
+        }
+
+        const width = Array.isArray(rawGrid[0]) ? rawGrid[0].length : String(rawGrid[0]).length;
+
+        if (!width) {
+            throw new Error(`The ${sourceLabel} grid is empty.`);
+        }
+
+        const isRectangular = rawGrid.every((row) => {
+            const cells = Array.isArray(row) ? row : [...String(row)];
+            return cells.length === width;
+        });
+
+        if (!isRectangular) {
+            throw new Error(`The ${sourceLabel} grid is not rectangular.`);
+        }
     }
 };

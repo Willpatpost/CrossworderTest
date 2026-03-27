@@ -9,9 +9,10 @@ export const playMethods = {
         if (!this.currentSolution) {
             const extractedSolution = this.extractSolutionFromGrid({ requireComplete: true });
             if (!extractedSolution) {
-                this.display.updateStatus(
-                    'Play mode requires a fully solved grid or imported puzzle.',
-                    true
+                this.popups.showMessage(
+                    'Play Mode Unavailable',
+                    'Play mode requires a fully solved grid or an imported puzzle with a saved solution.',
+                    'Play Mode'
                 );
                 return false;
             }
@@ -21,6 +22,7 @@ export const playMethods = {
 
         this.editorGridSnapshot = GridUtils.cloneGrid(this.grid);
         this.isPlayPaused = false;
+        this.hasCompletedPlayPuzzle = false;
 
         this.modes.setPlayMode(true);
         this.blankGridForPlayMode();
@@ -39,6 +41,7 @@ export const playMethods = {
         }
 
         this.display.updateStatus('Entered play mode. Good luck!', true);
+        this._updatePlayStatusCopy('active');
         return true;
     },
 
@@ -50,6 +53,7 @@ export const playMethods = {
         this._pausePlayTimer();
         this._resetPlayTimer();
         this.isPlayPaused = false;
+        this.hasCompletedPlayPuzzle = false;
         this.modes.setPlayMode(false);
 
         if (this.editorGridSnapshot?.length) {
@@ -60,6 +64,7 @@ export const playMethods = {
         this.render();
         this.refreshWordList();
         this._updatePauseUI();
+        this._updatePlayStatusCopy('idle');
         this.display.updateStatus('Returned to editor mode.', true);
     },
 
@@ -163,6 +168,7 @@ export const playMethods = {
 
         this.grid[r][c] = expected;
         this.syncActiveGridToDOM();
+        this._checkForPuzzleCompletion();
     },
 
     handleRevealWord() {
@@ -179,6 +185,7 @@ export const playMethods = {
         });
 
         this.syncActiveGridToDOM();
+        this._checkForPuzzleCompletion();
     },
 
     handleRevealPuzzle() {
@@ -186,6 +193,7 @@ export const playMethods = {
 
         this.applySolutionToGrid(this.slots, this.currentSolution);
         this.gridManager._updateHighlights(this);
+        this._checkForPuzzleCompletion();
     },
 
     handleClearPlayGrid() {
@@ -203,7 +211,10 @@ export const playMethods = {
             td.classList.remove('correct', 'incorrect');
         });
 
+        this.hasCompletedPlayPuzzle = false;
         this.syncActiveGridToDOM();
+        this._updatePlayStatusCopy('active');
+        this.display.updateStatus('Cleared all entered letters from the play grid.', true);
     },
 
     togglePlayPause() {
@@ -213,9 +224,11 @@ export const playMethods = {
 
         if (this.isPlayPaused) {
             this._pausePlayTimer();
+            this._updatePlayStatusCopy('paused');
             this.display.updateStatus('Game paused.', true);
         } else {
             this._resumePlayTimer();
+            this._updatePlayStatusCopy('active');
             this.display.updateStatus('Game resumed.', true);
         }
 
@@ -251,6 +264,66 @@ export const playMethods = {
 
     _canUsePlayTools() {
         return this.modes.isPlayMode && this.currentSolution && !this.isPlayPaused;
+    },
+
+    _checkForPuzzleCompletion() {
+        if (!this.modes.isPlayMode || !this.currentSolution || this.hasCompletedPlayPuzzle) {
+            return false;
+        }
+
+        const isComplete = Object.values(this.slots || {}).every((slot) => {
+            return slot.positions.every(([r, c], index) => {
+                const actual = (this.grid[r][c] || '').toUpperCase();
+                const expected = this.currentSolution[slot.id]?.[index] || '';
+                return expected && actual === expected;
+            });
+        });
+
+        if (!isComplete) {
+            return false;
+        }
+
+        this.hasCompletedPlayPuzzle = true;
+        this._pausePlayTimer();
+        this._updatePauseUI();
+
+        const totalSeconds = Math.max(0, Math.floor(this.playElapsedMs / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        const timeLabel = `${minutes}:${String(seconds).padStart(2, '0')}`;
+
+        this.display.updateStatus(`Puzzle complete! Final time: ${timeLabel}.`, true);
+        this._updatePlayStatusCopy('completed', timeLabel);
+        this.popups.showMessage(
+            'Puzzle Complete',
+            `You finished the puzzle in ${timeLabel}.`,
+            'Play Mode'
+        );
+        return true;
+    },
+
+    _updatePlayStatusCopy(state = 'idle', timeLabel = '') {
+        const copy = document.querySelector('.play-status-copy');
+        if (!copy) return;
+
+        if (state === 'completed') {
+            copy.textContent = `Puzzle finished in ${timeLabel}. You can review the grid, reveal entries, or return to the editor.`;
+            return;
+        }
+
+        if (state === 'paused') {
+            copy.textContent = 'The puzzle is paused. Resume when you are ready to keep solving.';
+            return;
+        }
+
+        if (state === 'active') {
+            copy.textContent =
+                'Use the play tools to check or reveal entries while solving. The timer runs until you finish or pause.';
+            return;
+        }
+
+        copy.textContent =
+            'Use the play tools to check or reveal entries while solving.';
     },
 
     _pausePlayTimer() {

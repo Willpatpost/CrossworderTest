@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "python3 -m http.server 4173",
+    "dev": "python3 -m http.server 4173",
     "test": "node --test",
     "generate:potd": "node scripts/generate-puzzle-of-the-day.mjs --force"
   }

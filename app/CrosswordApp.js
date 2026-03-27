@@ -50,6 +50,7 @@ export class CrosswordApp {
         this._globalMouseUpBound = false;
         this._searchInputBound = false;
         this._searchRequestId = 0;
+        this._searchDebounceTimer = null;
 
         this.activeSolveSession = null;
         this._solveRunId = 0;
@@ -58,6 +59,7 @@ export class CrosswordApp {
         this.playElapsedMs = 0;
         this.playTimerStartedAt = null;
         this.playTimerInterval = null;
+        this.hasCompletedPlayPuzzle = false;
     }
 
     async init() {
@@ -157,7 +159,13 @@ export class CrosswordApp {
         const searchInput = document.getElementById('word-search-input');
         if (searchInput && !this._searchInputBound) {
             searchInput.addEventListener('input', () => {
-                this.handleSearch(searchInput.value);
+                if (this._searchDebounceTimer) {
+                    window.clearTimeout(this._searchDebounceTimer);
+                }
+
+                this._searchDebounceTimer = window.setTimeout(() => {
+                    this.handleSearch(searchInput.value);
+                }, 120);
             });
             this._searchInputBound = true;
         }

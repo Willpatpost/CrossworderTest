@@ -46,6 +46,7 @@ export const renderingMethods = {
             this.modes.isPlayMode,
             this.currentPuzzleClues
         );
+        this.display.updatePuzzleSummary(this.grid, this.slots, this.currentPuzzleClues);
     },
 
     syncActiveGridToDOM() {
@@ -60,9 +61,11 @@ export const renderingMethods = {
         this.gridManager.syncGridToDOM(this.grid, this.slots);
         this.cells = this.gridManager.cells;
 
-        if (this.modes.isPlayMode) {
+        if (this.modes.isPlayMode || this.modes.currentMode === 'letter') {
             this.gridManager._updateHighlights(this);
         }
+
+        this.display.updatePuzzleSummary(this.grid, this.slots, this.currentPuzzleClues);
     },
 
     _extractSlotWord(slot) {

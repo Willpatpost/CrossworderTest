@@ -19,6 +19,16 @@ export const solverMethods = {
                 this.constraintManager.buildDataStructures(this.grid);
             this.slots = slots;
 
+            const slotCount = Object.keys(this.slots).length;
+            if (!slotCount) {
+                this.display.updateStatus(
+                    'No fillable entries were found. Open up some non-block cells before solving.',
+                    true
+                );
+                this.syncActiveGridToDOM();
+                return;
+            }
+
             const uniqueLengths = [
                 ...new Set(Object.values(this.slots).map((slot) => slot.length))
             ];
@@ -38,6 +48,19 @@ export const solverMethods = {
                 this.wordLengthCache,
                 this.grid
             );
+
+            const emptyDomainSlot = Object.values(this.slots).find(
+                (slot) => (domains[slot.id] || []).length === 0
+            );
+
+            if (emptyDomainSlot) {
+                this.display.updateStatus(
+                    `No candidate fills were found for ${emptyDomainSlot.number}-${emptyDomainSlot.direction}. Check its pattern or add more word data.`,
+                    true
+                );
+                this.syncActiveGridToDOM();
+                return;
+            }
 
             const allowReuse =
                 document.getElementById('allow-reuse-toggle')?.checked || false;
@@ -204,7 +227,10 @@ export const solverMethods = {
         const safeQuery = query.replace(/[^A-Z?]/g, '');
 
         if (!safeQuery || safeQuery.length < 2) {
-            this.display.updateSearchResults([], () => { });
+            this.display.updateSearchResults([], () => { }, {
+                message: query ? 'Type at least 2 letters to search.' : 'Type 2 or more letters to search.',
+                showDropdown: false
+            });
             return;
         }
 
@@ -216,13 +242,31 @@ export const solverMethods = {
             const matches = words.filter((word) => regex.test(word)).slice(0, 50);
 
             if (requestId !== this._searchRequestId) return;
-            this.display.updateSearchResults(matches, (selected) => {
-                this.popups.show(selected);
-            });
+            const hasLengthData = words.length > 0;
+            const message = matches.length
+                ? `${matches.length} match${matches.length === 1 ? '' : 'es'}`
+                : hasLengthData
+                    ? `No matches found for "${safeQuery}".`
+                    : `No local word list is bundled for ${safeQuery.length}-letter entries.`;
+
+            this.display.updateSearchResults(
+                matches,
+                (selected) => {
+                    this.popups.show(selected);
+                },
+                {
+                    message,
+                    showDropdown: matches.length > 0
+                }
+            );
         } catch (error) {
             if (requestId !== this._searchRequestId) return;
             console.warn('Search failed', error);
             this.display.updateStatus('Word search failed.', true);
+            this.display.updateSearchResults([], () => { }, {
+                message: 'Word search failed. Please try again.',
+                showDropdown: false
+            });
         }
     },
 

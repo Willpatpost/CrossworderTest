@@ -622,6 +622,75 @@ input[type="text"] {
     display: grid;
     grid-template-columns: 260px 1fr 300px;
     gap: 20px;
+    align-items: start;
+}
+
+.editor-workspace {
+    grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(250px, 300px);
+}
+
+.puzzle-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-section);
+}
+
+.summary-item-wide {
+    grid-column: 1 / -1;
+}
+
+.summary-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.summary-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.editor-workspace .grid-panel,
+#game-container .grid-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.editor-workspace .grid-panel h3,
+#game-container .grid-panel h3 {
+    width: 100%;
+}
+
+.status-panel,
+.clues-panel,
+.grid-panel {
+    min-width: 0;
+}
+
+#status-display {
+    width: 100%;
+    min-height: 260px;
+    height: 260px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--status-bg);
+    color: var(--status-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    resize: vertical;
 }
 
 /* ===============================
@@ -633,6 +702,9 @@ input[type="text"] {
     border-radius: 6px;
     display: flex;
     justify-content: center;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
     transition: opacity 0.2s ease;
 }
 
@@ -684,6 +756,11 @@ input[type="text"] {
     border-radius: 8px;
     height: 320px;
     overflow-y: auto;
+}
+
+.list-empty-state {
+    margin: 0;
+    padding: 12px;
 }
 
 .word-list-item {
@@ -759,6 +836,28 @@ input[type="text"] {
 
 #game-container {
     position: relative;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 330px);
+    grid-template-areas:
+        "grid clues"
+        "grid status";
+    align-items: start;
+}
+
+#game-container .grid-panel {
+    grid-area: grid;
+}
+
+#game-container .clues-panel {
+    grid-area: clues;
+}
+
+#game-container .status-panel {
+    grid-area: status;
+}
+
+#game-container .clues-panel,
+#game-container .status-panel {
+    margin-top: 0;
 }
 
 /* ===============================
@@ -905,8 +1004,12 @@ input[type="text"] {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .main-content {
-        grid-template-columns: 1fr;
+    .editor-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    #game-container {
+        grid-template-columns: minmax(0, 1fr) minmax(250px, 290px);
     }
 }
 
@@ -940,5 +1043,13 @@ input[type="text"] {
 
     .home-action-btn {
         width: 100%;
+    }
+
+    #game-container {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "grid"
+            "clues"
+            "status";
     }
 }

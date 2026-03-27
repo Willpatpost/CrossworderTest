@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    THEME INITIALIZATION
 ================================ */
 function initializeTheme() {
-    const savedTheme = localStorage.getItem('theme');
+    const savedTheme = safelyReadThemePreference();
 
     if (savedTheme === 'dark') {
         document.body.classList.add('dark-mode');
@@ -70,6 +70,8 @@ function setupNavigation(app) {
 
     const switchView = (targetId, { focusHeading = false } = {}) => {
         if (!targetId) return;
+
+        document.dispatchEvent(new CustomEvent('crossworder:close-play-menus'));
 
         if (targetId === 'play-screen') {
             if (!app.modes?.isPlayMode) {
@@ -233,6 +235,10 @@ function setupNYTToolbar() {
         }
     });
 
+    document.addEventListener('crossworder:close-play-menus', () => {
+        closeAll();
+    });
+
     allDropdowns.forEach((dropdown) => {
         dropdown.addEventListener('click', () => {
             closeAll();
@@ -251,6 +257,19 @@ function setupThemeToggle() {
 
     themeBtn.addEventListener('click', () => {
         const isDarkMode = document.body.classList.toggle('dark-mode');
-        localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+        try {
+            localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+        } catch (error) {
+            console.warn('Theme preference could not be saved.', error);
+        }
     });
+}
+
+function safelyReadThemePreference() {
+    try {
+        return localStorage.getItem('theme');
+    } catch (error) {
+        console.warn('Theme preference could not be read.', error);
+        return null;
+    }
 }

@@ -46,6 +46,19 @@ export class PopupManager {
         }
     }
 
+    showMessage(title, message, sourceLabel = 'Crossworder') {
+        const normalizedTitle = title?.trim();
+        const normalizedMessage = message?.trim();
+        if (!normalizedTitle || !normalizedMessage) return;
+
+        this.currentRequestToken++;
+        this._createPopup(
+            normalizedTitle,
+            [{ clue: normalizedMessage, source: sourceLabel, date: '' }],
+            sourceLabel
+        );
+    }
+
     close({ invalidateRequest = true } = {}) {
         if (invalidateRequest) {
             this.currentRequestToken++;
