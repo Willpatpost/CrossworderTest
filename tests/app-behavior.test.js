@@ -537,6 +537,101 @@ test('loadEditorDraft restores a saved draft into the editor', () => {
     }
 });
 
+test('clearEditorLetters removes letters while preserving block structure', () => {
+    const statuses = [];
+    let snapshotCount = 0;
+
+    const app = {
+        modes: { isPlayMode: false },
+        grid: [['A', '#', 'T']],
+        currentSolution: { '1-across': 'AT' },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        render() {},
+        _updateDraftButtons() {}
+    };
+
+    const cleared = editorMethods.clearEditorLetters.call(app);
+
+    assert.equal(cleared, true);
+    assert.equal(snapshotCount, 1);
+    assert.deepEqual(app.grid, [['', '#', '']]);
+    assert.equal(app.currentSolution, null);
+    assert.match(statuses.at(-1), /Cleared all entered letters/);
+});
+
+test('clearEditorBlocks removes blocks and authored clues but keeps letters', () => {
+    const statuses = [];
+    let snapshotCount = 0;
+
+    const app = {
+        modes: { isPlayMode: false },
+        grid: [['A', '#', 'T']],
+        currentSolution: { '1-across': 'AT' },
+        currentPuzzleClues: { '1-across': 'Clue' },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        render() {},
+        _updateDraftButtons() {}
+    };
+
+    const cleared = editorMethods.clearEditorBlocks.call(app);
+
+    assert.equal(cleared, true);
+    assert.equal(snapshotCount, 1);
+    assert.deepEqual(app.grid, [['A', '', 'T']]);
+    assert.equal(app.currentSolution, null);
+    assert.deepEqual(app.currentPuzzleClues, {});
+    assert.match(statuses.at(-1), /Cleared all blocks/);
+});
+
+test('clearEditorGrid removes all editor content and selection', () => {
+    const statuses = [];
+    let snapshotCount = 0;
+
+    const app = {
+        modes: { isPlayMode: false },
+        grid: [['A', '#', 'T']],
+        currentSolution: { '1-across': 'AT' },
+        currentPuzzleClues: { '1-across': 'Clue' },
+        gridManager: {
+            selectedCell: { r: 0, c: 0 }
+        },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        render() {},
+        _updateDraftButtons() {}
+    };
+
+    const cleared = editorMethods.clearEditorGrid.call(app);
+
+    assert.equal(cleared, true);
+    assert.equal(snapshotCount, 1);
+    assert.deepEqual(app.grid, [['', '', '']]);
+    assert.equal(app.currentSolution, null);
+    assert.deepEqual(app.currentPuzzleClues, {});
+    assert.equal(app.gridManager.selectedCell, null);
+    assert.match(statuses.at(-1), /Cleared the entire editor grid/);
+});
+
 test('handleSolve ignores stale worker results after a newer solve run starts', async () => {
     const originalWorker = globalThis.Worker;
     const originalDocument = globalThis.document;

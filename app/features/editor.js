@@ -143,6 +143,58 @@ export const editorMethods = {
         }
     },
 
+    clearEditorLetters() {
+        if (this.modes.isPlayMode || !this.grid.length) return false;
+
+        const hasLetters = this.grid.some((row) => row.some((cell) => /^[A-Z]$/i.test(cell)));
+        if (!hasLetters) return false;
+
+        this._recordEditorSnapshot();
+        this.grid = this.grid.map((row) =>
+            row.map((cell) => (cell === '#' ? '#' : ''))
+        );
+        this.currentSolution = null;
+        this.render();
+        this.display.updateStatus('Cleared all entered letters from the editor grid.', true);
+        this._updateDraftButtons?.();
+        return true;
+    },
+
+    clearEditorBlocks() {
+        if (this.modes.isPlayMode || !this.grid.length) return false;
+
+        const hasBlocks = this.grid.some((row) => row.some((cell) => cell === '#'));
+        if (!hasBlocks) return false;
+
+        this._recordEditorSnapshot();
+        this.grid = this.grid.map((row) =>
+            row.map((cell) => (cell === '#' ? '' : cell))
+        );
+        this.currentSolution = null;
+        this.currentPuzzleClues = {};
+        this.render();
+        this.display.updateStatus('Cleared all blocks from the editor grid.', true);
+        this._updateDraftButtons?.();
+        return true;
+    },
+
+    clearEditorGrid() {
+        if (this.modes.isPlayMode || !this.grid.length) return false;
+
+        const hasContent = this.grid.some((row) => row.some((cell) => cell));
+        if (!hasContent) return false;
+
+        this._recordEditorSnapshot();
+        this.grid = this.grid.map((row) => row.map(() => ''));
+        this.currentSolution = null;
+        this.currentPuzzleClues = {};
+        this.gridManager.selectedCell = null;
+        this.render();
+        this.display.updateStatus('Cleared the entire editor grid.', true);
+        this._updateDraftButtons?.();
+        return true;
+    },
+
     _updateUndoRedoButtons() {
         const undoButton = document.getElementById('undo-button');
         const redoButton = document.getElementById('redo-button');

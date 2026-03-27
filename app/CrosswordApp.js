@@ -172,6 +172,18 @@ export class CrosswordApp {
             this.clearSavedEditorDraft();
         });
 
+        this._bindClick('clear-letters-button', () => {
+            this.clearEditorLetters();
+        });
+
+        this._bindClick('clear-blocks-button', () => {
+            this.clearEditorBlocks();
+        });
+
+        this._bindClick('clear-grid-button', () => {
+            this.clearEditorGrid();
+        });
+
         this._bindClick('solve-crossword-button', () => {
             this.handleSolve();
         });
