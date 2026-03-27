@@ -14,12 +14,13 @@ export const puzzleMethods = {
             this.display.updateStatus(`Loaded ${name} puzzle.`, true);
         } catch (error) {
             console.error(error);
-            this.display.updateStatus(`Could not load "${name}" puzzle.`, true);
+            this.display.updateStatus(this._formatPuzzleLoadError(name, error), true);
         }
     },
 
     async loadRandomPuzzle() {
         if (!this.puzzleIndex.length) {
+            this._updateRandomPuzzleButton(true, 'Puzzle index is unavailable.');
             this.display.updateStatus('Puzzle index is empty or still loading.', true);
             return;
         }
@@ -75,6 +76,13 @@ export const puzzleMethods = {
                 return;
             } catch (error) {
                 console.error(error);
+                this.display.updateStatus(
+                    this._formatPuzzleLoadError(
+                        randomEntry.title || randomEntry.id || randomEntry.file,
+                        error
+                    ),
+                    true
+                );
                 if (/404/.test(String(error?.message))) {
                     this.missingPuzzleFiles.add(randomEntry.file);
                 }
@@ -121,6 +129,7 @@ export const puzzleMethods = {
 
         actionButtons.forEach((button) => {
             button.disabled = true;
+            button.title = 'Loading daily puzzle details...';
         });
 
         if (summaryEl) {
@@ -144,6 +153,7 @@ export const puzzleMethods = {
 
             actionButtons.forEach((button) => {
                 button.disabled = false;
+                button.title = 'Load the current daily puzzle';
             });
         } catch (error) {
             console.warn('Could not load puzzle of the day.', error);
@@ -153,6 +163,11 @@ export const puzzleMethods = {
                 summaryEl.textContent =
                     'The daily puzzle has not been generated yet. You can still use the bundled quick-load puzzles.';
             }
+
+            actionButtons.forEach((button) => {
+                button.disabled = true;
+                button.title = 'The daily puzzle is not available right now.';
+            });
         }
     },
 
@@ -177,7 +192,10 @@ export const puzzleMethods = {
             document.getElementById('nav-editor')?.click();
         } catch (error) {
             console.error(error);
-            this.display.updateStatus('Could not load the puzzle of the day.', true);
+            this.display.updateStatus(
+                this._formatPuzzleLoadError('puzzle of the day', error),
+                true
+            );
         }
     },
 
@@ -190,6 +208,27 @@ export const puzzleMethods = {
         randomBtn.title = shouldDisable
             ? reason || 'Bundled puzzle files are unavailable.'
             : 'Load a random bundled puzzle';
+    },
+
+    _formatPuzzleLoadError(label, error) {
+        const details = String(error?.message || '').trim();
+        if (!details) {
+            return `Could not load "${label}".`;
+        }
+
+        if (/not rectangular|valid grid|grid is empty/i.test(details)) {
+            return `Could not load "${label}" because its grid data is invalid.`;
+        }
+
+        if (/HTTP 404/i.test(details)) {
+            return `Could not load "${label}" because its puzzle file was not found.`;
+        }
+
+        if (/HTTP/i.test(details)) {
+            return `Could not load "${label}" due to a data request error.`;
+        }
+
+        return `Could not load "${label}". ${details}`;
     },
 
     _extractPuzzleClues(puzzleData) {

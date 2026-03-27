@@ -127,7 +127,8 @@ test('Play completion check detects a solved puzzle once', () => {
             }
         },
         _pausePlayTimer() {},
-        _updatePauseUI() {}
+        _updatePauseUI() {},
+        _updatePlayStatusCopy() {}
     };
 
     const first = playMethods._checkForPuzzleCompletion.call(app);

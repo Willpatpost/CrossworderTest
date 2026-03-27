@@ -41,6 +41,7 @@ export const playMethods = {
         }
 
         this.display.updateStatus('Entered play mode. Good luck!', true);
+        this._updatePlayStatusCopy('active');
         return true;
     },
 
@@ -63,6 +64,7 @@ export const playMethods = {
         this.render();
         this.refreshWordList();
         this._updatePauseUI();
+        this._updatePlayStatusCopy('idle');
         this.display.updateStatus('Returned to editor mode.', true);
     },
 
@@ -211,6 +213,7 @@ export const playMethods = {
 
         this.hasCompletedPlayPuzzle = false;
         this.syncActiveGridToDOM();
+        this._updatePlayStatusCopy('active');
         this.display.updateStatus('Cleared all entered letters from the play grid.', true);
     },
 
@@ -221,9 +224,11 @@ export const playMethods = {
 
         if (this.isPlayPaused) {
             this._pausePlayTimer();
+            this._updatePlayStatusCopy('paused');
             this.display.updateStatus('Game paused.', true);
         } else {
             this._resumePlayTimer();
+            this._updatePlayStatusCopy('active');
             this.display.updateStatus('Game resumed.', true);
         }
 
@@ -288,12 +293,37 @@ export const playMethods = {
         const timeLabel = `${minutes}:${String(seconds).padStart(2, '0')}`;
 
         this.display.updateStatus(`Puzzle complete! Final time: ${timeLabel}.`, true);
+        this._updatePlayStatusCopy('completed', timeLabel);
         this.popups.showMessage(
             'Puzzle Complete',
             `You finished the puzzle in ${timeLabel}.`,
             'Play Mode'
         );
         return true;
+    },
+
+    _updatePlayStatusCopy(state = 'idle', timeLabel = '') {
+        const copy = document.querySelector('.play-status-copy');
+        if (!copy) return;
+
+        if (state === 'completed') {
+            copy.textContent = `Puzzle finished in ${timeLabel}. You can review the grid, reveal entries, or return to the editor.`;
+            return;
+        }
+
+        if (state === 'paused') {
+            copy.textContent = 'The puzzle is paused. Resume when you are ready to keep solving.';
+            return;
+        }
+
+        if (state === 'active') {
+            copy.textContent =
+                'Use the play tools to check or reveal entries while solving. The timer runs until you finish or pause.';
+            return;
+        }
+
+        copy.textContent =
+            'Use the play tools to check or reveal entries while solving.';
     },
 
     _pausePlayTimer() {
