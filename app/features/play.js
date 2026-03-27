@@ -32,6 +32,7 @@ export const playMethods = {
         this._resumePlayTimer();
         this._updateInstantMistakeUI();
         this._updatePauseUI();
+        this._saveRecentPuzzleRecord?.({ silent: true });
 
         const firstSlot = this._getFirstSlot();
         if (firstSlot) {
@@ -68,6 +69,7 @@ export const playMethods = {
         this._updatePauseUI();
         this._updatePlayStatusCopy('idle');
         this.display.updateStatus('Returned to editor mode.', true);
+        this._saveRecentPuzzleRecord?.({ silent: true });
     },
 
     extractSolutionFromGrid({ requireComplete = false } = {}) {
@@ -171,6 +173,7 @@ export const playMethods = {
         this.grid[r][c] = expected;
         this.syncActiveGridToDOM();
         this._refreshInstantMistakeHighlights();
+        this._scheduleRecentPuzzleSave?.();
         this._checkForPuzzleCompletion();
     },
 
@@ -189,6 +192,7 @@ export const playMethods = {
 
         this.syncActiveGridToDOM();
         this._refreshInstantMistakeHighlights();
+        this._scheduleRecentPuzzleSave?.();
         this._checkForPuzzleCompletion();
     },
 
@@ -198,6 +202,7 @@ export const playMethods = {
         this.applySolutionToGrid(this.slots, this.currentSolution);
         this.gridManager._updateHighlights(this);
         this._refreshInstantMistakeHighlights();
+        this._scheduleRecentPuzzleSave?.();
         this._checkForPuzzleCompletion();
     },
 
@@ -220,6 +225,7 @@ export const playMethods = {
         this.syncActiveGridToDOM();
         this._updatePlayStatusCopy('active');
         this.display.updateStatus('Cleared all entered letters from the play grid.', true);
+        this._scheduleRecentPuzzleSave?.();
     },
 
     toggleInstantMistakeMode() {
@@ -271,6 +277,7 @@ export const playMethods = {
         }
 
         this._updatePauseUI();
+        this._saveRecentPuzzleRecord?.({ silent: true });
     },
 
     _stepPlayClue(delta) {
@@ -432,12 +439,24 @@ export const playMethods = {
 
         this.display.updateStatus(`Puzzle complete! Final time: ${timeLabel}.`, true);
         this._updatePlayStatusCopy('completed', timeLabel);
+        this._recordCompletedPuzzle?.(timeLabel);
         this.popups.showMessage(
             'Puzzle Complete',
             `You finished the puzzle in ${timeLabel}.`,
             'Play Mode'
         );
         return true;
+    },
+
+    _scheduleRecentPuzzleSave() {
+        if (this._recentPuzzleUpdateTimer) {
+            window.clearTimeout(this._recentPuzzleUpdateTimer);
+        }
+
+        this._recentPuzzleUpdateTimer = window.setTimeout(() => {
+            this._recentPuzzleUpdateTimer = null;
+            this._saveRecentPuzzleRecord?.({ silent: true });
+        }, 180);
     },
 
     _updatePlayStatusCopy(state = 'idle', timeLabel = '') {

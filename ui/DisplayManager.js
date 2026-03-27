@@ -500,7 +500,7 @@ export class DisplayManager {
         }
     }
 
-    updatePuzzleSummary(grid, slots, clueMap = {}) {
+    updatePuzzleSummary(grid, slots, clueMap = {}, metadata = {}) {
         if (!this.puzzleSummary) return;
 
         if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0])) {
@@ -521,6 +521,8 @@ export class DisplayManager {
         const fillPercent = fillableCells
             ? Math.round((filledCells / fillableCells) * 100)
             : 0;
+        const title = metadata?.title || 'Untitled';
+        const author = metadata?.author || 'Unknown author';
 
         if (fillableCells === 0) {
             this.puzzleSummary.innerHTML = `
@@ -533,6 +535,7 @@ export class DisplayManager {
         }
 
         this.puzzleSummary.innerHTML = [
+            this._createSummaryItem(title, author),
             this._createSummaryItem(`${rows}x${cols}`, 'Grid'),
             this._createSummaryItem(String(blockCount), 'Blocks'),
             this._createSummaryItem(`${acrossCount}/${downCount}`, 'Across/Down'),

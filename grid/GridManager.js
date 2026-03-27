@@ -492,6 +492,7 @@ export class GridManager {
         span.textContent = normalized;
         td.classList.remove('correct', 'incorrect');
         coordinator._applyInstantMistakeStateAt?.(r, c);
+        coordinator._scheduleRecentPuzzleSave?.();
     }
 
     _normalizeLetter(value) {

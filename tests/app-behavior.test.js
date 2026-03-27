@@ -480,6 +480,59 @@ test('saveSelectedEditorClue stores clue text for the selected slot', () => {
     }
 });
 
+test('updatePuzzleMetadataFromInputs stores editor metadata and schedules autosave', () => {
+    const originalDocument = globalThis.document;
+    const statuses = [];
+    let snapshotCount = 0;
+    let autosaved = 0;
+
+    globalThis.document = {
+        getElementById(id) {
+            const values = {
+                'puzzle-title-input': { value: 'Mini Theme' },
+                'puzzle-author-input': { value: 'Will' },
+                'puzzle-difficulty-input': { value: 'Medium' },
+                'puzzle-notes-input': { value: 'Theme entries included.' }
+            };
+            return values[id] || null;
+        }
+    };
+
+    try {
+        const app = {
+            modes: { isPlayMode: false },
+            currentPuzzleMetadata: {},
+            display: {
+                updateStatus(message) {
+                    statuses.push(message);
+                }
+            },
+            _recordEditorSnapshot() {
+                snapshotCount++;
+            },
+            _updateDraftButtons() {},
+            _scheduleEditorAutosave() {
+                autosaved++;
+            }
+        };
+
+        const updated = editorMethods.updatePuzzleMetadataFromInputs.call(app);
+
+        assert.equal(updated, true);
+        assert.equal(snapshotCount, 1);
+        assert.equal(autosaved, 1);
+        assert.deepEqual(app.currentPuzzleMetadata, {
+            title: 'Mini Theme',
+            author: 'Will',
+            difficulty: 'Medium',
+            notes: 'Theme entries included.'
+        });
+        assert.match(statuses.at(-1), /Updated puzzle metadata/);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
 test('clearSelectedEditorClue removes the authored clue for the selected slot', () => {
     const statuses = [];
     let snapshotCount = 0;
@@ -656,6 +709,59 @@ test('saveEditorDraft writes the current editor state to local storage', () => {
     }
 });
 
+test('saveRecentPuzzleRecord stores the current workspace snapshot locally', () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalDocument = globalThis.document;
+    const storage = new Map();
+
+    globalThis.localStorage = {
+        getItem(key) {
+            return storage.has(key) ? storage.get(key) : null;
+        },
+        setItem(key, value) {
+            storage.set(key, value);
+        },
+        removeItem(key) {
+            storage.delete(key);
+        }
+    };
+
+    globalThis.document = {
+        getElementById() {
+            return null;
+        }
+    };
+
+    const app = {
+        grid: [['A', 'T']],
+        modes: { isPlayMode: false },
+        currentPuzzleClues: { '1-across': 'Clue' },
+        currentPuzzleMetadata: { title: 'Recent Puzzle', author: 'Constructor' },
+        currentSolution: { '1-across': 'AT' },
+        activePuzzleSource: { kind: 'bundled', id: 'easy.json', label: 'Easy puzzle' },
+        slotBlacklist: { '1-across': ['AX'] },
+        _getRecentPuzzleStorageKey: puzzleMethods._getRecentPuzzleStorageKey,
+        _captureRecentPuzzleRecord: puzzleMethods._captureRecentPuzzleRecord,
+        _updateRecentPuzzleUI() {}
+    };
+
+    try {
+        const saved = puzzleMethods._saveRecentPuzzleRecord.call(app, { silent: true });
+        const payload = JSON.parse(storage.get('crossworder.recentPuzzle'));
+
+        assert.equal(saved, true);
+        assert.deepEqual(payload.editorGrid, [['A', 'T']]);
+        assert.deepEqual(payload.currentPuzzleMetadata, {
+            title: 'Recent Puzzle',
+            author: 'Constructor'
+        });
+        assert.equal(payload.source.id, 'easy.json');
+    } finally {
+        globalThis.localStorage = originalLocalStorage;
+        globalThis.document = originalDocument;
+    }
+});
+
 test('scheduleEditorAutosave debounces draft saves and uses silent mode', async () => {
     const originalWindow = globalThis.window;
     const scheduled = [];
@@ -750,6 +856,270 @@ test('loadEditorDraft restores a saved draft into the editor', () => {
         globalThis.localStorage = originalLocalStorage;
         globalThis.document = originalDocument;
     }
+});
+
+test('loadRecentPuzzle restores the saved workspace into the editor', () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalDocument = globalThis.document;
+    const storage = new Map([
+        ['crossworder.recentPuzzle', JSON.stringify({
+            editorGrid: [['C', 'A', 'T']],
+            currentPuzzleClues: { '1-across': 'Saved clue' },
+            currentPuzzleMetadata: { title: 'Saved Puzzle', author: 'Maker' },
+            currentSolution: { '1-across': 'CAT' },
+            source: { kind: 'bundled', id: 'easy.json', label: 'Easy puzzle' },
+            slotBlacklist: { '1-across': ['CAR'] }
+        })],
+        ['crossworder.completedPuzzles', JSON.stringify([])]
+    ]);
+    let navEditorClicks = 0;
+    let importedGrid = null;
+
+    globalThis.localStorage = {
+        getItem(key) {
+            return storage.has(key) ? storage.get(key) : null;
+        },
+        setItem(key, value) {
+            storage.set(key, value);
+        },
+        removeItem(key) {
+            storage.delete(key);
+        }
+    };
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'nav-editor') {
+                return { click() { navEditorClicks++; } };
+            }
+
+            return null;
+        }
+    };
+
+    const app = {
+        display: {
+            updateStatus() {}
+        },
+        importPuzzleGrid(grid) {
+            importedGrid = grid;
+        },
+        render() {},
+        refreshWordList() {},
+        renderSolverBlacklist() {},
+        syncPuzzleMetadataInputs() {},
+        _scheduleEditorAutosave() {},
+        _assertValidPuzzleGrid: puzzleMethods._assertValidPuzzleGrid,
+        _getRecentPuzzleStorageKey: puzzleMethods._getRecentPuzzleStorageKey,
+        _getCompletedPuzzleStorageKey: puzzleMethods._getCompletedPuzzleStorageKey,
+        _readRecentPuzzleRecord: puzzleMethods._readRecentPuzzleRecord,
+        _readCompletedPuzzleHistory: puzzleMethods._readCompletedPuzzleHistory,
+        _updateRecentPuzzleUI: puzzleMethods._updateRecentPuzzleUI
+    };
+
+    try {
+        const loaded = puzzleMethods.loadRecentPuzzle.call(app, 'editor');
+
+        assert.equal(loaded, true);
+        assert.deepEqual(importedGrid, [['C', 'A', 'T']]);
+        assert.deepEqual(app.currentPuzzleClues, { '1-across': 'Saved clue' });
+        assert.deepEqual(app.currentPuzzleMetadata, { title: 'Saved Puzzle', author: 'Maker' });
+        assert.deepEqual(app.slotBlacklist, { '1-across': ['CAR'] });
+        assert.equal(navEditorClicks, 1);
+    } finally {
+        globalThis.localStorage = originalLocalStorage;
+        globalThis.document = originalDocument;
+    }
+});
+
+test('recordCompletedPuzzle appends a completion entry to local history', () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalDocument = globalThis.document;
+    const storage = new Map([
+        ['crossworder.completedPuzzles', JSON.stringify([])],
+        ['crossworder.dailyCompletions', JSON.stringify([])]
+    ]);
+
+    globalThis.localStorage = {
+        getItem(key) {
+            return storage.has(key) ? storage.get(key) : null;
+        },
+        setItem(key, value) {
+            storage.set(key, value);
+        },
+        removeItem(key) {
+            storage.delete(key);
+        }
+    };
+
+    globalThis.document = {
+        getElementById() {
+            return null;
+        }
+    };
+
+    const app = {
+        grid: [['A', 'T']],
+        modes: { isPlayMode: true },
+        editorGridSnapshot: [['A', 'T']],
+        currentPuzzleClues: {},
+        currentPuzzleMetadata: { title: 'Finished Puzzle', author: 'Setter' },
+        currentSolution: { '1-across': 'AT' },
+        activePuzzleSource: { kind: 'daily', id: '2026-03-26', label: 'Daily puzzle' },
+        slotBlacklist: {},
+        playElapsedMs: 93000,
+        hasCompletedPlayPuzzle: true,
+        _captureRecentPuzzleRecord: puzzleMethods._captureRecentPuzzleRecord,
+        _getCompletedPuzzleStorageKey: puzzleMethods._getCompletedPuzzleStorageKey,
+        _getDailyCompletionStorageKey: puzzleMethods._getDailyCompletionStorageKey,
+        _getRecentPuzzleStorageKey: puzzleMethods._getRecentPuzzleStorageKey,
+        _readCompletedPuzzleHistory: puzzleMethods._readCompletedPuzzleHistory,
+        _readDailyCompletionHistory: puzzleMethods._readDailyCompletionHistory,
+        _recordDailyCompletion: puzzleMethods._recordDailyCompletion,
+        _saveRecentPuzzleRecord() {
+            return true;
+        },
+        _updateRecentPuzzleUI() {}
+    };
+
+    try {
+        const recorded = puzzleMethods._recordCompletedPuzzle.call(app, '1:33');
+        const history = JSON.parse(storage.get('crossworder.completedPuzzles'));
+
+        assert.equal(recorded, true);
+        assert.equal(history.length, 1);
+        assert.equal(history[0].title, 'Finished Puzzle');
+        assert.equal(history[0].author, 'Setter');
+        assert.equal(history[0].timeLabel, '1:33');
+        assert.equal(history[0].sourceId, '2026-03-26');
+        assert.equal(history[0].sourceKind, 'daily');
+        assert.deepEqual(JSON.parse(storage.get('crossworder.dailyCompletions')), ['2026-03-26']);
+    } finally {
+        globalThis.localStorage = originalLocalStorage;
+        globalThis.document = originalDocument;
+    }
+});
+
+test('calculateDailyStreak counts consecutive daily completions from the latest date', () => {
+    const streak = puzzleMethods._calculateDailyStreak([
+        '2026-03-26',
+        '2026-03-25',
+        '2026-03-24',
+        '2026-03-22'
+    ]);
+    const broken = puzzleMethods._calculateDailyStreak([
+        '2026-03-26',
+        '2026-03-24'
+    ]);
+
+    assert.deepEqual(streak, {
+        streak: 3,
+        latest: '2026-03-26'
+    });
+    assert.deepEqual(broken, {
+        streak: 1,
+        latest: '2026-03-26'
+    });
+});
+
+test('filterAndSortPuzzleEntries filters by query and sorts by author or date', () => {
+    const entries = [
+        { id: 'hard', title: 'Hard', author: 'Bravo', date: '2026-03-20', file: 'hard.json' },
+        { id: 'easy', title: 'Easy', author: 'Alpha', date: '2026-03-26', file: 'easy.json' },
+        { id: 'medium', title: 'Medium', author: 'Charlie', date: '2026-03-24', file: 'medium.json' }
+    ];
+
+    const authorSorted = puzzleMethods._filterAndSortPuzzleEntries(entries, { sort: 'author' });
+    const queryFiltered = puzzleMethods._filterAndSortPuzzleEntries(entries, { query: 'med' });
+    const dateSorted = puzzleMethods._filterAndSortPuzzleEntries(entries, { sort: 'date-desc' });
+
+    assert.deepEqual(authorSorted.map((entry) => entry.id), ['easy', 'hard', 'medium']);
+    assert.deepEqual(queryFiltered.map((entry) => entry.id), ['medium']);
+    assert.deepEqual(dateSorted.map((entry) => entry.id), ['easy', 'medium', 'hard']);
+});
+
+test('loadBundledPuzzleByFile can load a bundled puzzle directly into play mode', async () => {
+    const originalDocument = globalThis.document;
+    let playClicks = 0;
+    let importedGrid = null;
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'nav-play') {
+                return { click() { playClicks++; } };
+            }
+
+            return null;
+        }
+    };
+
+    const app = {
+        puzzleIndex: [
+            { file: 'easy.json', title: 'Easy', author: 'Crossworder', date: '2026-03-26' }
+        ],
+        currentPuzzleClues: {},
+        currentPuzzleMetadata: {},
+        display: {
+            updateStatus() {}
+        },
+        importPuzzleGrid(grid) {
+            importedGrid = grid;
+        },
+        _fetchPuzzleFile: async () => ({
+            grid: [['A', 'T']],
+            clues: { across: ['1. A clue'] },
+            metadata: { title: 'Easy', author: 'Crossworder' },
+            solution: { '1-across': 'AT' }
+        }),
+        _extractPuzzleClues() {
+            return { '1-across': 'A clue' };
+        },
+        _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
+        extractSolutionFromGrid() {
+            return { '1-across': 'AT' };
+        },
+        syncPuzzleMetadataInputs() {},
+        _updateRecentPuzzleUI() {},
+        _saveRecentPuzzleRecord() {},
+        slots: {
+            '1-across': {
+                id: '1-across',
+                direction: 'across',
+                number: 1,
+                positions: [[0, 0], [0, 1]],
+                length: 2
+            }
+        }
+    };
+
+    try {
+        const loaded = await puzzleMethods.loadBundledPuzzleByFile.call(app, 'easy.json', 'play');
+
+        assert.equal(loaded, true);
+        assert.deepEqual(importedGrid, [['A', 'T']]);
+        assert.deepEqual(app.currentPuzzleClues, { '1-across': 'A clue' });
+        assert.deepEqual(app.currentSolution, { '1-across': 'AT' });
+        assert.equal(playClicks, 1);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('selectFeaturedAndRecommendedPuzzles prefers daily-eligible featured and incomplete recommended entries', () => {
+    const entries = [
+        { file: 'easy.json', title: 'Easy', dailyEligible: true, date: '2026-03-26' },
+        { file: 'medium.json', title: 'Medium', dailyEligible: true, date: '2026-03-24' },
+        { file: 'hard.json', title: 'Hard', dailyEligible: false, date: '2026-03-25' }
+    ];
+    const progressLookup = {
+        'easy.json': { completed: true },
+        'medium.json': { completed: false }
+    };
+
+    const picks = puzzleMethods._selectFeaturedAndRecommendedPuzzles(entries, progressLookup);
+
+    assert.equal(picks.featured.file, 'easy.json');
+    assert.equal(picks.recommended.file, 'medium.json');
 });
 
 test('clearEditorLetters removes letters while preserving block structure', () => {
@@ -926,6 +1296,17 @@ test('clearEditorColumn clears the selected column and preserves other cells', (
 test('serializeCurrentPuzzle exports the editor grid and numbered clues as JSON-ready data', () => {
     const app = {
         grid: [['A', '#', ''], ['', 'T', '']],
+        currentPuzzleMetadata: {
+            title: 'Mini Theme',
+            author: 'Will',
+            difficulty: 'Medium',
+            notes: 'Theme notes'
+        },
+        activePuzzleSource: {
+            kind: 'bundled',
+            id: 'easy.json',
+            label: 'Easy'
+        },
         slots: {
             '1-across': { id: '1-across', direction: 'across', number: 1 },
             '2-down': { id: '2-down', direction: 'down', number: 2 }
@@ -939,10 +1320,24 @@ test('serializeCurrentPuzzle exports the editor grid and numbered clues as JSON-
     const payload = editorMethods._serializeCurrentPuzzle.call(app);
 
     assert.deepEqual(payload.grid, [['A', '.', ' '], [' ', 'T', ' ']]);
+    assert.equal(payload.title, 'Mini Theme');
+    assert.equal(payload.author, 'Will');
+    assert.equal(payload.schemaVersion, 2);
+    assert.equal(payload.packageType, 'crossworder-puzzle');
+    assert.deepEqual(payload.metadata, {
+        title: 'Mini Theme',
+        author: 'Will',
+        difficulty: 'Medium',
+        notes: 'Theme notes',
+        packageType: 'crossworder-puzzle',
+        schemaVersion: 2
+    });
     assert.deepEqual(payload.clues, {
         across: { '1': 'Across clue' },
         down: { '2': 'Down clue' }
     });
+    assert.equal(payload.source.id, 'easy.json');
+    assert.equal(payload.stats.totalSlots, 2);
 });
 
 test('importPuzzleFile loads JSON through the existing puzzle import flow', async () => {
@@ -952,6 +1347,7 @@ test('importPuzzleFile loads JSON through the existing puzzle import flow', asyn
     const app = {
         modes: { isPlayMode: false },
         currentPuzzleClues: {},
+        currentPuzzleMetadata: {},
         currentSolution: { '1-across': 'OLD' },
         display: {
             updateStatus(message) {
@@ -967,17 +1363,35 @@ test('importPuzzleFile loads JSON through the existing puzzle import flow', asyn
         _normalizePuzzleClueEntry: puzzleMethods._normalizePuzzleClueEntry,
         _extractClueText: puzzleMethods._extractClueText,
         _extractClueNumber: puzzleMethods._extractClueNumber,
+        _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
         slots: {
             '1-across': { id: '1-across', direction: 'across', number: 1 }
         },
-        _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError
+        _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError,
+        syncPuzzleMetadataInputs() {}
     };
 
     const file = {
         name: 'imported.json',
         async text() {
             return JSON.stringify({
+                schemaVersion: 2,
+                packageType: 'crossworder-puzzle',
                 grid: [['A', 'T']],
+                metadata: {
+                    title: 'Imported Theme',
+                    author: 'Constructor',
+                    difficulty: 'Hard',
+                    notes: 'Imported notes'
+                },
+                source: {
+                    kind: 'bundled',
+                    id: 'imported.json',
+                    label: 'Imported package'
+                },
+                solution: {
+                    '1-across': 'AT'
+                },
                 clues: {
                     across: ['1. Imported clue']
                 }
@@ -990,7 +1404,14 @@ test('importPuzzleFile loads JSON through the existing puzzle import flow', asyn
     assert.equal(imported, true);
     assert.deepEqual(importedGrid, [['A', 'T']]);
     assert.deepEqual(app.currentPuzzleClues, { '1-across': 'Imported clue' });
-    assert.equal(app.currentSolution, null);
+    assert.deepEqual(app.currentPuzzleMetadata, {
+        title: 'Imported Theme',
+        author: 'Constructor',
+        difficulty: 'Hard',
+        notes: 'Imported notes'
+    });
+    assert.deepEqual(app.currentSolution, { '1-across': 'AT' });
+    assert.equal(app.activePuzzleSource.id, 'imported.json');
     assert.match(statuses.at(-1), /Imported puzzle from imported\.json/);
 });
 
@@ -1353,6 +1774,7 @@ test('handleLoadDailyPuzzle loads editor mode without forcing play navigation', 
     const app = {
         puzzleOfTheDay: null,
         currentPuzzleClues: {},
+        currentPuzzleMetadata: {},
         currentSolution: null,
         hasCompletedPlayPuzzle: true,
         display: {
@@ -1367,7 +1789,10 @@ test('handleLoadDailyPuzzle loads editor mode without forcing play navigation', 
                 clues: { '1-across': 'Daily clue' },
                 solution: { '1-across': 'AT' }
             };
-        }
+        },
+        _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
+        _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError,
+        syncPuzzleMetadataInputs() {}
     };
 
     try {
@@ -1414,12 +1839,16 @@ test('handleLoadDailyPuzzle play mode keeps solution and navigates to play', asy
             solution: { '1-across': 'AT' }
         },
         currentPuzzleClues: {},
+        currentPuzzleMetadata: {},
         currentSolution: null,
         hasCompletedPlayPuzzle: true,
         display: {
             updateStatus() {}
         },
-        importPuzzleGrid() {}
+        importPuzzleGrid() {},
+        _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
+        _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError,
+        syncPuzzleMetadataInputs() {}
     };
 
     try {
@@ -1822,6 +2251,7 @@ test('loadRandomPuzzle loads the first successful candidate and records authored
             }
         },
         currentPuzzleClues: {},
+        currentPuzzleMetadata: {},
         currentSolution: null,
         _updateRandomPuzzleButton(disabled, reason) {
             buttonStates.push({ disabled, reason });
@@ -1843,7 +2273,10 @@ test('loadRandomPuzzle loads the first successful candidate and records authored
                 },
                 title: file
             };
-        }
+        },
+        _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
+        _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError,
+        syncPuzzleMetadataInputs() {}
     };
 
     await puzzleMethods.loadRandomPuzzle.call(app);

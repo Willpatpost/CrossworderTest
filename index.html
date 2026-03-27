@@ -81,20 +81,24 @@
 
                 <section class="home-stats" aria-label="Project highlights">
                     <article class="stat-card">
-                        <span class="stat-value">3</span>
+                        <span id="home-stat-bundled" class="stat-value">3</span>
                         <span class="stat-label">Bundled puzzles</span>
                     </article>
                     <article class="stat-card">
-                        <span class="stat-value">19</span>
+                        <span id="home-stat-completed" class="stat-value">0</span>
+                        <span class="stat-label">Completed puzzles</span>
+                    </article>
+                    <article class="stat-card">
+                        <span id="home-stat-recent" class="stat-value">0</span>
+                        <span class="stat-label">Recent workspace</span>
+                    </article>
+                    <article class="stat-card">
+                        <span id="home-stat-streak" class="stat-value">0</span>
+                        <span class="stat-label">Daily streak</span>
+                    </article>
+                    <article class="stat-card">
+                        <span id="home-stat-wordlists" class="stat-value">19</span>
                         <span class="stat-label">Word-length libraries</span>
-                    </article>
-                    <article class="stat-card">
-                        <span class="stat-value">2</span>
-                        <span class="stat-label">Working modes</span>
-                    </article>
-                    <article class="stat-card">
-                        <span class="stat-value">1</span>
-                        <span class="stat-label">Unified crossword workflow</span>
                     </article>
                 </section>
 
@@ -105,6 +109,9 @@
                         <p id="daily-puzzle-summary" class="daily-puzzle-summary">
                             Loading today’s puzzle details...
                         </p>
+                        <p id="daily-puzzle-progress" class="daily-puzzle-summary">
+                            Daily completions and streaks will appear here after you finish a daily puzzle.
+                        </p>
                     </div>
                     <div class="daily-puzzle-actions">
                         <button id="load-daily-editor-button" class="btn primary-btn" type="button">
@@ -114,6 +121,95 @@
                             Play Today’s Puzzle
                         </button>
                     </div>
+                </section>
+
+                <section class="home-daily home-recent section" aria-labelledby="recent-puzzle-heading">
+                    <div class="daily-puzzle-copy">
+                        <p class="card-eyebrow">Recent Puzzle</p>
+                        <h2 id="recent-puzzle-heading">Pick up where your last crossword session left off.</h2>
+                        <p id="recent-puzzle-summary" class="daily-puzzle-summary">
+                            No recent puzzle workspace is saved yet.
+                        </p>
+                        <p id="recent-completion-summary" class="daily-puzzle-summary">
+                            Completed puzzles will appear here once you finish a play session.
+                        </p>
+                    </div>
+                    <div class="daily-puzzle-actions">
+                        <button id="resume-recent-editor-button" class="btn primary-btn" type="button" disabled>
+                            Resume in Editor
+                        </button>
+                        <button id="play-recent-button" class="btn secondary-btn" type="button" disabled>
+                            Play Recent Puzzle
+                        </button>
+                    </div>
+                </section>
+
+                <section class="section home-library" aria-labelledby="home-library-heading">
+                    <div class="home-library-header">
+                        <div>
+                            <p class="card-eyebrow">Puzzle Library</p>
+                            <h2 id="home-library-heading">Browse bundled puzzles without leaving the home screen.</h2>
+                            <p id="home-puzzle-library-summary" class="muted-text">
+                                Loading bundled puzzle library...
+                            </p>
+                        </div>
+                        <div class="settings-controls home-library-controls">
+                            <div class="input-group metadata-field">
+                                <label for="home-puzzle-search">Search</label>
+                                <input
+                                    type="text"
+                                    id="home-puzzle-search"
+                                    placeholder="Title, author, or id"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                />
+                            </div>
+                            <div class="input-group metadata-field">
+                                <label for="home-puzzle-sort">Sort</label>
+                                <select id="home-puzzle-sort">
+                                    <option value="title">Title</option>
+                                    <option value="date-desc">Newest</option>
+                                    <option value="author">Author</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="home-puzzle-library" class="home-library-grid" aria-live="polite"></div>
+                </section>
+
+                <section class="home-grid home-dashboard-grid" aria-label="Featured puzzle recommendations">
+                    <article class="info-card home-dashboard-card">
+                        <p class="card-eyebrow">Featured</p>
+                        <h2 id="home-featured-title">Loading featured puzzle...</h2>
+                        <p id="home-featured-summary" class="muted-text">
+                            We’re selecting a featured puzzle from the bundled library.
+                        </p>
+                        <div class="daily-puzzle-actions">
+                            <button id="home-featured-editor-button" class="btn primary-btn" type="button" disabled>
+                                Load Featured
+                            </button>
+                            <button id="home-featured-play-button" class="btn secondary-btn" type="button" disabled>
+                                Play Featured
+                            </button>
+                        </div>
+                    </article>
+
+                    <article class="info-card home-dashboard-card">
+                        <p class="card-eyebrow">Recommended</p>
+                        <h2 id="home-recommended-title">Loading recommendation...</h2>
+                        <p id="home-recommended-summary" class="muted-text">
+                            We’re looking for the best next puzzle based on your recent progress.
+                        </p>
+                        <div class="daily-puzzle-actions">
+                            <button id="home-recommended-editor-button" class="btn primary-btn" type="button" disabled>
+                                Load Recommended
+                            </button>
+                            <button id="home-recommended-play-button" class="btn secondary-btn" type="button" disabled>
+                                Play Recommended
+                            </button>
+                        </div>
+                    </article>
                 </section>
 
                 <section class="home-grid home-grid-featured">
@@ -228,6 +324,31 @@
                         <button id="generate-grid-button" class="btn primary-btn" type="button">
                             Generate Grid
                         </button>
+                    </div>
+                </section>
+
+                <section class="section settings-section" aria-labelledby="puzzle-metadata-heading">
+                    <h2 id="puzzle-metadata-heading">Puzzle Metadata</h2>
+                    <div class="settings-controls metadata-controls">
+                        <div class="input-group metadata-field">
+                            <label for="puzzle-title-input">Title</label>
+                            <input type="text" id="puzzle-title-input" placeholder="Untitled puzzle" autocomplete="off" spellcheck="false" />
+                        </div>
+
+                        <div class="input-group metadata-field">
+                            <label for="puzzle-author-input">Author</label>
+                            <input type="text" id="puzzle-author-input" placeholder="Author name" autocomplete="off" spellcheck="false" />
+                        </div>
+
+                        <div class="input-group metadata-field">
+                            <label for="puzzle-difficulty-input">Difficulty</label>
+                            <input type="text" id="puzzle-difficulty-input" placeholder="Easy / Medium / Hard" autocomplete="off" spellcheck="false" />
+                        </div>
+
+                        <div class="input-group metadata-field metadata-field-wide">
+                            <label for="puzzle-notes-input">Notes</label>
+                            <textarea id="puzzle-notes-input" rows="3" placeholder="Optional notes, theme, or constructor comments"></textarea>
+                        </div>
                     </div>
                 </section>
 

@@ -43,6 +43,8 @@ export class CrosswordApp {
         this.currentSolution = null;
         this.editorGridSnapshot = null;
         this.currentPuzzleClues = {};
+        this.currentPuzzleMetadata = {};
+        this.activePuzzleSource = null;
         this.slotBlacklist = {};
         this.puzzleIndex = [];
         this.missingPuzzleFiles = new Set();
@@ -55,6 +57,7 @@ export class CrosswordApp {
         this._searchRequestId = 0;
         this._searchDebounceTimer = null;
         this._draftAutosaveTimer = null;
+        this._recentPuzzleUpdateTimer = null;
 
         this.activeSolveSession = null;
         this._solveRunId = 0;
@@ -93,6 +96,9 @@ export class CrosswordApp {
         this.updateSearchModeUI();
         this.renderSolverBlacklist?.();
         this._updateSolverDiagnostics?.(null, null);
+        this._updateRecentPuzzleUI?.();
+        this.renderBundledPuzzleLibrary?.();
+        this.renderHomeDashboard?.();
 
         await this.loadPredefinedPuzzle('Easy');
         await this.loadPuzzleOfTheDaySummary();
@@ -133,6 +139,54 @@ export class CrosswordApp {
 
         this._bindClick('play-daily-button', () => {
             void this.handleLoadDailyPuzzle('play');
+        });
+
+        this._bindClick('resume-recent-editor-button', () => {
+            this.loadRecentPuzzle('editor');
+        });
+
+        this._bindClick('play-recent-button', () => {
+            this.loadRecentPuzzle('play');
+        });
+
+        const homePuzzleSearch = document.getElementById('home-puzzle-search');
+        if (homePuzzleSearch) {
+            homePuzzleSearch.addEventListener('input', () => {
+                this.renderBundledPuzzleLibrary?.();
+            });
+        }
+
+        const homePuzzleSort = document.getElementById('home-puzzle-sort');
+        if (homePuzzleSort) {
+            homePuzzleSort.addEventListener('change', () => {
+                this.renderBundledPuzzleLibrary?.();
+            });
+        }
+
+        this._bindClick('home-puzzle-library', (event) => {
+            const button = event.target?.closest?.('[data-puzzle-file][data-load-mode]');
+            if (!button) return;
+
+            const file = button.dataset.puzzleFile;
+            const mode = button.dataset.loadMode || 'editor';
+            if (!file) return;
+
+            void this.loadBundledPuzzleByFile(file, mode);
+        });
+
+        [
+            ['home-featured-editor-button', 'home-featured', 'editor'],
+            ['home-featured-play-button', 'home-featured', 'play'],
+            ['home-recommended-editor-button', 'home-recommended', 'editor'],
+            ['home-recommended-play-button', 'home-recommended', 'play']
+        ].forEach(([buttonId, datasetKey, mode]) => {
+            this._bindClick(buttonId, (event) => {
+                const file = event.currentTarget?.dataset?.puzzleFile || '';
+                if (!file) return;
+                void this.loadBundledPuzzleByFile(file, mode, {
+                    label: event.currentTarget.dataset.label || ''
+                });
+            });
         });
 
         this._bindClick('drag-mode-button', () => {
@@ -301,6 +355,20 @@ export class CrosswordApp {
                 }
             });
         }
+
+        [
+            'puzzle-title-input',
+            'puzzle-author-input',
+            'puzzle-difficulty-input',
+            'puzzle-notes-input'
+        ].forEach((id) => {
+            const input = document.getElementById(id);
+            if (!input) return;
+
+            input.addEventListener('input', () => {
+                this.updatePuzzleMetadataFromInputs();
+            });
+        });
 
         if (!this._globalMouseUpBound) {
             window.addEventListener('mouseup', () => this.handleMouseUp());

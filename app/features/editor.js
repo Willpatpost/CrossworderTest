@@ -23,6 +23,8 @@ export const editorMethods = {
             grid: this.grid.map((row) => [...row]),
             currentSolution: this.currentSolution ? { ...this.currentSolution } : null,
             currentPuzzleClues: { ...this.currentPuzzleClues },
+            currentPuzzleMetadata: { ...this.currentPuzzleMetadata },
+            activePuzzleSource: this.activePuzzleSource ? { ...this.activePuzzleSource } : null,
             slotBlacklist: Object.fromEntries(
                 Object.entries(this.slotBlacklist || {}).map(([slotId, words]) => [
                     slotId,
@@ -42,6 +44,8 @@ export const editorMethods = {
         this.grid = state.grid.map((row) => [...row]);
         this.currentSolution = state.currentSolution ? { ...state.currentSolution } : null;
         this.currentPuzzleClues = { ...state.currentPuzzleClues };
+        this.currentPuzzleMetadata = { ...(state.currentPuzzleMetadata || {}) };
+        this.activePuzzleSource = state.activePuzzleSource ? { ...state.activePuzzleSource } : null;
         this.slotBlacklist = Object.fromEntries(
             Object.entries(state.slotBlacklist || {}).map(([slotId, words]) => [
                 slotId,
@@ -55,9 +59,11 @@ export const editorMethods = {
         this.render();
         this.syncActiveGridToDOM();
         this.refreshWordList();
+        this.syncPuzzleMetadataInputs?.();
         this._updateUndoRedoButtons();
         this._updateDraftButtons?.();
         this._scheduleEditorAutosave?.();
+        this._updateRecentPuzzleUI?.();
     },
 
     _recordEditorSnapshot() {
@@ -125,6 +131,7 @@ export const editorMethods = {
                 })
             );
             this._updateDraftButtons();
+            this._saveRecentPuzzleRecord?.({ silent: true });
             if (!silent) {
                 this.display.updateStatus('Saved the current editor draft locally.', true);
             }
@@ -180,6 +187,46 @@ export const editorMethods = {
         }
     },
 
+    syncPuzzleMetadataInputs() {
+        const fieldMap = {
+            title: document.getElementById('puzzle-title-input'),
+            author: document.getElementById('puzzle-author-input'),
+            difficulty: document.getElementById('puzzle-difficulty-input'),
+            notes: document.getElementById('puzzle-notes-input')
+        };
+
+        Object.entries(fieldMap).forEach(([key, input]) => {
+            if (!input) return;
+            input.value = this.currentPuzzleMetadata?.[key] || '';
+        });
+    },
+
+    updatePuzzleMetadataFromInputs() {
+        if (this.modes?.isPlayMode) return false;
+
+        const nextMetadata = {
+            title: document.getElementById('puzzle-title-input')?.value?.trim() || '',
+            author: document.getElementById('puzzle-author-input')?.value?.trim() || '',
+            difficulty: document.getElementById('puzzle-difficulty-input')?.value?.trim() || '',
+            notes: document.getElementById('puzzle-notes-input')?.value?.trim() || ''
+        };
+
+        const current = this.currentPuzzleMetadata || {};
+        const changed = ['title', 'author', 'difficulty', 'notes'].some(
+            (key) => (current[key] || '') !== (nextMetadata[key] || '')
+        );
+
+        if (!changed) return false;
+
+        this._recordEditorSnapshot?.();
+        this.currentPuzzleMetadata = nextMetadata;
+        this.display.updateStatus('Updated puzzle metadata.', true);
+        this._updateDraftButtons?.();
+        this._updateRecentPuzzleUI?.();
+        this._scheduleEditorAutosave?.();
+        return true;
+    },
+
     clearEditorLetters() {
         if (this.modes.isPlayMode || !this.grid.length) return false;
 
@@ -191,6 +238,7 @@ export const editorMethods = {
             row.map((cell) => (cell === '#' ? '#' : ''))
         );
         this.currentSolution = null;
+        this.currentPuzzleMetadata = {};
         this.render();
         this.display.updateStatus('Cleared all entered letters from the editor grid.', true);
         this._updateDraftButtons?.();
@@ -210,6 +258,7 @@ export const editorMethods = {
         );
         this.currentSolution = null;
         this.currentPuzzleClues = {};
+        this.currentPuzzleMetadata = {};
         this.slotBlacklist = {};
         this.render();
         this.display.updateStatus('Cleared all blocks from the editor grid.', true);
@@ -228,6 +277,7 @@ export const editorMethods = {
         this.grid = this.grid.map((row) => row.map(() => ''));
         this.currentSolution = null;
         this.currentPuzzleClues = {};
+        this.currentPuzzleMetadata = {};
         this.slotBlacklist = {};
         this.gridManager.selectedCell = null;
         this.render();
@@ -386,8 +436,17 @@ export const editorMethods = {
 
     _serializeCurrentPuzzle() {
         const clueExport = { across: {}, down: {} };
+        const slotList = Object.values(this.slots || {});
+        const filledCount = this.grid.reduce(
+            (count, row) => count + row.filter((cell) => /^[A-Z]$/i.test(cell)).length,
+            0
+        );
+        const openCount = this.grid.reduce(
+            (count, row) => count + row.filter((cell) => cell !== '#').length,
+            0
+        );
 
-        Object.values(this.slots || {}).forEach((slot) => {
+        slotList.forEach((slot) => {
             const clue = this.currentPuzzleClues?.[slot.id];
             if (!clue) return;
             clueExport[slot.direction][String(slot.number)] = clue;
@@ -397,7 +456,12 @@ export const editorMethods = {
         const hasDownClues = Object.keys(clueExport.down).length > 0;
 
         return {
-            title: 'Crossworder Export',
+            schemaVersion: 2,
+            packageType: 'crossworder-puzzle',
+            title: this.currentPuzzleMetadata?.title || 'Crossworder Export',
+            author: this.currentPuzzleMetadata?.author || '',
+            difficulty: this.currentPuzzleMetadata?.difficulty || '',
+            notes: this.currentPuzzleMetadata?.notes || '',
             exportedAt: new Date().toISOString(),
             grid: this.grid.map((row) =>
                 row.map((cell) => {
@@ -406,7 +470,26 @@ export const editorMethods = {
                     return ' ';
                 })
             ),
-            clues: hasAcrossClues || hasDownClues ? clueExport : {}
+            clues: hasAcrossClues || hasDownClues ? clueExport : {},
+            metadata: {
+                title: this.currentPuzzleMetadata?.title || '',
+                author: this.currentPuzzleMetadata?.author || '',
+                difficulty: this.currentPuzzleMetadata?.difficulty || '',
+                notes: this.currentPuzzleMetadata?.notes || '',
+                packageType: 'crossworder-puzzle',
+                schemaVersion: 2
+            },
+            source: this.activePuzzleSource ? { ...this.activePuzzleSource } : null,
+            stats: {
+                rows: this.grid.length,
+                columns: this.grid[0]?.length || 0,
+                totalSlots: slotList.length,
+                acrossSlots: slotList.filter((slot) => slot.direction === 'across').length,
+                downSlots: slotList.filter((slot) => slot.direction === 'down').length,
+                filledCells: filledCount,
+                openCells: openCount
+            },
+            solution: this.extractSolutionFromGrid?.({ requireComplete: false }) || null
         };
     },
 
@@ -447,9 +530,27 @@ export const editorMethods = {
             this.importPuzzleGrid(puzzleData.grid, {
                 sourceLabel: file.name || 'imported puzzle'
             });
+            this.activePuzzleSource = {
+                kind: 'imported',
+                id: file.name || 'imported-puzzle',
+                label: file.name || 'Imported puzzle'
+            };
             this.currentPuzzleClues = this._extractPuzzleClues?.(puzzleData) || {};
-            this.currentSolution = null;
+            this.currentPuzzleMetadata = this._extractPuzzleMetadata?.(puzzleData) || {};
+            this.currentSolution = puzzleData?.solution && typeof puzzleData.solution === 'object'
+                ? { ...puzzleData.solution }
+                : null;
+            if (puzzleData?.source && typeof puzzleData.source === 'object') {
+                this.activePuzzleSource = {
+                    ...this.activePuzzleSource,
+                    ...puzzleData.source,
+                    kind: puzzleData.source.kind || 'imported'
+                };
+            }
             this.slotBlacklist = {};
+            this.syncPuzzleMetadataInputs?.();
+            this._updateRecentPuzzleUI?.();
+            this._saveRecentPuzzleRecord?.({ silent: true });
             this.display.updateStatus(`Imported puzzle from ${file.name || 'JSON file'}.`, true);
             return true;
         } catch (error) {
@@ -684,6 +785,11 @@ export const editorMethods = {
         this.grid = Array.from({ length: rows }, () => Array(cols).fill(''));
         this.currentSolution = null;
         this.currentPuzzleClues = {};
+        this.currentPuzzleMetadata = {};
+        this.activePuzzleSource = {
+            kind: 'workspace',
+            label: 'Custom workspace'
+        };
         this.slotBlacklist = {};
         this.editorGridSnapshot = null;
         this.hasCompletedPlayPuzzle = false;
@@ -694,6 +800,7 @@ export const editorMethods = {
         );
         this._updateUndoRedoButtons();
         this._updateDraftButtons?.();
+        this._updateRecentPuzzleUI?.();
         this._scheduleEditorAutosave?.();
     }
 };
