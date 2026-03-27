@@ -116,6 +116,7 @@ export const puzzleMethods = {
 
         this.currentPuzzleClues = {};
         this.currentSolution = null;
+        this.slotBlacklist = {};
         this.editorGridSnapshot = null;
         this.hasCompletedPlayPuzzle = false;
         this.render();

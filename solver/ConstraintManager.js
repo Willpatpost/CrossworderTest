@@ -6,6 +6,7 @@ export class ConstraintManager {
         this.slots = {};
         this.constraints = {};
         this.domains = {};
+        this.patternCache = new Map();
     }
 
     /* ===============================
@@ -195,8 +196,15 @@ export class ConstraintManager {
                 : [];
 
             const pattern = this._buildSlotPattern(slot, grid);
+            const cacheKey = `${slot.length}:${pattern.source}`;
+            const cachedDomain = this.patternCache.get(cacheKey);
 
-            this.domains[slotId] = allWords.filter((word) => {
+            if (cachedDomain) {
+                this.domains[slotId] = [...cachedDomain];
+                continue;
+            }
+
+            const filtered = allWords.filter((word) => {
                 if (typeof word !== 'string') return false;
 
                 const normalizedWord = word.trim().toUpperCase();
@@ -204,6 +212,9 @@ export class ConstraintManager {
                 if (normalizedWord.length !== slot.length) return false;
                 return pattern.test(normalizedWord);
             });
+
+            this.patternCache.set(cacheKey, filtered);
+            this.domains[slotId] = [...filtered];
         }
 
         return this.domains;

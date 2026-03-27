@@ -43,6 +43,7 @@ export class CrosswordApp {
         this.currentSolution = null;
         this.editorGridSnapshot = null;
         this.currentPuzzleClues = {};
+        this.slotBlacklist = {};
         this.puzzleIndex = [];
         this.missingPuzzleFiles = new Set();
         this.puzzleOfTheDay = null;
@@ -63,6 +64,7 @@ export class CrosswordApp {
         this.playTimerStartedAt = null;
         this.playTimerInterval = null;
         this.hasCompletedPlayPuzzle = false;
+        this.isInstantMistakeMode = false;
     }
 
     async init() {
@@ -88,6 +90,7 @@ export class CrosswordApp {
         this._updateDraftButtons();
         this._updateTimerDisplay();
         this._updatePauseUI();
+        this.updateSearchModeUI();
 
         await this.loadPredefinedPuzzle('Easy');
         await this.loadPuzzleOfTheDaySummary();
@@ -226,6 +229,18 @@ export class CrosswordApp {
             this.handleSolve();
         });
 
+        this._bindClick('solve-selected-word-button', () => {
+            this.solveSelectedWord();
+        });
+
+        this._bindClick('suggest-fill-button', () => {
+            this.suggestSelectedWord();
+        });
+
+        this._bindClick('blacklist-entry-button', () => {
+            this.blacklistSelectedSlotWord();
+        });
+
         this._bindClick('cancel-solve-button', () => {
             this.abortActiveSolve(true);
         });
@@ -244,6 +259,16 @@ export class CrosswordApp {
             this._searchInputBound = true;
         }
 
+        const searchMode = document.getElementById('word-search-mode');
+        if (searchMode) {
+            searchMode.addEventListener('change', () => {
+                this.updateSearchModeUI?.();
+                if (searchInput) {
+                    void this.handleSearch(searchInput.value);
+                }
+            });
+        }
+
         this._bindClick('check-square-btn', () => this.handleCheckSquare());
         this._bindClick('check-word-btn', () => this.handleCheckWord());
         this._bindClick('check-puzzle-btn', () => this.handleCheckPuzzle());
@@ -253,6 +278,7 @@ export class CrosswordApp {
         this._bindClick('reveal-puzzle-btn', () => this.handleRevealPuzzle());
 
         this._bindClick('clear-btn', () => this.handleClearPlayGrid());
+        this._bindClick('instant-mistake-btn', () => this.toggleInstantMistakeMode());
         this._bindClick('next-empty-btn', () => this.jumpToNextEmptyPlayCell());
         this._bindClick('pause-btn', () => this.togglePlayPause());
         this._bindClick('previous-clue-button', () => this.selectPreviousPlayClue());

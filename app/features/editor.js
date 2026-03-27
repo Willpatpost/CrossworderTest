@@ -23,6 +23,12 @@ export const editorMethods = {
             grid: this.grid.map((row) => [...row]),
             currentSolution: this.currentSolution ? { ...this.currentSolution } : null,
             currentPuzzleClues: { ...this.currentPuzzleClues },
+            slotBlacklist: Object.fromEntries(
+                Object.entries(this.slotBlacklist || {}).map(([slotId, words]) => [
+                    slotId,
+                    Array.isArray(words) ? [...words] : Array.from(words || [])
+                ])
+            ),
             selectedCell: this.gridManager.selectedCell
                 ? { ...this.gridManager.selectedCell }
                 : null,
@@ -36,6 +42,12 @@ export const editorMethods = {
         this.grid = state.grid.map((row) => [...row]);
         this.currentSolution = state.currentSolution ? { ...state.currentSolution } : null;
         this.currentPuzzleClues = { ...state.currentPuzzleClues };
+        this.slotBlacklist = Object.fromEntries(
+            Object.entries(state.slotBlacklist || {}).map(([slotId, words]) => [
+                slotId,
+                Array.isArray(words) ? [...words] : []
+            ])
+        );
         this.gridManager.selectedCell = state.selectedCell ? { ...state.selectedCell } : null;
         this.gridManager.selectedDirection = state.selectedDirection || 'across';
         this.hasCompletedPlayPuzzle = false;
@@ -198,6 +210,7 @@ export const editorMethods = {
         );
         this.currentSolution = null;
         this.currentPuzzleClues = {};
+        this.slotBlacklist = {};
         this.render();
         this.display.updateStatus('Cleared all blocks from the editor grid.', true);
         this._updateDraftButtons?.();
@@ -215,6 +228,7 @@ export const editorMethods = {
         this.grid = this.grid.map((row) => row.map(() => ''));
         this.currentSolution = null;
         this.currentPuzzleClues = {};
+        this.slotBlacklist = {};
         this.gridManager.selectedCell = null;
         this.render();
         this.display.updateStatus('Cleared the entire editor grid.', true);
@@ -435,6 +449,7 @@ export const editorMethods = {
             });
             this.currentPuzzleClues = this._extractPuzzleClues?.(puzzleData) || {};
             this.currentSolution = null;
+            this.slotBlacklist = {};
             this.display.updateStatus(`Imported puzzle from ${file.name || 'JSON file'}.`, true);
             return true;
         } catch (error) {
@@ -669,6 +684,7 @@ export const editorMethods = {
         this.grid = Array.from({ length: rows }, () => Array(cols).fill(''));
         this.currentSolution = null;
         this.currentPuzzleClues = {};
+        this.slotBlacklist = {};
         this.editorGridSnapshot = null;
         this.hasCompletedPlayPuzzle = false;
         this.render();

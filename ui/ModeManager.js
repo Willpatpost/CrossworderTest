@@ -144,9 +144,15 @@ export class ModeManager {
         this._setDisabled('export-puzzle-button', this.isPlayMode);
         this._setDisabled('import-puzzle-button', this.isPlayMode);
         this._setDisabled('word-search-input', this.isPlayMode);
+        this._setDisabled('word-search-mode', this.isPlayMode);
         this._setDisabled('allow-reuse-toggle', this.isPlayMode);
+        this._setDisabled('deterministic-solve-toggle', this.isPlayMode);
         this._setDisabled('visualize-solve-toggle', this.isPlayMode);
+        this._setDisabled('visualize-speed-select', this.isPlayMode);
         this._setDisabled('solve-crossword-button', this.isPlayMode);
+        this._setDisabled('solve-selected-word-button', this.isPlayMode);
+        this._setDisabled('suggest-fill-button', this.isPlayMode);
+        this._setDisabled('blacklist-entry-button', this.isPlayMode);
 
         const cancelSolveBtn = document.getElementById('cancel-solve-button');
         if (cancelSolveBtn) {

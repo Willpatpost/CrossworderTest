@@ -452,6 +452,23 @@ h2 {
     gap: 8px;
 }
 
+.toggle-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-body);
+}
+
+.solver-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
 /* ===============================
    7. BUTTON SYSTEM (FIXED)
 ================================ */
@@ -539,7 +556,8 @@ button:disabled {
    8. INPUTS
 ================================ */
 input[type="number"],
-input[type="text"] {
+input[type="text"],
+select {
     padding: 8px;
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -757,6 +775,7 @@ input[type="text"] {
     border: 1px solid #aaa;
     position: relative;
     cursor: pointer;
+    touch-action: manipulation;
 }
 
 .grid-cell.block {
@@ -810,6 +829,35 @@ input[type="text"] {
     border-left: 4px solid var(--play);
 }
 
+.search-result-item {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 10px 12px;
+    border: none;
+    border-bottom: 1px solid var(--bg-body);
+    background: transparent;
+    text-align: left;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.search-result-item:hover {
+    background: var(--dropdown-hover);
+}
+
+.search-result-title {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.search-result-subtitle {
+    font-size: 0.86rem;
+    color: var(--text-muted);
+}
+
 /* ===============================
    13. STATES
 ================================ */
@@ -846,10 +894,32 @@ input[type="text"] {
 
 /* Clue source badge */
 .clue-source {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-top: 2px;
+    color: var(--bg-section);
+    background: var(--secondary);
+    margin-top: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.clue-source[data-source-kind="authored"] {
+    background: var(--primary);
+}
+
+.clue-source[data-source-kind="local"] {
+    background: var(--success);
+}
+
+.clue-source[data-source-kind="web"] {
+    background: var(--play);
+}
+
+.clue-origin-detail {
+    margin-top: 8px;
+    font-size: 0.9rem;
 }
 
 .play-paused-overlay {
@@ -1041,7 +1111,24 @@ input[type="text"] {
     }
 
     #game-container {
-        grid-template-columns: minmax(0, 1fr) minmax(250px, 290px);
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "grid"
+            "clues"
+            "status";
+    }
+
+    .nyt-toolbar {
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .toolbar-right {
+        flex-wrap: wrap;
+    }
+
+    .toolbar-btn {
+        min-height: 42px;
     }
 }
 
@@ -1083,5 +1170,31 @@ input[type="text"] {
             "grid"
             "clues"
             "status";
+    }
+
+    .nyt-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .toolbar-right {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dropdown-wrapper,
+    .toolbar-btn,
+    .toolbar-right > button {
+        width: 100%;
+    }
+
+    .word-list-display {
+        height: 240px;
+    }
+
+    .grid-container {
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
     }
 }

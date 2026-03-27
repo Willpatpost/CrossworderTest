@@ -3,10 +3,17 @@
 export class SolverEngine {
     constructor() {
         this.recursiveCalls = 0;
+        this.backtracks = 0;
+        this.domainReductions = 0;
+        this.ac3Revisions = 0;
+        this.maxDepth = 0;
         this.allowReuse = false;
         this.onUpdateCallback = null;
         this.isInterrupted = false;
         this.randomize = true;
+        this.themeEntries = [];
+        this.stats = null;
+        this.preferredSlotId = null;
     }
 
     interrupt() {
@@ -27,27 +34,49 @@ export class SolverEngine {
     ) {
         this.isInterrupted = false;
         this.recursiveCalls = 0;
+        this.backtracks = 0;
+        this.domainReductions = 0;
+        this.ac3Revisions = 0;
+        this.maxDepth = 0;
         this.allowReuse = settings.allowReuse ?? false;
         const visualize = settings.visualize ?? false;
         this.randomize = settings.randomize ?? true;
+        this.visualizationDelayMs = Math.max(0, settings.visualizationDelayMs ?? 5);
+        this.themeEntries = Array.isArray(settings.themeEntries)
+            ? settings.themeEntries.map((entry) => String(entry || '').toUpperCase()).filter(Boolean)
+            : [];
+        this.preferredSlotId = settings.preferredSlotId || null;
+        const startedAt = performance.now();
 
-        const assignment = {};
+        const assignment = { ...(settings.initialAssignment || {}) };
         const localDomains = this._cloneDomains(domains);
+
+        Object.entries(assignment).forEach(([slotId, value]) => {
+            if (slotId in localDomains) {
+                localDomains[slotId] = [value];
+            }
+        });
 
         const consistent = this.ac3(localDomains, constraints);
         if (!consistent) {
-            return { success: false };
+            return { success: false, stats: this._buildStats(startedAt, false) };
         }
 
-        return await this._recursiveSearch(
+        const result = await this._recursiveSearch(
             slots,
             localDomains,
             constraints,
             letterFrequencies,
             cellContents,
             assignment,
-            visualize
+            visualize,
+            0
         );
+
+        return {
+            ...result,
+            stats: this._buildStats(startedAt, result.success)
+        };
     }
 
     _cloneDomains(domains) {
@@ -69,9 +98,11 @@ export class SolverEngine {
         letterFrequencies,
         cellContents,
         assignment,
-        visualize
+        visualize,
+        depth = 0
     ) {
         this._throwIfInterrupted();
+        this.maxDepth = Math.max(this.maxDepth, depth);
 
         if (this._isComplete(assignment, slots)) {
             return {
@@ -92,7 +123,13 @@ export class SolverEngine {
             return { success: false };
         }
 
-        let orderedValues = this.orderDomainValues(slotId, domains, letterFrequencies);
+        let orderedValues = this.orderDomainValues(
+            slotId,
+            domains,
+            constraints,
+            assignment,
+            letterFrequencies
+        );
 
         if (this.randomize) {
             orderedValues = this.smartShuffle(orderedValues);
@@ -122,7 +159,7 @@ export class SolverEngine {
 
             if (visualize && this.onUpdateCallback) {
                 this.onUpdateCallback(slotId, value);
-                await this._visualizationPause(5);
+                await this._visualizationPause(this.visualizationDelayMs);
                 this._throwIfInterrupted();
             }
 
@@ -142,7 +179,8 @@ export class SolverEngine {
                     letterFrequencies,
                     cellContents,
                     assignment,
-                    visualize
+                    visualize,
+                    depth + 1
                 );
 
                 if (result.success) {
@@ -152,10 +190,11 @@ export class SolverEngine {
 
             delete assignment[slotId];
             this.restoreDomains(domains, inferences);
+            this.backtracks++;
 
             if (visualize && this.onUpdateCallback) {
                 this.onUpdateCallback(slotId, '');
-                await this._visualizationPause(2);
+                await this._visualizationPause(Math.max(0, this.visualizationDelayMs / 2));
                 this._throwIfInterrupted();
             }
         }
@@ -194,6 +233,10 @@ export class SolverEngine {
             (slotId) => !(slotId in assignment)
         );
 
+        if (this.preferredSlotId && unassigned.includes(this.preferredSlotId)) {
+            return this.preferredSlotId;
+        }
+
         let bestSlot = null;
         let bestDomainSize = Infinity;
         let bestDegree = -1;
@@ -220,20 +263,61 @@ export class SolverEngine {
         return bestSlot;
     }
 
-    orderDomainValues(slotId, domains, letterFrequencies) {
+    orderDomainValues(slotId, domains, constraints, assignment, letterFrequencies) {
         const domain = Array.isArray(domains[slotId]) ? [...domains[slotId]] : [];
 
-        if (!letterFrequencies || Object.keys(letterFrequencies).length === 0) {
-            return domain;
-        }
+        const getFrequencyScore = (word) => {
+            if (!letterFrequencies || Object.keys(letterFrequencies).length === 0) {
+                return 0;
+            }
 
-        const getScore = (word) =>
-            [...word].reduce(
+            return [...word].reduce(
                 (score, char) => score + (letterFrequencies[char] || 0),
                 0
             );
+        };
 
-        return domain.sort((a, b) => getScore(b) - getScore(a));
+        const getConstraintImpact = (word) => {
+            const neighbors = constraints[slotId] || {};
+            let impact = 0;
+
+            for (const neighborId in neighbors) {
+                if (neighborId in assignment) continue;
+
+                const overlaps = neighbors[neighborId] || [];
+                const neighborDomain = domains[neighborId] || [];
+                let compatibleCount = 0;
+
+                neighborDomain.forEach((candidate) => {
+                    const compatible = overlaps.every(([myIdx, neighborIdx]) => (
+                        word[myIdx] === candidate[neighborIdx]
+                    ));
+
+                    if (compatible) compatibleCount++;
+                });
+
+                impact += compatibleCount;
+            }
+
+            return impact;
+        };
+
+        const getThemeBoost = (word) => (
+            this.themeEntries.includes(word) ? 5000 : 0
+        );
+
+        return domain.sort((a, b) => {
+            const lcvDelta = getConstraintImpact(b) - getConstraintImpact(a);
+            if (lcvDelta !== 0) return lcvDelta;
+
+            const themeDelta = getThemeBoost(b) - getThemeBoost(a);
+            if (themeDelta !== 0) return themeDelta;
+
+            const frequencyDelta = getFrequencyScore(b) - getFrequencyScore(a);
+            if (frequencyDelta !== 0) return frequencyDelta;
+
+            return a.localeCompare(b);
+        });
     }
 
     smartShuffle(array) {
@@ -336,6 +420,7 @@ export class SolverEngine {
 
             inferences[neighborId] = oldDomain;
             domains[neighborId] = newDomain;
+            this.domainReductions += Math.max(0, oldDomain.length - newDomain.length);
         }
 
         return inferences;
@@ -405,8 +490,24 @@ export class SolverEngine {
         if (filteredDomain.length !== domain1.length) {
             domains[var1] = filteredDomain;
             revised = true;
+            this.ac3Revisions++;
+            this.domainReductions += Math.max(0, domain1.length - filteredDomain.length);
         }
 
         return revised;
+    }
+
+    _buildStats(startedAt, success) {
+        return {
+            success,
+            elapsedMs: Math.max(0, performance.now() - startedAt),
+            recursiveCalls: this.recursiveCalls,
+            backtracks: this.backtracks,
+            domainReductions: this.domainReductions,
+            ac3Revisions: this.ac3Revisions,
+            maxDepth: this.maxDepth,
+            randomized: this.randomize,
+            allowReuse: this.allowReuse
+        };
     }
 }

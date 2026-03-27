@@ -5,6 +5,7 @@ import { DefinitionsProvider } from '../providers/DefinitionsProvider.js';
 import { DictionaryAPI } from '../providers/DictionaryAPI.js';
 import { editorMethods } from '../app/features/editor.js';
 import { playMethods } from '../app/features/play.js';
+import { DisplayManager } from '../ui/DisplayManager.js';
 
 test('WordListProvider clears in-flight promise entries after success', async () => {
     const originalFetch = globalThis.fetch;
@@ -50,6 +51,58 @@ test('DefinitionsProvider clears in-flight promise entries after success', async
     }
 });
 
+test('DefinitionsProvider ranks stronger local clues ahead of weaker ones', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: true,
+        async json() {
+            return {
+                cat: [
+                    { c: 'Questionable clue?!', s: 'WEB', d: '0' },
+                    { c: 'Feline pet', s: 'NYT', d: '2025-01-01' }
+                ]
+            };
+        }
+    });
+
+    try {
+        const provider = new DefinitionsProvider({ basePath: '/mock' });
+        const defs = await provider.lookup('CAT');
+
+        assert.equal(defs[0].clue, 'Feline pet');
+        assert.equal(defs[1].clue, 'Questionable clue?!');
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('DefinitionsProvider searchEntries matches clue text and answer text', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => ({
+        ok: true,
+        async json() {
+            if (String(url).includes('defs-3')) {
+                return {
+                    cat: [{ c: 'Feline friend', s: 'NYT', d: '2025-01-01' }]
+                };
+            }
+
+            return {};
+        }
+    });
+
+    try {
+        const provider = new DefinitionsProvider({ basePath: '/mock' });
+        const byClue = await provider.searchEntries('feline');
+        const byAnswer = await provider.searchEntries('cat');
+
+        assert.equal(byClue[0].word, 'CAT');
+        assert.equal(byAnswer[0].word, 'CAT');
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
 test('DictionaryAPI caches empty fallback results for failed requests', async () => {
     const originalFetch = globalThis.fetch;
     let requestCount = 0;
@@ -70,6 +123,38 @@ test('DictionaryAPI caches empty fallback results for failed requests', async ()
     } finally {
         globalThis.fetch = originalFetch;
     }
+});
+
+test('DisplayManager describes authored, local, and web clue sources clearly', () => {
+    const authored = DisplayManager.prototype._describeClueSource({
+        kind: 'authored',
+        label: 'Authored',
+        detail: 'Written in this puzzle'
+    });
+    const local = DisplayManager.prototype._describeClueSource({
+        source: 'NYT',
+        date: '2025-01-01'
+    });
+    const web = DisplayManager.prototype._describeClueSource({
+        source: 'WEB',
+        attribution: '(DictionaryAPI)'
+    });
+
+    assert.deepEqual(authored, {
+        kind: 'authored',
+        label: 'Authored',
+        detail: 'Written in this puzzle'
+    });
+    assert.deepEqual(local, {
+        kind: 'local',
+        label: 'Local',
+        detail: 'NYT, 2025-01-01'
+    });
+    assert.deepEqual(web, {
+        kind: 'web',
+        label: 'Web',
+        detail: '(DictionaryAPI)'
+    });
 });
 
 test('Direct editor letter entry keeps authored clues while invalidating the saved solution', () => {

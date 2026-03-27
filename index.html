@@ -295,6 +295,15 @@
                             <button id="solve-crossword-button" class="btn solve-btn" type="button">
                                 Solve &amp; Generate Clues
                             </button>
+                            <button id="solve-selected-word-button" class="btn secondary-btn" type="button">
+                                Solve Selected Word
+                            </button>
+                            <button id="suggest-fill-button" class="btn secondary-btn" type="button">
+                                Suggest Fill
+                            </button>
+                            <button id="blacklist-entry-button" class="btn secondary-btn" type="button">
+                                Blacklist Entry
+                            </button>
                             <button id="cancel-solve-button" class="btn danger-btn hidden" type="button">
                                 Cancel Solve
                             </button>
@@ -315,10 +324,35 @@
                             <span>Allow Word Reuse</span>
                         </label>
 
+                        <label class="toggle-container" for="lock-filled-toggle">
+                            <input type="checkbox" id="lock-filled-toggle" checked />
+                            <span>Lock Filled Entries</span>
+                        </label>
+
+                        <label class="toggle-container" for="deterministic-solve-toggle">
+                            <input type="checkbox" id="deterministic-solve-toggle" />
+                            <span>Deterministic Solve</span>
+                        </label>
+
                         <label class="toggle-container" for="visualize-solve-toggle">
                             <input type="checkbox" id="visualize-solve-toggle" checked />
                             <span>Visualize Solve</span>
                         </label>
+
+                        <div class="input-group">
+                            <label for="visualize-speed-select">Visual Speed</label>
+                            <select id="visualize-speed-select">
+                                <option value="fast">Fast</option>
+                                <option value="slow">Slow</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="solver-metrics" class="solver-metrics" aria-live="polite">
+                        <div class="summary-item summary-item-wide">
+                            <span class="summary-value">No solve yet</span>
+                            <span class="summary-label">Run the solver to inspect timing, search depth, and pruning.</span>
+                        </div>
                     </div>
                 </section>
 
@@ -326,6 +360,11 @@
                 <section class="section word-lookup-section" aria-labelledby="word-lookup-heading">
                     <h2 id="word-lookup-heading">Word Lookup</h2>
                     <div class="search-container">
+                        <label for="word-search-mode" class="sr-only">Search mode</label>
+                        <select id="word-search-mode" aria-label="Search mode">
+                            <option value="answer">Answer Patterns</option>
+                            <option value="clue">Clue Text</option>
+                        </select>
                         <label for="word-search-input" class="sr-only">Search words by pattern</label>
                         <input type="text" id="word-search-input" placeholder="Search (use ? for wildcards, e.g. C??T)"
                             autocomplete="off" spellcheck="false" aria-describedby="matches-count" />
@@ -432,6 +471,9 @@
                         </div>
 
                         <button class="toolbar-btn" id="clear-btn" type="button">Clear</button>
+                        <button class="toolbar-btn" id="instant-mistake-btn" type="button" aria-pressed="false">
+                            Mistakes: Off
+                        </button>
                         <button class="toolbar-btn" id="next-empty-btn" type="button">Next Empty</button>
                         <button class="toolbar-btn icon-btn" id="pause-btn" type="button" aria-label="Pause game">
                             Pause
@@ -477,6 +519,9 @@
                             </p>
                             <p id="play-active-clue-text" class="composer-preview muted-text">
                                 The current clue will appear here.
+                            </p>
+                            <p id="play-active-clue-source" class="clue-origin-detail muted-text">
+                                Clue origin details will appear here.
                             </p>
                         </section>
 

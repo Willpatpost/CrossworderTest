@@ -4,6 +4,7 @@ import { CrosswordApp } from '../app/CrosswordApp.js';
 import { editorMethods } from '../app/features/editor.js';
 import { puzzleMethods } from '../app/features/puzzles.js';
 import { playMethods } from '../app/features/play.js';
+import { renderingMethods } from '../app/features/rendering.js';
 import { solverMethods } from '../app/features/solver.js';
 import { GridManager } from '../grid/GridManager.js';
 
@@ -140,6 +141,7 @@ test('enterPlayMode snapshots the editor grid and exitPlayMode restores it', () 
         _resetPlayTimer() {},
         _resumePlayTimer() {},
         _pausePlayTimer() {},
+        _updateInstantMistakeUI() {},
         _updatePauseUI() {},
         _getFirstSlot() {
             return app.slots['1-across'];
@@ -1497,6 +1499,189 @@ test('handleSearch short queries skip provider work and show guidance', async ()
     ]);
 });
 
+test('handleSearch supports clue-text mode with ranked clue results', async () => {
+    const originalDocument = globalThis.document;
+    const updates = [];
+    let popupWord = null;
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'word-search-mode') {
+                return { value: 'clue' };
+            }
+            return null;
+        }
+    };
+
+    try {
+        const app = {
+            _searchRequestId: 0,
+            definitions: {
+                async searchEntries(query) {
+                    return [
+                        { word: 'CAT', clue: `Result for ${query}`, source: 'NYT', date: '2025-01-01' }
+                    ];
+                }
+            },
+            display: {
+                updateSearchResults(matches, onSelect, options) {
+                    updates.push({ matches, options });
+                    onSelect(matches[0]);
+                },
+                updateStatus() {}
+            },
+            popups: {
+                show(word) {
+                    popupWord = word;
+                }
+            }
+        };
+
+        await solverMethods.handleSearch.call(app, 'feline');
+
+        assert.equal(updates[0].options.mode, 'clue');
+        assert.equal(updates[0].matches[0].word, 'CAT');
+        assert.equal(popupWord, 'CAT');
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('buildSolverDomains filters slot-specific blacklisted fills', () => {
+    const app = {
+        slotBlacklist: {
+            '1-across': ['CAT']
+        },
+        constraintManager: {
+            setupDomains() {
+                return {
+                    '1-across': ['CAT', 'CAR']
+                };
+            }
+        },
+        wordLengthCache: {},
+        grid: [['', '', '']],
+        _getSlotBlacklist: solverMethods._getSlotBlacklist
+    };
+
+    const domains = solverMethods._buildSolverDomains.call(app, {
+        '1-across': { id: '1-across', length: 3, positions: [[0, 0], [0, 1], [0, 2]] }
+    });
+
+    assert.deepEqual(domains['1-across'], ['CAR']);
+});
+
+test('suggestSelectedWord fills the selected slot with the top candidate', async () => {
+    const statuses = [];
+    let snapshotCount = 0;
+    let refreshed = 0;
+
+    const app = {
+        modes: { isPlayMode: false },
+        slotBlacklist: {},
+        grid: [['', '', '']],
+        slots: {
+            '1-across': { id: '1-across', number: 1, direction: 'across', length: 3, positions: [[0, 0], [0, 1], [0, 2]] }
+        },
+        constraintManager: {
+            constraints: {},
+            buildDataStructures() {
+                return {
+                    slots: app.slots,
+                    cellContents: {}
+                };
+            },
+            setupDomains() {
+                return {
+                    '1-across': ['CAT', 'CAR']
+                };
+            }
+        },
+        wordProvider: {
+            async getWordsOfLength() {
+                return ['CAT', 'CAR'];
+            }
+        },
+        solver: {
+            orderDomainValues() {
+                return ['CAR', 'CAT'];
+            }
+        },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _getSelectedEditorSlot() {
+            return app.slots['1-across'];
+        },
+        _getSelectedSolveSettings() {
+            return { lockFilledEntries: true };
+        },
+        _getLockedAssignments() {
+            return {};
+        },
+        _getSlotBlacklist: solverMethods._getSlotBlacklist,
+        _buildSolverDomains: solverMethods._buildSolverDomains,
+        _withPreparedSolverData: solverMethods._withPreparedSolverData,
+        _extractSlotWord: renderingMethods._extractSlotWord,
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        syncActiveGridToDOM() {},
+        refreshWordList() {
+            refreshed++;
+        },
+        _applySlotWord: solverMethods._applySlotWord,
+        _scheduleEditorAutosave() {},
+        letterFrequencies: {}
+    };
+
+    const suggested = await solverMethods.suggestSelectedWord.call(app);
+
+    assert.equal(suggested, true);
+    assert.equal(snapshotCount, 1);
+    assert.equal(refreshed, 1);
+    assert.deepEqual(app.grid, [['C', 'A', 'R']]);
+    assert.match(statuses.at(-1), /Suggested CAR/);
+});
+
+test('blacklistSelectedSlotWord stores the current fill and clears the slot', () => {
+    const statuses = [];
+    let snapshotCount = 0;
+
+    const slot = { id: '1-across', number: 1, direction: 'across', length: 3, positions: [[0, 0], [0, 1], [0, 2]] };
+    const app = {
+        slotBlacklist: {},
+        grid: [['C', 'A', 'T']],
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _getSelectedEditorSlot() {
+            return slot;
+        },
+        _extractSlotWord: renderingMethods._extractSlotWord,
+        _getSlotBlacklist: solverMethods._getSlotBlacklist,
+        _setSlotBlacklist: solverMethods._setSlotBlacklist,
+        _recordEditorSnapshot() {
+            snapshotCount++;
+        },
+        syncActiveGridToDOM() {},
+        refreshWordList() {},
+        _scheduleEditorAutosave() {}
+    };
+
+    const blacklisted = solverMethods.blacklistSelectedSlotWord.call(app);
+
+    assert.equal(blacklisted, true);
+    assert.equal(snapshotCount, 1);
+    assert.deepEqual(app.slotBlacklist, { '1-across': ['CAT'] });
+    assert.deepEqual(app.grid, [['', '', '']]);
+    assert.match(statuses.at(-1), /Blacklisted CAT/);
+});
+
 test('loadRandomPuzzle marks missing files and falls back when all candidates fail', async () => {
     const originalError = console.error;
     const statuses = [];
@@ -1734,7 +1919,8 @@ test('updatePauseUI reflects completed play state in the toolbar', () => {
         playMethods._updatePauseUI.call({
             modes: { isPlayMode: true },
             isPlayPaused: false,
-            hasCompletedPlayPuzzle: true
+            hasCompletedPlayPuzzle: true,
+            _updateInstantMistakeUI() {}
         });
 
         assert.equal(elements.get('pause-btn').disabled, true);
@@ -1746,4 +1932,91 @@ test('updatePauseUI reflects completed play state in the toolbar', () => {
     } finally {
         globalThis.document = originalDocument;
     }
+});
+
+test('toggleInstantMistakeMode refreshes incorrect-cell highlights for play mode', () => {
+    const statuses = [];
+    const incorrectOps = [];
+
+    const td = {
+        classList: {
+            remove(...names) {
+                incorrectOps.push(['remove', ...names]);
+            },
+            add(name) {
+                incorrectOps.push(['add', name]);
+            }
+        }
+    };
+
+    const app = {
+        modes: { isPlayMode: true },
+        isPlayPaused: false,
+        hasCompletedPlayPuzzle: false,
+        isInstantMistakeMode: false,
+        currentSolution: { '1-across': 'CAT' },
+        grid: [['C', 'X', 'T']],
+        slots: {
+            '1-across': {
+                id: '1-across',
+                positions: [[0, 0], [0, 1], [0, 2]]
+            }
+        },
+        gridManager: {
+            cells: {
+                '0,0': td,
+                '0,1': td,
+                '0,2': td
+            }
+        },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _updateInstantMistakeUI() {},
+        _refreshInstantMistakeHighlights: playMethods._refreshInstantMistakeHighlights,
+        _clearPlayFeedbackStates: playMethods._clearPlayFeedbackStates,
+        _applyInstantMistakeStateAt: playMethods._applyInstantMistakeStateAt,
+        _getSolutionLetterAt: playMethods._getSolutionLetterAt
+    };
+
+    const enabled = playMethods.toggleInstantMistakeMode.call(app);
+
+    assert.equal(enabled, true);
+    assert.equal(app.isInstantMistakeMode, true);
+    assert.match(statuses.at(-1), /Instant mistake mode enabled/);
+    assert.equal(
+        incorrectOps.some((entry) => entry[0] === 'add' && entry[1] === 'incorrect'),
+        true
+    );
+});
+
+test('GridManager setCell invokes instant mistake updates after play entry changes', () => {
+    const manager = new GridManager({
+        '0,0': {
+            classList: {
+                contains() {
+                    return false;
+                },
+                remove() {}
+            },
+            querySelector() {
+                return { textContent: '' };
+            }
+        }
+    });
+
+    let appliedAt = null;
+    const coordinator = {
+        grid: [['']],
+        _applyInstantMistakeStateAt(r, c) {
+            appliedAt = { r, c };
+        }
+    };
+
+    manager._setCell(0, 0, 'A', coordinator);
+
+    assert.deepEqual(appliedAt, { r: 0, c: 0 });
+    assert.equal(coordinator.grid[0][0], 'A');
 });

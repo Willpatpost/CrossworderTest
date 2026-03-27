@@ -11,6 +11,7 @@ export class DisplayManager {
         this.playDownDisplay = document.getElementById('play-down-display');
         this.playActiveClueLabel = document.getElementById('play-active-clue-label');
         this.playActiveClueText = document.getElementById('play-active-clue-text');
+        this.playActiveClueSource = document.getElementById('play-active-clue-source');
 
         this.dropdown = document.getElementById('search-dropdown');
         this.matchesCount = document.getElementById('matches-count');
@@ -170,7 +171,11 @@ export class DisplayManager {
 
                 if (authoredClue) {
                     text.textContent = authoredClue;
-                    this._setItemSourceBadge(item, 'Puzzle');
+                    this._setItemSourceBadge(item, {
+                        kind: 'authored',
+                        label: 'Authored',
+                        detail: 'Written in this puzzle'
+                    });
                 } else {
                     text.textContent = 'Loading clue...';
                     text.classList.add('muted-text');
@@ -276,12 +281,12 @@ export class DisplayManager {
 
             const clueText = result.clue || 'No clue found';
             this._setClueText(container, slot.id, clueText, !result.clue);
-            this._setSourceBadge(container, slot.id, result.source || '');
+            this._setSourceBadge(container, slot.id, result);
         } catch {
             if (hydrationToken !== this._clueHydrationToken) return;
 
             this._setClueText(container, slot.id, '[Error loading clue]', true);
-            this._setSourceBadge(container, slot.id, '');
+            this._setSourceBadge(container, slot.id, null);
         }
     }
 
@@ -300,24 +305,68 @@ export class DisplayManager {
         }
     }
 
-    _setSourceBadge(container, slotId, source) {
+    _setSourceBadge(container, slotId, clueResult) {
         const item = this._findSlotItem(container, slotId);
         if (!item) return;
 
-        this._setItemSourceBadge(item, source);
+        this._setItemSourceBadge(item, this._describeClueSource(clueResult));
     }
 
-    _setItemSourceBadge(item, source) {
+    _describeClueSource(clueResult) {
+        if (!clueResult) return null;
+
+        if (typeof clueResult === 'string') {
+            return {
+                kind: 'local',
+                label: 'Local',
+                detail: clueResult
+            };
+        }
+
+        if (clueResult.kind === 'authored') {
+            return clueResult;
+        }
+
+        const source = String(clueResult.source || '').trim();
+        const date = String(clueResult.date || '').trim();
+
+        if (source.toUpperCase() === 'WEB') {
+            return {
+                kind: 'web',
+                label: 'Web',
+                detail: clueResult.attribution || 'Dictionary API fallback'
+            };
+        }
+
+        const detail = [source, date].filter(Boolean).join(', ');
+        return {
+            kind: 'local',
+            label: 'Local',
+            detail: detail || 'Bundled clue history'
+        };
+    }
+
+    _setItemSourceBadge(item, sourceInfo) {
         if (!item) return;
 
         item.querySelector('.clue-source')?.remove();
+        delete item.dataset.sourceKind;
+        delete item.dataset.sourceDetail;
+        delete item.dataset.sourceLabel;
 
-        if (!source) return;
+        if (!sourceInfo) return;
 
         const badge = document.createElement('span');
         badge.className = 'clue-source';
-        badge.textContent = source;
+        badge.textContent = sourceInfo.label;
+        badge.dataset.sourceKind = sourceInfo.kind || '';
+        if (sourceInfo.detail) {
+            badge.title = sourceInfo.detail;
+        }
 
+        item.dataset.sourceKind = sourceInfo.kind || '';
+        item.dataset.sourceLabel = sourceInfo.label || '';
+        item.dataset.sourceDetail = sourceInfo.detail || '';
         item.appendChild(badge);
     }
 
@@ -333,7 +382,7 @@ export class DisplayManager {
     updateSearchResults(matches, onSelect, options = {}) {
         if (!this.dropdown) return;
 
-        const { message = '', showDropdown = matches.length > 0 } = options;
+        const { message = '', showDropdown = matches.length > 0, mode = 'answer' } = options;
 
         this.dropdown.innerHTML = '';
 
@@ -355,16 +404,30 @@ export class DisplayManager {
 
         const fragment = document.createDocumentFragment();
 
-        matches.forEach((word) => {
+        matches.forEach((match) => {
             const item = document.createElement('button');
             item.type = 'button';
             item.className = 'search-result-item';
-            item.textContent = word;
+
+            if (mode === 'clue' && match && typeof match === 'object') {
+                const title = document.createElement('span');
+                title.className = 'search-result-title';
+                title.textContent = match.word || '';
+
+                const clue = document.createElement('span');
+                clue.className = 'search-result-subtitle';
+                clue.textContent = match.clue || 'No clue text available';
+
+                item.appendChild(title);
+                item.appendChild(clue);
+            } else {
+                item.textContent = match;
+            }
 
             item.addEventListener('click', () => {
                 this.dropdown.classList.add('hidden');
                 if (typeof onSelect === 'function') {
-                    onSelect(word);
+                    onSelect(match);
                 }
             });
 
@@ -415,6 +478,7 @@ export class DisplayManager {
 
         const label = this.playActiveClueLabel;
         const text = this.playActiveClueText;
+        const source = this.playActiveClueSource;
         if (!label || !text) return;
 
         const clueText = item.querySelector('.clue-text')?.textContent || 'No clue available.';
@@ -425,6 +489,15 @@ export class DisplayManager {
         label.classList.remove('muted-text');
         text.textContent = clueText;
         text.classList.toggle('muted-text', /loading clue|no clue found|\[error loading clue\]/i.test(clueText));
+
+        if (source) {
+            const sourceLabel = item.dataset.sourceLabel || '';
+            const sourceDetail = item.dataset.sourceDetail || '';
+            source.textContent = sourceLabel
+                ? `${sourceLabel}: ${sourceDetail || 'No additional source details'}`
+                : 'Clue origin details will appear here.';
+            source.classList.toggle('muted-text', !sourceLabel);
+        }
     }
 
     updatePuzzleSummary(grid, slots, clueMap = {}) {

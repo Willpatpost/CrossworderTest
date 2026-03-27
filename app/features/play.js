@@ -30,6 +30,7 @@ export const playMethods = {
         this.refreshWordList();
         this._resetPlayTimer();
         this._resumePlayTimer();
+        this._updateInstantMistakeUI();
         this._updatePauseUI();
 
         const firstSlot = this._getFirstSlot();
@@ -63,6 +64,7 @@ export const playMethods = {
         this.editorGridSnapshot = null;
         this.render();
         this.refreshWordList();
+        this._updateInstantMistakeUI();
         this._updatePauseUI();
         this._updatePlayStatusCopy('idle');
         this.display.updateStatus('Returned to editor mode.', true);
@@ -168,6 +170,7 @@ export const playMethods = {
 
         this.grid[r][c] = expected;
         this.syncActiveGridToDOM();
+        this._refreshInstantMistakeHighlights();
         this._checkForPuzzleCompletion();
     },
 
@@ -185,6 +188,7 @@ export const playMethods = {
         });
 
         this.syncActiveGridToDOM();
+        this._refreshInstantMistakeHighlights();
         this._checkForPuzzleCompletion();
     },
 
@@ -193,6 +197,7 @@ export const playMethods = {
 
         this.applySolutionToGrid(this.slots, this.currentSolution);
         this.gridManager._updateHighlights(this);
+        this._refreshInstantMistakeHighlights();
         this._checkForPuzzleCompletion();
     },
 
@@ -215,6 +220,19 @@ export const playMethods = {
         this.syncActiveGridToDOM();
         this._updatePlayStatusCopy('active');
         this.display.updateStatus('Cleared all entered letters from the play grid.', true);
+    },
+
+    toggleInstantMistakeMode() {
+        if (!this.modes.isPlayMode || this.hasCompletedPlayPuzzle) return false;
+
+        this.isInstantMistakeMode = !this.isInstantMistakeMode;
+        this._updateInstantMistakeUI();
+        this._refreshInstantMistakeHighlights();
+        this.display.updateStatus(
+            `Instant mistake mode ${this.isInstantMistakeMode ? 'enabled' : 'disabled'}.`,
+            true
+        );
+        return this.isInstantMistakeMode;
     },
 
     jumpToNextEmptyPlayCell() {
@@ -278,6 +296,46 @@ export const playMethods = {
         if (!slot) return;
 
         this.display.highlightSlotInList(slot.id);
+    },
+
+    _clearPlayFeedbackStates() {
+        Object.values(this.gridManager?.cells || {}).forEach((td) => {
+            td?.classList?.remove('correct', 'incorrect');
+        });
+    },
+
+    _applyInstantMistakeStateAt(r, c) {
+        const td = this.gridManager?.cells?.[`${r},${c}`];
+        if (!td) return;
+
+        td.classList.remove('correct', 'incorrect');
+        if (!this.isInstantMistakeMode || !this.currentSolution) return;
+
+        const actual = (this.grid?.[r]?.[c] || '').toUpperCase();
+        const expected = this._getSolutionLetterAt(r, c);
+        if (actual && expected && actual !== expected) {
+            td.classList.add('incorrect');
+        }
+    },
+
+    _refreshInstantMistakeHighlights() {
+        this._clearPlayFeedbackStates();
+        if (!this.isInstantMistakeMode || !this.modes.isPlayMode || !this.currentSolution) return;
+
+        Object.values(this.slots || {}).forEach((slot) => {
+            slot.positions.forEach(([r, c]) => {
+                this._applyInstantMistakeStateAt(r, c);
+            });
+        });
+    },
+
+    _updateInstantMistakeUI() {
+        const button = document.getElementById('instant-mistake-btn');
+        if (!button) return;
+
+        button.textContent = `Mistakes: ${this.isInstantMistakeMode ? 'On' : 'Off'}`;
+        button.setAttribute('aria-pressed', String(this.isInstantMistakeMode));
+        button.disabled = !this.modes.isPlayMode || this.isPlayPaused || this.hasCompletedPlayPuzzle;
     },
 
     _findNextEmptyPlayCell() {
@@ -398,7 +456,7 @@ export const playMethods = {
 
         if (state === 'active') {
             copy.textContent =
-                'Use the play tools to check or reveal entries while solving. The timer runs until you finish or pause.';
+                `Use the play tools to check or reveal entries while solving.${this.isInstantMistakeMode ? ' Wrong letters are flagged immediately.' : ''} The timer runs until you finish or pause.`;
             return;
         }
 
@@ -472,7 +530,8 @@ export const playMethods = {
             'reveal-word-btn',
             'reveal-puzzle-btn',
             'clear-btn',
-            'next-empty-btn'
+            'next-empty-btn',
+            'instant-mistake-btn'
         ];
 
         if (pauseBtn) {
@@ -507,5 +566,7 @@ export const playMethods = {
             if (!el) return;
             el.disabled = this.isPlayPaused || !this.modes.isPlayMode;
         });
+
+        this._updateInstantMistakeUI();
     }
 };
