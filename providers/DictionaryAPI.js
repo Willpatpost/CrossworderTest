@@ -2,6 +2,7 @@
 export class DictionaryAPI {
   constructor() {
     this.fallbackCache = new Map();
+    this.emptyResult = [];
   }
 
   async fetchFallback(word) {
@@ -10,14 +11,18 @@ export class DictionaryAPI {
     try {
       const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
       const resp = await fetch(url);
-      if (!resp.ok) return null;
+      if (!resp.ok) {
+        this.fallbackCache.set(word, this.emptyResult);
+        return this.emptyResult;
+      }
 
       const data = await resp.json();
       const transformed = this._transform(data);
       this.fallbackCache.set(word, transformed);
       return transformed;
     } catch (e) {
-      return null;
+      this.fallbackCache.set(word, this.emptyResult);
+      return this.emptyResult;
     }
   }
 

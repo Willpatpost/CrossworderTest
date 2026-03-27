@@ -46,6 +46,7 @@ export const renderingMethods = {
             this.modes.isPlayMode,
             this.currentPuzzleClues
         );
+        this.display.updatePuzzleSummary(this.grid, this.slots, this.currentPuzzleClues);
     },
 
     syncActiveGridToDOM() {

@@ -629,6 +629,35 @@ input[type="text"] {
     grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(250px, 300px);
 }
 
+.puzzle-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-section);
+}
+
+.summary-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.summary-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
 .editor-workspace .grid-panel,
 #game-container .grid-panel {
     display: flex;
@@ -723,6 +752,11 @@ input[type="text"] {
     border-radius: 8px;
     height: 320px;
     overflow-y: auto;
+}
+
+.list-empty-state {
+    margin: 0;
+    padding: 12px;
 }
 
 .word-list-item {

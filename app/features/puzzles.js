@@ -6,7 +6,9 @@ export const puzzleMethods = {
 
         try {
             const puzzleData = await this._fetchPuzzleFile(file);
-            this.importPuzzleGrid(puzzleData.grid);
+            this.importPuzzleGrid(puzzleData.grid, {
+                sourceLabel: `${name} puzzle`
+            });
             this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
             this.currentSolution = null;
             this.display.updateStatus(`Loaded ${name} puzzle.`, true);
@@ -50,7 +52,9 @@ export const puzzleMethods = {
 
             try {
                 const puzzleData = await this._fetchPuzzleFile(randomEntry.file);
-                this.importPuzzleGrid(puzzleData.grid);
+                this.importPuzzleGrid(puzzleData.grid, {
+                    sourceLabel: randomEntry.title || randomEntry.id || randomEntry.file
+                });
                 this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
                 this.currentSolution = this.extractSolutionFromGrid({ requireComplete: true });
                 this._updateRandomPuzzleButton(false);
@@ -87,8 +91,8 @@ export const puzzleMethods = {
         );
     },
 
-    importPuzzleGrid(rawGrid) {
-        if (!Array.isArray(rawGrid) || !rawGrid.length) return;
+    importPuzzleGrid(rawGrid, { sourceLabel = 'puzzle' } = {}) {
+        this._assertValidPuzzleGrid(rawGrid, sourceLabel);
 
         this.grid = rawGrid.map((row) => {
             const cells = Array.isArray(row) ? row : [...String(row)];
@@ -156,7 +160,9 @@ export const puzzleMethods = {
             const dailyPuzzle = this.puzzleOfTheDay || await this._fetchDailyPuzzle();
             this.puzzleOfTheDay = dailyPuzzle;
 
-            this.importPuzzleGrid(dailyPuzzle.grid);
+            this.importPuzzleGrid(dailyPuzzle.grid, {
+                sourceLabel: 'daily puzzle'
+            });
             this.currentPuzzleClues = dailyPuzzle.clues || {};
             this.currentSolution = mode === 'play' ? (dailyPuzzle.solution || null) : null;
 
@@ -308,7 +314,9 @@ export const puzzleMethods = {
             throw new Error(`Failed to fetch ${file}: HTTP ${resp.status}`);
         }
 
-        return await resp.json();
+        const puzzleData = await resp.json();
+        this._assertValidPuzzleGrid(puzzleData?.grid, file);
+        return puzzleData;
     },
 
     async _fetchDailyPuzzle() {
@@ -317,6 +325,29 @@ export const puzzleMethods = {
             throw new Error(`Failed to fetch puzzle-of-the-day.json: HTTP ${resp.status}`);
         }
 
-        return await resp.json();
+        const puzzleData = await resp.json();
+        this._assertValidPuzzleGrid(puzzleData?.grid, 'puzzle-of-the-day.json');
+        return puzzleData;
+    },
+
+    _assertValidPuzzleGrid(rawGrid, sourceLabel = 'puzzle') {
+        if (!Array.isArray(rawGrid) || rawGrid.length === 0) {
+            throw new Error(`The ${sourceLabel} does not include a valid grid.`);
+        }
+
+        const width = Array.isArray(rawGrid[0]) ? rawGrid[0].length : String(rawGrid[0]).length;
+
+        if (!width) {
+            throw new Error(`The ${sourceLabel} grid is empty.`);
+        }
+
+        const isRectangular = rawGrid.every((row) => {
+            const cells = Array.isArray(row) ? row : [...String(row)];
+            return cells.length === width;
+        });
+
+        if (!isRectangular) {
+            throw new Error(`The ${sourceLabel} grid is not rectangular.`);
+        }
     }
 };

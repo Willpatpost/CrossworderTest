@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WordListProvider } from '../providers/WordListProvider.js';
 import { DefinitionsProvider } from '../providers/DefinitionsProvider.js';
+import { DictionaryAPI } from '../providers/DictionaryAPI.js';
 
 test('WordListProvider clears in-flight promise entries after success', async () => {
     const originalFetch = globalThis.fetch;
@@ -42,6 +43,28 @@ test('DefinitionsProvider clears in-flight promise entries after success', async
         assert.equal(defs[0].clue, 'Feline');
         assert.equal(provider._cache.has(3), true);
         assert.equal(provider._promises.has(3), false);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('DictionaryAPI caches empty fallback results for failed requests', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestCount = 0;
+
+    globalThis.fetch = async () => {
+        requestCount++;
+        return { ok: false };
+    };
+
+    try {
+        const api = new DictionaryAPI();
+        const first = await api.fetchFallback('MISSING');
+        const second = await api.fetchFallback('MISSING');
+
+        assert.deepEqual(first, []);
+        assert.deepEqual(second, []);
+        assert.equal(requestCount, 1);
     } finally {
         globalThis.fetch = originalFetch;
     }

@@ -12,6 +12,7 @@ export class DisplayManager {
 
         this.dropdown = document.getElementById('search-dropdown');
         this.matchesCount = document.getElementById('matches-count');
+        this.puzzleSummary = document.getElementById('puzzle-summary');
 
         this._clueHydrationToken = 0;
         this._activeListMode = 'editor'; // editor | play
@@ -132,6 +133,16 @@ export class DisplayManager {
 
     _renderSlotList(slotsArr, container, solution, onWordClick, isPlayMode, clueMap) {
         container.innerHTML = '';
+
+        if (!slotsArr.length) {
+            const emptyState = document.createElement('p');
+            emptyState.className = 'list-empty-state muted-text';
+            emptyState.textContent = isPlayMode
+                ? 'No entries are available in this puzzle yet.'
+                : 'No across or down entries yet. Open up the grid to create some.';
+            container.appendChild(emptyState);
+            return;
+        }
 
         const fragment = document.createDocumentFragment();
 
@@ -312,16 +323,18 @@ export class DisplayManager {
        SEARCH DROPDOWN
     =============================== */
 
-    updateSearchResults(matches, onSelect) {
+    updateSearchResults(matches, onSelect, options = {}) {
         if (!this.dropdown) return;
+
+        const { message = '', showDropdown = matches.length > 0 } = options;
 
         this.dropdown.innerHTML = '';
 
-        if (!matches.length) {
+        if (!showDropdown || !matches.length) {
             this.dropdown.classList.add('hidden');
 
             if (this.matchesCount) {
-                this.matchesCount.textContent = 'No matches found';
+                this.matchesCount.textContent = message;
             }
 
             return;
@@ -330,8 +343,7 @@ export class DisplayManager {
         this.dropdown.classList.remove('hidden');
 
         if (this.matchesCount) {
-            this.matchesCount.textContent =
-                `${matches.length} match${matches.length === 1 ? '' : 'es'}`;
+            this.matchesCount.textContent = message;
         }
 
         const fragment = document.createDocumentFragment();
@@ -388,5 +400,45 @@ export class DisplayManager {
                 break;
             }
         }
+    }
+
+    updatePuzzleSummary(grid, slots, clueMap = {}) {
+        if (!this.puzzleSummary) return;
+
+        if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0])) {
+            this.puzzleSummary.innerHTML = '';
+            return;
+        }
+
+        const rows = grid.length;
+        const cols = grid[0].length;
+        const totalCells = rows * cols;
+        const blockCount = grid.flat().filter((cell) => cell === '#').length;
+        const fillableCells = totalCells - blockCount;
+        const filledCells = grid.flat().filter((cell) => /^[A-Z]$/i.test(cell)).length;
+        const slotEntries = Object.values(slots || {});
+        const acrossCount = slotEntries.filter((slot) => slot.direction === 'across').length;
+        const downCount = slotEntries.filter((slot) => slot.direction === 'down').length;
+        const authoredClues = Object.keys(clueMap || {}).length;
+        const fillPercent = fillableCells
+            ? Math.round((filledCells / fillableCells) * 100)
+            : 0;
+
+        this.puzzleSummary.innerHTML = [
+            this._createSummaryItem(`${rows}x${cols}`, 'Grid'),
+            this._createSummaryItem(String(blockCount), 'Blocks'),
+            this._createSummaryItem(`${acrossCount}/${downCount}`, 'Across/Down'),
+            this._createSummaryItem(`${fillPercent}%`, 'Filled'),
+            this._createSummaryItem(String(authoredClues), 'Authored clues')
+        ].join('');
+    }
+
+    _createSummaryItem(value, label) {
+        return `
+            <div class="summary-item">
+                <span class="summary-value">${value}</span>
+                <span class="summary-label">${label}</span>
+            </div>
+        `;
     }
 }
