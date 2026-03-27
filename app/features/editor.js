@@ -195,6 +195,84 @@ export const editorMethods = {
         return true;
     },
 
+    _serializeCurrentPuzzle() {
+        const clueExport = { across: {}, down: {} };
+
+        Object.values(this.slots || {}).forEach((slot) => {
+            const clue = this.currentPuzzleClues?.[slot.id];
+            if (!clue) return;
+            clueExport[slot.direction][String(slot.number)] = clue;
+        });
+
+        const hasAcrossClues = Object.keys(clueExport.across).length > 0;
+        const hasDownClues = Object.keys(clueExport.down).length > 0;
+
+        return {
+            title: 'Crossworder Export',
+            exportedAt: new Date().toISOString(),
+            grid: this.grid.map((row) =>
+                row.map((cell) => {
+                    if (cell === '#') return '.';
+                    if (/^[A-Z]$/i.test(cell)) return cell.toUpperCase();
+                    return ' ';
+                })
+            ),
+            clues: hasAcrossClues || hasDownClues ? clueExport : {}
+        };
+    },
+
+    exportCurrentPuzzle() {
+        if (this.modes.isPlayMode || !this.grid.length) return false;
+
+        try {
+            const payload = JSON.stringify(this._serializeCurrentPuzzle(), null, 2);
+            const blob = new Blob([`${payload}\n`], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+            link.href = url;
+            link.download = `crossworder-export-${stamp}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            this.display.updateStatus('Exported the current puzzle as JSON.', true);
+            return true;
+        } catch (error) {
+            console.warn('Could not export puzzle.', error);
+            this.display.updateStatus('Could not export the current puzzle.', true);
+            return false;
+        }
+    },
+
+    async importPuzzleFile(file) {
+        if (this.modes.isPlayMode || !file) return false;
+
+        try {
+            const raw = await file.text();
+            const puzzleData = JSON.parse(raw);
+            this._assertValidPuzzleGrid?.(puzzleData?.grid, file.name || 'imported puzzle');
+
+            this.importPuzzleGrid(puzzleData.grid, {
+                sourceLabel: file.name || 'imported puzzle'
+            });
+            this.currentPuzzleClues = this._extractPuzzleClues?.(puzzleData) || {};
+            this.currentSolution = null;
+            this.display.updateStatus(`Imported puzzle from ${file.name || 'JSON file'}.`, true);
+            return true;
+        } catch (error) {
+            console.warn('Could not import puzzle.', error);
+            this.display.updateStatus(
+                this._formatPuzzleLoadError?.(file?.name || 'imported puzzle', error)
+                    || 'Could not import the selected puzzle file.',
+                true
+            );
+            return false;
+        }
+    },
+
     _updateUndoRedoButtons() {
         const undoButton = document.getElementById('undo-button');
         const redoButton = document.getElementById('redo-button');
@@ -206,6 +284,15 @@ export const editorMethods = {
 
         if (redoButton) {
             redoButton.disabled = !isEditorActive || this.editorFuture.length === 0;
+        }
+
+        const exportButton = document.getElementById('export-puzzle-button');
+        const importButton = document.getElementById('import-puzzle-button');
+        if (exportButton) {
+            exportButton.disabled = !isEditorActive || !this.grid.length;
+        }
+        if (importButton) {
+            importButton.disabled = !isEditorActive;
         }
     },
 

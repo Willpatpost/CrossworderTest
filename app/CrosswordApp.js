@@ -184,6 +184,27 @@ export class CrosswordApp {
             this.clearEditorGrid();
         });
 
+        this._bindClick('export-puzzle-button', () => {
+            this.exportCurrentPuzzle();
+        });
+
+        this._bindClick('import-puzzle-button', () => {
+            const input = document.getElementById('import-puzzle-input');
+            input?.click();
+        });
+
+        const importInput = document.getElementById('import-puzzle-input');
+        if (importInput) {
+            importInput.addEventListener('change', async (event) => {
+                const file = event.target?.files?.[0];
+                if (file) {
+                    await this.importPuzzleFile(file);
+                }
+
+                importInput.value = '';
+            });
+        }
+
         this._bindClick('solve-crossword-button', () => {
             this.handleSolve();
         });

@@ -136,6 +136,8 @@ export class ModeManager {
         this._setDisabled('clear-letters-button', this.isPlayMode);
         this._setDisabled('clear-blocks-button', this.isPlayMode);
         this._setDisabled('clear-grid-button', this.isPlayMode);
+        this._setDisabled('export-puzzle-button', this.isPlayMode);
+        this._setDisabled('import-puzzle-button', this.isPlayMode);
         this._setDisabled('word-search-input', this.isPlayMode);
         this._setDisabled('allow-reuse-toggle', this.isPlayMode);
         this._setDisabled('visualize-solve-toggle', this.isPlayMode);

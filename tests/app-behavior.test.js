@@ -632,6 +632,77 @@ test('clearEditorGrid removes all editor content and selection', () => {
     assert.match(statuses.at(-1), /Cleared the entire editor grid/);
 });
 
+test('serializeCurrentPuzzle exports the editor grid and numbered clues as JSON-ready data', () => {
+    const app = {
+        grid: [['A', '#', ''], ['', 'T', '']],
+        slots: {
+            '1-across': { id: '1-across', direction: 'across', number: 1 },
+            '2-down': { id: '2-down', direction: 'down', number: 2 }
+        },
+        currentPuzzleClues: {
+            '1-across': 'Across clue',
+            '2-down': 'Down clue'
+        }
+    };
+
+    const payload = editorMethods._serializeCurrentPuzzle.call(app);
+
+    assert.deepEqual(payload.grid, [['A', '.', ' '], [' ', 'T', ' ']]);
+    assert.deepEqual(payload.clues, {
+        across: { '1': 'Across clue' },
+        down: { '2': 'Down clue' }
+    });
+});
+
+test('importPuzzleFile loads JSON through the existing puzzle import flow', async () => {
+    let importedGrid = null;
+    const statuses = [];
+
+    const app = {
+        modes: { isPlayMode: false },
+        currentPuzzleClues: {},
+        currentSolution: { '1-across': 'OLD' },
+        display: {
+            updateStatus(message) {
+                statuses.push(message);
+            }
+        },
+        _assertValidPuzzleGrid: puzzleMethods._assertValidPuzzleGrid,
+        importPuzzleGrid(grid) {
+            importedGrid = grid;
+        },
+        _extractPuzzleClues: puzzleMethods._extractPuzzleClues,
+        _mapDirectionalClues: puzzleMethods._mapDirectionalClues,
+        _normalizePuzzleClueEntry: puzzleMethods._normalizePuzzleClueEntry,
+        _extractClueText: puzzleMethods._extractClueText,
+        _extractClueNumber: puzzleMethods._extractClueNumber,
+        slots: {
+            '1-across': { id: '1-across', direction: 'across', number: 1 }
+        },
+        _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError
+    };
+
+    const file = {
+        name: 'imported.json',
+        async text() {
+            return JSON.stringify({
+                grid: [['A', 'T']],
+                clues: {
+                    across: ['1. Imported clue']
+                }
+            });
+        }
+    };
+
+    const imported = await editorMethods.importPuzzleFile.call(app, file);
+
+    assert.equal(imported, true);
+    assert.deepEqual(importedGrid, [['A', 'T']]);
+    assert.deepEqual(app.currentPuzzleClues, { '1-across': 'Imported clue' });
+    assert.equal(app.currentSolution, null);
+    assert.match(statuses.at(-1), /Imported puzzle from imported\.json/);
+});
+
 test('handleSolve ignores stale worker results after a newer solve run starts', async () => {
     const originalWorker = globalThis.Worker;
     const originalDocument = globalThis.document;
