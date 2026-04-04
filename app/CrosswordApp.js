@@ -54,6 +54,7 @@ export class CrosswordApp {
         this._searchDebounceTimer = null;
         this._draftAutosaveTimer = null;
         this._recentPuzzleUpdateTimer = null;
+        this._pendingPlaySessionRestore = null;
     }
 
     async init() {

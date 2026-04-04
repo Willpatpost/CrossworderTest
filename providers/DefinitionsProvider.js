@@ -5,6 +5,8 @@ export class DefinitionsProvider {
     this._cache = new Map();
     this._promises = new Map();
     this._searchLengths = Array.from({ length: 19 }, (_, index) => index + 3);
+    this._searchIndex = null;
+    this._searchIndexPromise = null;
   }
 
   async _loadLength(len) {
@@ -62,45 +64,69 @@ export class DefinitionsProvider {
     const query = String(rawQuery || "").trim().toLowerCase();
     if (!query) return [];
 
+    const index = await this._getSearchIndex();
     const matches = [];
 
-    for (const len of this._searchLengths) {
-      try {
-        const defsMap = await this._loadLength(len);
+    index.forEach(({ word, entries }) => {
+      const bestEntry = entries.find((entry) =>
+        String(entry.clue || "").toLowerCase().includes(query)
+          || String(word || "").toLowerCase().includes(query)
+      );
 
-        Object.entries(defsMap || {}).forEach(([word, entries]) => {
-          const normalizedEntries = this._rankEntries((entries || []).map(entry => ({
-            clue: entry.c,
-            source: entry.s,
-            date: entry.d === "0" ? "" : entry.d,
-            attribution: `(${entry.s}${entry.d !== "0" ? `, ${entry.d}` : ""})`
-          })));
+      if (!bestEntry) return;
 
-          const bestEntry = normalizedEntries.find((entry) =>
-            String(entry.clue || "").toLowerCase().includes(query)
-              || String(word || "").toLowerCase().includes(query)
-          );
-
-          if (!bestEntry) return;
-
-          matches.push({
-            word: word.toUpperCase(),
-            clue: bestEntry.clue,
-            source: bestEntry.source,
-            date: bestEntry.date,
-            attribution: bestEntry.attribution,
-            score: this._scoreSearchMatch(word, bestEntry, query)
-          });
-        });
-      } catch {
-        continue;
-      }
-    }
+      matches.push({
+        word: word.toUpperCase(),
+        clue: bestEntry.clue,
+        source: bestEntry.source,
+        date: bestEntry.date,
+        attribution: bestEntry.attribution,
+        score: this._scoreSearchMatch(word, bestEntry, query)
+      });
+    });
 
     return matches
       .sort((a, b) => b.score - a.score || a.word.localeCompare(b.word))
       .slice(0, limit)
       .map(({ score, ...entry }) => entry);
+  }
+
+  async _getSearchIndex() {
+    if (this._searchIndex) return this._searchIndex;
+    if (this._searchIndexPromise) return this._searchIndexPromise;
+
+    this._searchIndexPromise = (async () => {
+      const indexedEntries = [];
+
+      await Promise.all(this._searchLengths.map(async (len) => {
+        try {
+          const defsMap = await this._loadLength(len);
+
+          Object.entries(defsMap || {}).forEach(([word, entries]) => {
+            indexedEntries.push({
+              word,
+              entries: this._rankEntries((entries || []).map(entry => ({
+                clue: entry.c,
+                source: entry.s,
+                date: entry.d === "0" ? "" : entry.d,
+                attribution: `(${entry.s}${entry.d !== "0" ? `, ${entry.d}` : ""})`
+              })))
+            });
+          });
+        } catch {
+          return;
+        }
+      }));
+
+      this._searchIndex = indexedEntries;
+      this._searchIndexPromise = null;
+      return indexedEntries;
+    })().catch((error) => {
+      this._searchIndexPromise = null;
+      throw error;
+    });
+
+    return this._searchIndexPromise;
   }
 
   async scoreWords(rawWords) {

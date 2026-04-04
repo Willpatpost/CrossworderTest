@@ -24,13 +24,28 @@ export const playMethods = {
         this.editorGridSnapshot = GridUtils.cloneGrid(this.grid);
         this.isPlayPaused = false;
         this.hasCompletedPlayPuzzle = false;
+        const pendingSession = this._pendingPlaySessionRestore;
+        this._pendingPlaySessionRestore = null;
 
         this.modes.setPlayMode(true);
         this.blankGridForPlayMode();
         this.render();
         this.refreshWordList();
         this._resetPlayTimer();
-        this._resumePlayTimer();
+
+        if (pendingSession?.grid?.length) {
+            this.grid = GridUtils.cloneGrid(pendingSession.grid);
+            this.syncActiveGridToDOM();
+            this.playElapsedMs = Math.max(0, Number(pendingSession.elapsedMs) || 0);
+            this.hasCompletedPlayPuzzle = Boolean(pendingSession.hasCompleted);
+        }
+
+        if (this.hasCompletedPlayPuzzle) {
+            this._pausePlayTimer();
+        } else {
+            this._resumePlayTimer();
+        }
+
         this._updateInstantMistakeUI();
         this._updatePauseUI();
         this._saveRecentPuzzleRecord?.({ silent: true });
@@ -44,7 +59,17 @@ export const playMethods = {
         }
 
         this.display.updateStatus('Entered play mode. Good luck!', true);
-        this._updatePlayStatusCopy('active');
+        if (this.hasCompletedPlayPuzzle) {
+            const totalSeconds = Math.max(0, Math.floor(this.playElapsedMs / 1000));
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            this._updatePlayStatusCopy(
+                'completed',
+                `${minutes}:${String(seconds).padStart(2, '0')}`
+            );
+        } else {
+            this._updatePlayStatusCopy('active');
+        }
         return true;
     },
 

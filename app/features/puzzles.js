@@ -34,8 +34,10 @@ export const puzzleMethods = {
         };
         this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
         this.currentPuzzleMetadata = this._extractPuzzleMetadata(puzzleData);
+        const resolveSolutionForPlay =
+            this._resolvePuzzleSolutionForPlay || puzzleMethods._resolvePuzzleSolutionForPlay;
         this.currentSolution = mode === 'play'
-            ? (puzzleData.solution || this.extractSolutionFromGrid({ requireComplete: true }))
+            ? await resolveSolutionForPlay.call(this, puzzleData, entry)
             : null;
         this.syncPuzzleMetadataInputs?.();
         this._updateRecentPuzzleUI?.();
@@ -98,7 +100,13 @@ export const puzzleMethods = {
                 };
                 this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
                 this.currentPuzzleMetadata = this._extractPuzzleMetadata(puzzleData);
-                this.currentSolution = this.extractSolutionFromGrid({ requireComplete: true });
+                const resolveSolutionForPlay =
+                    this._resolvePuzzleSolutionForPlay || puzzleMethods._resolvePuzzleSolutionForPlay;
+                this.currentSolution = await resolveSolutionForPlay.call(
+                    this,
+                    puzzleData,
+                    randomEntry
+                );
                 this.syncPuzzleMetadataInputs?.();
                 this._updateRandomPuzzleButton(false);
                 this._updateRecentPuzzleUI?.();
@@ -429,6 +437,41 @@ export const puzzleMethods = {
         }
 
         return '';
+    },
+
+    async _resolvePuzzleSolutionForPlay(puzzleData, entry = {}) {
+        if (puzzleData?.solution && typeof puzzleData.solution === 'object') {
+            return { ...puzzleData.solution };
+        }
+
+        if (Array.isArray(puzzleData?.solvedGrid)) {
+            const originalGrid = this.grid;
+
+            try {
+                this.grid = puzzleData.solvedGrid.map((row) => {
+                    const cells = Array.isArray(row) ? row : [...String(row)];
+                    return cells.map((cell) => {
+                        if (cell === ' ') return '';
+                        if (cell === '.') return '#';
+                        if (/^[A-Z]$/i.test(cell)) return cell.toUpperCase();
+                        if (cell === '#') return '#';
+                        return '';
+                    });
+                });
+                return this.extractSolutionFromGrid({ requireComplete: true });
+            } finally {
+                this.grid = originalGrid;
+            }
+        }
+
+        const extracted = this.extractSolutionFromGrid({ requireComplete: true });
+        if (extracted) {
+            return extracted;
+        }
+
+        return await this._solvePuzzleForPlay?.(
+            entry?.title || entry?.id || entry?.file || 'puzzle'
+        );
     },
 
     async _fetchPuzzleFile(file) {

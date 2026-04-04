@@ -598,27 +598,34 @@ export class GridManager {
 
                 if (val === '#') {
                     td.classList.add('block');
+                    td.setAttribute('aria-label', `Block cell row ${r + 1} column ${c + 1}`);
+                    td.setAttribute('aria-readonly', 'true');
+                    td.removeAttribute('tabindex');
+                    td.setAttribute('aria-selected', 'false');
                     const letter = td.querySelector('.cell-letter');
                     if (letter) letter.textContent = '';
                     continue;
                 }
 
                 td.classList.remove('block');
+                td.removeAttribute('aria-readonly');
+                td.setAttribute('tabindex', '-1');
+                td.setAttribute('aria-selected', 'false');
 
                 let span = td.querySelector('.cell-letter');
                 if (!span) {
-                span = this._createLetterSpan();
-                td.appendChild(span);
-            }
+                    span = this._createLetterSpan();
+                    td.appendChild(span);
+                }
 
-            span.textContent = this._displayLetter(val);
-            if (!td.classList.contains('block')) {
-                td.setAttribute(
-                    'aria-label',
-                    `Row ${r + 1} column ${c + 1}${val ? `, ${this._displayLetter(val)}` : ', empty'}`
-                );
+                span.textContent = this._displayLetter(val);
+                if (!td.classList.contains('block')) {
+                    td.setAttribute(
+                        'aria-label',
+                        `Row ${r + 1} column ${c + 1}${val ? `, ${this._displayLetter(val)}` : ', empty'}`
+                    );
+                }
             }
-        }
         }
 
         if (slots) {

@@ -272,6 +272,54 @@ export const solverMethods = {
         searchInput.placeholder = 'Search answers (use ? for wildcards, e.g. C??T)';
     },
 
+    async _solvePuzzleForPlay(label = 'puzzle') {
+        const { slots, cellContents } = this.constraintManager.buildDataStructures(this.grid);
+        this.slots = slots;
+
+        const slotValues = Object.values(this.slots || {});
+        if (!slotValues.length) {
+            return null;
+        }
+
+        const uniqueLengths = [...new Set(slotValues.map((slot) => slot.length))];
+        for (const len of uniqueLengths) {
+            if (!this.wordLengthCache[len]) {
+                this.wordLengthCache[len] = await this.wordProvider.getWordsOfLength(len);
+            }
+        }
+
+        this.letterFrequencies = GridUtils.calculateLetterFrequencies(this.wordLengthCache);
+        const domains = this._buildSolverDomains
+            ? this._buildSolverDomains(this.slots)
+            : this.constraintManager.setupDomains(this.slots, this.wordLengthCache, this.grid);
+
+        const emptyDomainSlot = slotValues.find((slot) => (domains[slot.id] || []).length === 0);
+        if (emptyDomainSlot) {
+            throw new Error(
+                `Could not prepare ${label} for play because ${emptyDomainSlot.number}-${emptyDomainSlot.direction} has no candidate fills.`
+            );
+        }
+
+        const result = await this.solver.backtrackingSolve(
+            this.slots,
+            domains,
+            this.constraintManager.constraints,
+            this.letterFrequencies,
+            cellContents,
+            {
+                allowReuse: false,
+                randomize: false,
+                visualize: false
+            }
+        );
+
+        if (!result?.success || !result.solution) {
+            throw new Error(`Could not solve ${label} for play mode.`);
+        }
+
+        return result.solution;
+    },
+
     async handleSolve() {
         if (this.isSolving) {
             this.abortActiveSolve();

@@ -1086,6 +1086,80 @@ test('loadRecentPuzzle restores the saved workspace into the editor', () => {
     }
 });
 
+test('loadRecentPuzzle queues saved play progress when resuming in play mode', () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalDocument = globalThis.document;
+    const storage = new Map([
+        ['crossworder.recentPuzzle', JSON.stringify({
+            editorGrid: [['C', 'A', 'T']],
+            playGrid: [['C', 'A', '']],
+            playState: { elapsedMs: 42000, hasCompleted: false },
+            currentPuzzleClues: { '1-across': 'Saved clue' },
+            currentPuzzleMetadata: { title: 'Saved Puzzle', author: 'Maker' },
+            currentSolution: { '1-across': 'CAT' },
+            source: { kind: 'bundled', id: 'easy.json', label: 'Easy puzzle' },
+            slotBlacklist: {}
+        })],
+        ['crossworder.completedPuzzles', JSON.stringify([])]
+    ]);
+    let navPlayClicks = 0;
+
+    globalThis.localStorage = {
+        getItem(key) {
+            return storage.has(key) ? storage.get(key) : null;
+        },
+        setItem(key, value) {
+            storage.set(key, value);
+        },
+        removeItem(key) {
+            storage.delete(key);
+        }
+    };
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'nav-play') {
+                return { click() { navPlayClicks++; } };
+            }
+
+            return null;
+        }
+    };
+
+    const app = {
+        display: {
+            updateStatus() {}
+        },
+        importPuzzleGrid() {},
+        render() {},
+        refreshWordList() {},
+        renderSolverBlacklist() {},
+        syncPuzzleMetadataInputs() {},
+        _scheduleEditorAutosave() {},
+        _assertValidPuzzleGrid: puzzleMethods._assertValidPuzzleGrid,
+        _getRecentPuzzleStorageKey: puzzleMethods._getRecentPuzzleStorageKey,
+        _getCompletedPuzzleStorageKey: puzzleMethods._getCompletedPuzzleStorageKey,
+        _readRecentPuzzleRecord: puzzleMethods._readRecentPuzzleRecord,
+        _readCompletedPuzzleHistory: puzzleMethods._readCompletedPuzzleHistory,
+        _updateRecentPuzzleUI: puzzleMethods._updateRecentPuzzleUI
+    };
+
+    try {
+        const loaded = puzzleMethods.loadRecentPuzzle.call(app, 'play');
+
+        assert.equal(loaded, true);
+        assert.equal(navPlayClicks, 1);
+        assert.deepEqual(app._pendingPlaySessionRestore, {
+            grid: [['C', 'A', '']],
+            elapsedMs: 42000,
+            hasCompleted: false
+        });
+    } finally {
+        globalThis.localStorage = originalLocalStorage;
+        globalThis.document = originalDocument;
+    }
+});
+
 test('recordCompletedPuzzle appends a completion entry to local history', () => {
     const originalLocalStorage = globalThis.localStorage;
     const originalDocument = globalThis.document;
@@ -1176,6 +1250,19 @@ test('calculateDailyStreak counts consecutive daily completions from the latest 
     });
 });
 
+test('calculateDailyStreak handles month boundaries with date-key arithmetic', () => {
+    const streak = puzzleMethods._calculateDailyStreak.call(puzzleMethods, [
+        '2026-03-01',
+        '2026-02-28',
+        '2026-02-27'
+    ]);
+
+    assert.deepEqual(streak, {
+        streak: 3,
+        latest: '2026-03-01'
+    });
+});
+
 test('filterAndSortPuzzleEntries filters by query and sorts by author or date', () => {
     const entries = [
         { id: 'hard', title: 'Hard', author: 'Bravo', date: '2026-03-20', file: 'hard.json' },
@@ -1254,6 +1341,141 @@ test('loadBundledPuzzleByFile can load a bundled puzzle directly into play mode'
         assert.deepEqual(app.currentPuzzleClues, { '1-across': 'A clue' });
         assert.deepEqual(app.currentSolution, { '1-across': 'AT' });
         assert.equal(playClicks, 1);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('loadBundledPuzzleByFile solves bundled puzzles that do not ship a saved solution', async () => {
+    const originalDocument = globalThis.document;
+    let playClicks = 0;
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'nav-play') {
+                return { click() { playClicks++; } };
+            }
+
+            return null;
+        }
+    };
+
+    const app = {
+        puzzleIndex: [
+            { file: 'easy.json', title: 'Easy', author: 'Crossworder', date: '2026-03-26' }
+        ],
+        grid: [['', '']],
+        currentPuzzleClues: {},
+        currentPuzzleMetadata: {},
+        display: {
+            updateStatus() {}
+        },
+        importPuzzleGrid(grid) {
+            this.grid = grid;
+        },
+        _fetchPuzzleFile: async () => ({
+            grid: [['', '']],
+            clues: { across: ['1. A clue'] },
+            metadata: { title: 'Easy', author: 'Crossworder' }
+        }),
+        _extractPuzzleClues() {
+            return { '1-across': 'A clue' };
+        },
+        _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
+        extractSolutionFromGrid() {
+            return null;
+        },
+        _solvePuzzleForPlay: async () => ({ '1-across': 'AT' }),
+        _resolvePuzzleSolutionForPlay: puzzleMethods._resolvePuzzleSolutionForPlay,
+        syncPuzzleMetadataInputs() {},
+        _updateRecentPuzzleUI() {},
+        _saveRecentPuzzleRecord() {}
+    };
+
+    try {
+        const loaded = await puzzleMethods.loadBundledPuzzleByFile.call(app, 'easy.json', 'play');
+
+        assert.equal(loaded, true);
+        assert.deepEqual(app.currentSolution, { '1-across': 'AT' });
+        assert.equal(playClicks, 1);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
+test('enterPlayMode restores pending play session grid and elapsed time', () => {
+    const originalDocument = globalThis.document;
+    globalThis.document = {
+        querySelector() {
+            return null;
+        }
+    };
+
+    const app = {
+        isSolving: false,
+        currentSolution: { '1-across': 'CAT' },
+        grid: [['C', 'A', 'T']],
+        slots: {
+            '1-across': {
+                id: '1-across',
+                direction: 'across',
+                number: 1,
+                positions: [[0, 0], [0, 1], [0, 2]]
+            }
+        },
+        gridManager: {
+            selectedCell: null,
+            selectedDirection: 'across',
+            _updateHighlights() {}
+        },
+        modes: {
+            isPlayMode: false,
+            setPlayMode(enabled) {
+                this.isPlayMode = enabled;
+            }
+        },
+        display: { updateStatus() {} },
+        popups: { showMessage() {} },
+        refreshWordList() {},
+        render() {},
+        syncActiveGridToDOM() {},
+        blankGridForPlayMode: playMethods.blankGridForPlayMode,
+        extractSolutionFromGrid: playMethods.extractSolutionFromGrid,
+        _getFirstSlot: renderingMethods._getFirstSlot,
+        _resetPlayTimer() {
+            this.playElapsedMs = 0;
+        },
+        _resumePlayTimer() {
+            this.timerResumed = true;
+        },
+        _pausePlayTimer() {
+            this.timerPaused = true;
+        },
+        _updateInstantMistakeUI() {},
+        _updatePauseUI() {},
+        _updatePlayStatusCopy(state, timeLabel) {
+            this.playStatus = { state, timeLabel };
+        },
+        _saveRecentPuzzleRecord() {},
+        _pendingPlaySessionRestore: {
+            grid: [['C', 'A', '']],
+            elapsedMs: 42000,
+            hasCompleted: false
+        },
+        playElapsedMs: 0,
+        hasCompletedPlayPuzzle: false,
+        isPlayPaused: false
+    };
+
+    try {
+        const entered = playMethods.enterPlayMode.call(app);
+
+        assert.equal(entered, true);
+        assert.deepEqual(app.grid, [['C', 'A', '']]);
+        assert.equal(app.playElapsedMs, 42000);
+        assert.equal(app.timerResumed, true);
+        assert.deepEqual(app.playStatus, { state: 'active', timeLabel: undefined });
+        assert.equal(app._pendingPlaySessionRestore, null);
     } finally {
         globalThis.document = originalDocument;
     }

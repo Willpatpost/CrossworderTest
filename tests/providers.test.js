@@ -6,6 +6,7 @@ import { DictionaryAPI } from '../providers/DictionaryAPI.js';
 import { editorMethods } from '../app/features/editor.js';
 import { playMethods } from '../app/features/play.js';
 import { DisplayManager } from '../ui/DisplayManager.js';
+import { GridManager } from '../grid/GridManager.js';
 
 test('WordListProvider clears in-flight promise entries after success', async () => {
     const originalFetch = globalThis.fetch;
@@ -103,6 +104,47 @@ test('DefinitionsProvider searchEntries matches clue text and answer text', asyn
     }
 });
 
+test('DefinitionsProvider searchEntries reuses a cached search index across queries', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => ({
+        ok: true,
+        async json() {
+            if (String(url).includes('defs-3')) {
+                return {
+                    cat: [{ c: 'Feline friend', s: 'NYT', d: '2025-01-01' }]
+                };
+            }
+
+            if (String(url).includes('defs-4')) {
+                return {
+                    lion: [{ c: 'Big feline', s: 'LAT', d: '2024-01-01' }]
+                };
+            }
+
+            return {};
+        }
+    });
+
+    try {
+        const provider = new DefinitionsProvider({ basePath: '/mock' });
+        provider._searchLengths = [3, 4];
+
+        let loadCalls = 0;
+        const originalLoadLength = provider._loadLength.bind(provider);
+        provider._loadLength = async (len) => {
+            loadCalls++;
+            return originalLoadLength(len);
+        };
+
+        await provider.searchEntries('feline');
+        await provider.searchEntries('lion');
+
+        assert.equal(loadCalls, 2);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
 test('DefinitionsProvider scoreWords weights clue history quality and count', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => ({
@@ -150,6 +192,52 @@ test('DictionaryAPI caches empty fallback results for failed requests', async ()
     } finally {
         globalThis.fetch = originalFetch;
     }
+});
+
+test('GridManager syncGridToDOM refreshes block accessibility state', () => {
+    const letter = { textContent: '' };
+    const attributes = new Map([
+        ['tabindex', '-1'],
+        ['aria-selected', 'false']
+    ]);
+    const classes = new Set();
+    const td = {
+        classList: {
+            add(name) {
+                classes.add(name);
+            },
+            remove(name) {
+                classes.delete(name);
+            },
+            contains(name) {
+                return classes.has(name);
+            }
+        },
+        setAttribute(name, value) {
+            attributes.set(name, value);
+        },
+        removeAttribute(name) {
+            attributes.delete(name);
+        },
+        querySelector(selector) {
+            return selector === '.cell-letter' ? letter : null;
+        },
+        appendChild() {}
+    };
+
+    const manager = new GridManager();
+    manager.cells = { '0,0': td };
+
+    manager.syncGridToDOM([['#']], null);
+    assert.equal(attributes.get('aria-label'), 'Block cell row 1 column 1');
+    assert.equal(attributes.get('aria-readonly'), 'true');
+    assert.equal(attributes.has('tabindex'), false);
+
+    manager.syncGridToDOM([['A']], null);
+    assert.equal(attributes.get('aria-label'), 'Row 1 column 1, A');
+    assert.equal(attributes.has('aria-readonly'), false);
+    assert.equal(attributes.get('tabindex'), '-1');
+    assert.equal(attributes.get('aria-selected'), 'false');
 });
 
 test('DisplayManager describes authored, local, and web clue sources clearly', () => {

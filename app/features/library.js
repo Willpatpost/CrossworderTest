@@ -172,25 +172,33 @@ export const libraryMethods = {
         }
 
         let streak = 1;
-        let cursor = new Date(`${normalized[0]}T00:00:00`);
+        let cursor = normalized[0];
 
         for (let index = 1; index < normalized.length; index++) {
-            const expected = new Date(cursor);
-            expected.setDate(expected.getDate() - 1);
-            const expectedKey = expected.toISOString().slice(0, 10);
+            const expectedKey = this._shiftDateKeyByDays(cursor, -1);
 
             if (normalized[index] !== expectedKey) {
                 break;
             }
 
             streak += 1;
-            cursor = expected;
+            cursor = expectedKey;
         }
 
         return {
             streak,
             latest: normalized[0]
         };
+    },
+
+    _shiftDateKeyByDays(dateKey, deltaDays) {
+        const match = String(dateKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return '';
+
+        const [, year, month, day] = match;
+        const shifted = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+        shifted.setUTCDate(shifted.getUTCDate() + Number(deltaDays || 0));
+        return shifted.toISOString().slice(0, 10);
     },
 
     _updateRecentPuzzleUI() {
@@ -284,6 +292,13 @@ export const libraryMethods = {
                     return false;
                 }
 
+                this._pendingPlaySessionRestore = record.playGrid?.length
+                    ? {
+                        grid: record.playGrid,
+                        elapsedMs: record.playState?.elapsedMs || 0,
+                        hasCompleted: record.playState?.hasCompleted || false
+                    }
+                    : null;
                 document.getElementById('nav-play')?.click();
                 return true;
             }
