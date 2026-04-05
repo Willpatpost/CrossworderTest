@@ -14,6 +14,8 @@ export class SolverEngine {
         this.themeEntries = [];
         this.stats = null;
         this.preferredSlotId = null;
+        this.useConstraintImpactHeuristic = true;
+        this.maxConstraintImpactChecks = 25000;
     }
 
     interrupt() {
@@ -47,6 +49,11 @@ export class SolverEngine {
             : [];
         this.preferredSlotId = settings.preferredSlotId || null;
         this.wordHistoryScores = settings.wordHistoryScores || {};
+        this.useConstraintImpactHeuristic = settings.useConstraintImpactHeuristic ?? true;
+        this.maxConstraintImpactChecks = Math.max(
+            0,
+            settings.maxConstraintImpactChecks ?? 25000
+        );
         const startedAt = performance.now();
 
         const assignment = { ...(settings.initialAssignment || {}) };
@@ -267,19 +274,41 @@ export class SolverEngine {
     orderDomainValues(slotId, domains, constraints, assignment, letterFrequencies) {
         const domain = Array.isArray(domains[slotId]) ? [...domains[slotId]] : [];
         const historyScores = arguments[5] || this.wordHistoryScores || {};
+        const options = arguments[6] || {};
+        const useConstraintImpactHeuristic =
+            options.useConstraintImpactHeuristic
+            ?? this.useConstraintImpactHeuristic
+            ?? true;
+        const maxConstraintImpactChecks = Math.max(
+            0,
+            options.maxConstraintImpactChecks ?? this.maxConstraintImpactChecks ?? 25000
+        );
+        const frequencyScores = new Map();
+        const historyScoreCache = new Map();
+        const constraintImpactCache = new Map();
 
         const getFrequencyScore = (word) => {
+            if (frequencyScores.has(word)) {
+                return frequencyScores.get(word);
+            }
+
             if (!letterFrequencies || Object.keys(letterFrequencies).length === 0) {
                 return 0;
             }
 
-            return [...word].reduce(
+            const score = [...word].reduce(
                 (score, char) => score + (letterFrequencies[char] || 0),
                 0
             );
+            frequencyScores.set(word, score);
+            return score;
         };
 
         const getConstraintImpact = (word) => {
+            if (constraintImpactCache.has(word)) {
+                return constraintImpactCache.get(word);
+            }
+
             const neighbors = constraints[slotId] || {};
             let impact = 0;
 
@@ -301,6 +330,7 @@ export class SolverEngine {
                 impact += compatibleCount;
             }
 
+            constraintImpactCache.set(word, impact);
             return impact;
         };
 
@@ -308,13 +338,33 @@ export class SolverEngine {
             this.themeEntries.includes(word) ? 5000 : 0
         );
 
-        const getHistoryScore = (word) => (
-            Number(historyScores?.[word] || 0)
-        );
+        const getHistoryScore = (word) => {
+            if (historyScoreCache.has(word)) {
+                return historyScoreCache.get(word);
+            }
+
+            const score = Number(historyScores?.[word] || 0);
+            historyScoreCache.set(word, score);
+            return score;
+        };
+
+        const estimatedConstraintChecks = Object.entries(constraints[slotId] || {})
+            .reduce((total, [neighborId, overlaps]) => {
+                const overlapCount = Array.isArray(overlaps) ? overlaps.length || 1 : 1;
+                const neighborDomainSize = Array.isArray(domains[neighborId])
+                    ? domains[neighborId].length
+                    : 0;
+                return total + ((domain.length || 0) * neighborDomainSize * overlapCount);
+            }, 0);
+        const shouldUseConstraintImpact = useConstraintImpactHeuristic
+            && domain.length > 1
+            && estimatedConstraintChecks <= maxConstraintImpactChecks;
 
         return domain.sort((a, b) => {
-            const lcvDelta = getConstraintImpact(b) - getConstraintImpact(a);
-            if (lcvDelta !== 0) return lcvDelta;
+            if (shouldUseConstraintImpact) {
+                const lcvDelta = getConstraintImpact(b) - getConstraintImpact(a);
+                if (lcvDelta !== 0) return lcvDelta;
+            }
 
             const themeDelta = getThemeBoost(b) - getThemeBoost(a);
             if (themeDelta !== 0) return themeDelta;
@@ -490,12 +540,20 @@ export class SolverEngine {
         const domain2 = Array.isArray(domains[var2]) ? domains[var2] : [];
 
         let revised = false;
+        const sourceIndexes = overlaps.map(([idx1]) => idx1);
+        const targetIndexes = overlaps.map(([, idx2]) => idx2);
+        const buildOverlapKey = (word, indexes) => (
+            indexes.length === 1
+                ? word[indexes[0]]
+                : indexes.map((index) => word[index]).join('')
+        );
+        const supportedKeys = new Set(
+            domain2.map((word2) => buildOverlapKey(word2, targetIndexes))
+        );
 
-        const filteredDomain = domain1.filter((word1) => {
-            return domain2.some((word2) => {
-                return overlaps.every(([idx1, idx2]) => word1[idx1] === word2[idx2]);
-            });
-        });
+        const filteredDomain = domain1.filter((word1) => (
+            supportedKeys.has(buildOverlapKey(word1, sourceIndexes))
+        ));
 
         if (filteredDomain.length !== domain1.length) {
             domains[var1] = filteredDomain;

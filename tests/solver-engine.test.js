@@ -173,3 +173,28 @@ test('SolverEngine orderDomainValues uses clue-history scores when other heurist
 
     assert.deepEqual(ordered, ['NOVA', 'ATOM']);
 });
+
+test('SolverEngine orderDomainValues can skip constraint-impact scoring for fast solves', () => {
+    const solver = new SolverEngine();
+
+    const ordered = solver.orderDomainValues(
+        '1-across',
+        {
+            '1-across': ['CAT', 'DOG'],
+            '1-down': ['GEL', 'GIN', 'TAP']
+        },
+        {
+            '1-across': {
+                '1-down': [[2, 0]]
+            }
+        },
+        {},
+        {},
+        {},
+        {
+            useConstraintImpactHeuristic: false
+        }
+    );
+
+    assert.deepEqual(ordered, ['CAT', 'DOG']);
+});

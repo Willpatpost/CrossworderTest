@@ -16,6 +16,17 @@ export const solverMethods = {
         return this.definitions.scoreWords(words);
     },
 
+    async _getWordHistoryScoresForMode(domains, mode = 'suggest') {
+        if (!this._buildWordHistoryScores) return {};
+
+        const normalizedMode = String(mode || '').toLowerCase();
+        if (normalizedMode === 'solve' || normalizedMode === 'play') {
+            return {};
+        }
+
+        return this._buildWordHistoryScores(domains);
+    },
+
     _getSelectedEditorSlot() {
         if (this.modes?.isPlayMode) return null;
         return this.gridManager._getActiveSlot?.(this) || null;
@@ -309,7 +320,8 @@ export const solverMethods = {
             {
                 allowReuse: false,
                 randomize: false,
-                visualize: false
+                visualize: false,
+                useConstraintImpactHeuristic: false
             }
         );
 
@@ -408,10 +420,6 @@ export const solverMethods = {
             const initialAssignment = this._getLockedAssignments
                 ? this._getLockedAssignments(lockFilledEntries)
                 : {};
-            const wordHistoryScores = this._buildWordHistoryScores
-                ? await this._buildWordHistoryScores(domains)
-                : {};
-
             this.display.updateStatus(
                 visualize
                     ? `Solving visually (${visualizeSpeed}${reducedMotion ? ', reduced motion' : ''})...`
@@ -516,7 +524,8 @@ export const solverMethods = {
                             visualizationDelayMs: visualizeSpeed === 'slow' ? 14 : 5,
                             initialAssignment,
                             themeEntries: solveSettings.themeEntries,
-                            wordHistoryScores
+                            wordHistoryScores: {},
+                            useConstraintImpactHeuristic: false
                         }
                     }
                 });
@@ -630,8 +639,8 @@ export const solverMethods = {
                     preferredSlotId: activeSlot.id,
                     initialAssignment,
                     themeEntries: solveSettings.themeEntries,
-                    wordHistoryScores: this._buildWordHistoryScores
-                        ? await this._buildWordHistoryScores(domains)
+                    wordHistoryScores: this._getWordHistoryScoresForMode
+                        ? await this._getWordHistoryScoresForMode(domains, 'slot')
                         : {}
                 }
             );
@@ -676,8 +685,8 @@ export const solverMethods = {
         }
 
         return this._withPreparedSolverData(async ({ slotMap, domains }) => {
-            const wordHistoryScores = this._buildWordHistoryScores
-                ? await this._buildWordHistoryScores(domains)
+            const wordHistoryScores = this._getWordHistoryScoresForMode
+                ? await this._getWordHistoryScoresForMode(domains, 'suggest')
                 : {};
             const solverSlot = slotMap?.[slot.id] || slot;
             const candidates = this.solver.orderDomainValues(

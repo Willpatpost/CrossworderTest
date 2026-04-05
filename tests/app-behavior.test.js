@@ -2037,6 +2037,135 @@ test('handleSolve ignores stale worker results after a newer solve run starts', 
     }
 });
 
+test('handleSolve uses fast worker settings and skips clue-history scoring for full solves', async () => {
+    const originalWorker = globalThis.Worker;
+    const originalDocument = globalThis.document;
+    const originalPerformance = globalThis.performance;
+
+    let workerPayload = null;
+    let historyScoreCalls = 0;
+
+    const documentStub = {
+        getElementById() {
+            return { checked: false };
+        }
+    };
+    globalThis.document = documentStub;
+    global.document = documentStub;
+    globalThis.performance = { now: () => 1000 };
+
+    globalThis.Worker = class MockWorker {
+        constructor() {
+            this.onmessage = null;
+            this.onerror = null;
+        }
+
+        postMessage(payload) {
+            workerPayload = payload;
+            queueMicrotask(() => {
+                this.onmessage?.({
+                    data: {
+                        type: 'RESULT',
+                        payload: {
+                            success: false,
+                            stats: {
+                                elapsedMs: 10,
+                                recursiveCalls: 0,
+                                backtracks: 0,
+                                domainReductions: 0,
+                                ac3Revisions: 0,
+                                maxDepth: 0,
+                                randomized: true
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        terminate() {}
+    };
+
+    const app = {
+        isSolving: false,
+        _solveRunId: 0,
+        grid: [['', '']],
+        slots: {},
+        wordLengthCache: {},
+        letterFrequencies: {},
+        currentSolution: null,
+        activeWorker: null,
+        activeSolveSession: null,
+        gridManager: { cells: {} },
+        display: { updateStatus() {} },
+        wordProvider: {
+            async getWordsOfLength() {
+                return ['AT'];
+            }
+        },
+        constraintManager: {
+            constraints: {},
+            buildDataStructures() {
+                return {
+                    slots: {
+                        '1-across': {
+                            id: '1-across',
+                            number: 1,
+                            direction: 'across',
+                            length: 2,
+                            positions: [[0, 0], [0, 1]]
+                        }
+                    },
+                    cellContents: {
+                        '0,0': '',
+                        '0,1': ''
+                    }
+                };
+            },
+            setupDomains() {
+                return {
+                    '1-across': ['AT']
+                };
+            }
+        },
+        _buildWordHistoryScores() {
+            historyScoreCalls++;
+            return { AT: 99 };
+        },
+        _getSlotBlacklist: solverMethods._getSlotBlacklist,
+        _buildSolverDomains: solverMethods._buildSolverDomains,
+        _getSelectedSolveSettings: solverMethods._getSelectedSolveSettings,
+        _getSolveSettings: solverMethods._getSolveSettings,
+        _getLockedAssignments: solverMethods._getLockedAssignments,
+        _prefersReducedMotion() {
+            return false;
+        },
+        _parseThemeEntries: solverMethods._parseThemeEntries,
+        _updateSolverMetrics() {},
+        _updateSolverDiagnostics() {},
+        applySolutionToGrid() {},
+        refreshWordList() {},
+        syncActiveGridToDOM() {},
+        _updateSolveControls(isSolving) {
+            this.isSolving = isSolving;
+        }
+    };
+
+    try {
+        await solverMethods.handleSolve.call(app);
+
+        assert.equal(historyScoreCalls, 0);
+        assert.equal(workerPayload?.type, 'START_SOLVE');
+        assert.deepEqual(workerPayload?.payload?.settings?.wordHistoryScores, {});
+        assert.equal(workerPayload?.payload?.settings?.useConstraintImpactHeuristic, false);
+    } finally {
+        globalThis.Worker = originalWorker;
+        globalThis.document = originalDocument;
+        global.document = originalDocument;
+        globalThis.performance = originalPerformance;
+    }
+});
+
 test('handleSolve exits early with a status update when the grid has no fillable slots', async () => {
     const statuses = [];
     let synced = false;
@@ -2573,6 +2702,73 @@ test('suggestSelectedWord fills the selected slot with the top candidate', async
     assert.equal(refreshed, 1);
     assert.deepEqual(app.grid, [['C', 'A', 'R']]);
     assert.match(statuses.at(-1), /Suggested CAR/);
+});
+
+test('suggestSelectedWord still uses clue-history scores for ranking suggestions', async () => {
+    let receivedHistoryScores = null;
+
+    const app = {
+        modes: { isPlayMode: false },
+        slotBlacklist: {},
+        grid: [['', '', '']],
+        slots: {
+            '1-across': { id: '1-across', number: 1, direction: 'across', length: 3, positions: [[0, 0], [0, 1], [0, 2]] }
+        },
+        constraintManager: {
+            constraints: {},
+            buildDataStructures() {
+                return {
+                    slots: app.slots,
+                    cellContents: {}
+                };
+            },
+            setupDomains() {
+                return {
+                    '1-across': ['CAT', 'CAR']
+                };
+            }
+        },
+        wordProvider: {
+            async getWordsOfLength() {
+                return ['CAT', 'CAR'];
+            }
+        },
+        solver: {
+            orderDomainValues(slotId, domains, constraints, assignment, letterFrequencies, historyScores) {
+                receivedHistoryScores = historyScores;
+                return ['CAR', 'CAT'];
+            }
+        },
+        display: {
+            updateStatus() {}
+        },
+        _getSelectedEditorSlot() {
+            return app.slots['1-across'];
+        },
+        _getSelectedSolveSettings() {
+            return { lockFilledEntries: true };
+        },
+        _getLockedAssignments() {
+            return {};
+        },
+        _getSlotBlacklist: solverMethods._getSlotBlacklist,
+        _buildSolverDomains: solverMethods._buildSolverDomains,
+        _withPreparedSolverData: solverMethods._withPreparedSolverData,
+        _extractSlotWord: renderingMethods._extractSlotWord,
+        _recordEditorSnapshot() {},
+        syncActiveGridToDOM() {},
+        refreshWordList() {},
+        _applySlotWord: solverMethods._applySlotWord,
+        _scheduleEditorAutosave() {},
+        letterFrequencies: {},
+        _getWordHistoryScoresForMode() {
+            return Promise.resolve({ CAR: 40, CAT: 10 });
+        }
+    };
+
+    await solverMethods.suggestSelectedWord.call(app);
+
+    assert.deepEqual(receivedHistoryScores, { CAR: 40, CAT: 10 });
 });
 
 test('blacklistSelectedSlotWord stores the current fill and clears the slot', () => {
