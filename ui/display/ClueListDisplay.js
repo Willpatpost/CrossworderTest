@@ -207,6 +207,7 @@ export class ClueListDisplay {
         ];
 
         const tasks = [];
+        const wordLookups = new Map();
 
         for (const { slots, container } of slotGroups) {
             for (const slot of slots) {
@@ -218,8 +219,18 @@ export class ClueListDisplay {
                     continue;
                 }
 
+                const normalizedWord = String(word || '').trim().toUpperCase();
+                if (!wordLookups.has(normalizedWord)) {
+                    wordLookups.set(normalizedWord, definitionsProvider.lookup(normalizedWord));
+                }
+
                 tasks.push(
-                    this._hydrateSingleClue(slot, word, container, definitionsProvider, hydrationToken)
+                    this._hydrateSingleClue(
+                        slot,
+                        container,
+                        wordLookups.get(normalizedWord),
+                        hydrationToken
+                    )
                 );
             }
         }
@@ -227,9 +238,9 @@ export class ClueListDisplay {
         await Promise.all(tasks);
     }
 
-    async _hydrateSingleClue(slot, word, container, definitionsProvider, hydrationToken) {
+    async _hydrateSingleClue(slot, container, lookupPromise, hydrationToken) {
         try {
-            const results = await definitionsProvider.lookup(word);
+            const results = await lookupPromise;
             if (hydrationToken !== this._clueHydrationToken) return;
 
             const result = Array.isArray(results) ? results[0] : null;

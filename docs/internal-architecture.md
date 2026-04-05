@@ -7,7 +7,7 @@ This document describes the main runtime boundaries inside Crossworder after the
 `CrosswordApp` owns five primary state slices:
 
 - `workspaceState`
-  Holds the active grid, slot graph, solution, clue map, puzzle metadata, source metadata, and blacklist state.
+  Holds the active grid, slot graph, cell-to-slot lookup index, solution, clue map, puzzle metadata, source metadata, and blacklist state.
 - `editorState`
   Holds editor-only interaction state such as drag painting and undo/redo history.
 - `solverState`
@@ -24,9 +24,9 @@ Backward-compatible aliases like `app.grid` and `app.currentPuzzleMetadata` stil
 - `app/features/editor.js`
   Editor-only mutation and authoring behavior.
 - `app/features/puzzles.js`
-  Puzzle loading, import/export parsing, clue extraction, and grid validation.
+  Puzzle loading, import/export parsing, clue extraction, grid validation, and play-mode solution preparation for bundled/daily content.
 - `app/features/library.js`
-  Local persistence, recent/completed history, dashboard state, and bundled puzzle library rendering.
+  Local persistence, recent/completed history, dashboard state, bundled puzzle library rendering, and play-session restoration metadata.
 - `app/features/solver.js`
   Solver controls, search flow, diagnostics wiring, and blacklist UI behavior.
 - `app/features/play.js`
@@ -61,6 +61,12 @@ Backward-compatible aliases like `app.grid` and `app.currentPuzzleMetadata` stil
 - Imported puzzle data may use spaces or dots, but those are normalized before entering app state.
 - Slot ids use the shape `<number>-<direction>`, for example `12-across`.
 - `currentSolution` is a slot-id keyed object, not a cell matrix.
+- `cellSlotIndex` maps `"row,col"` keys to the across/down slots that cross that cell so grid interactions do not need to rescan the full slot list on every highlight update.
+
+## Play Session Notes
+
+- Entering play mode may come from a pre-solved puzzle, a saved `solution`, or a just-in-time solver pass for bundled puzzle data that ships without an explicit solution payload.
+- Recent puzzle restore stores both the editor workspace and the in-progress play grid/timer state. When resuming into play mode, the editor snapshot is restored first and the play session overlay is then reapplied on entry.
 
 ## Refactor Guidance
 

@@ -134,7 +134,9 @@ export class PopupManager {
         popup.setAttribute('aria-modal', 'true');
 
         const titleId = `popup-title-${Date.now()}`;
+        const bodyId = `popup-body-${Date.now()}`;
         popup.setAttribute('aria-labelledby', titleId);
+        popup.setAttribute('aria-describedby', bodyId);
 
         const header = document.createElement('div');
         header.className = 'popup-header';
@@ -155,6 +157,7 @@ export class PopupManager {
 
         const body = document.createElement('div');
         body.className = 'popup-body';
+        body.id = bodyId;
 
         if (Array.isArray(entries) && entries.length > 0) {
             entries.forEach((item, index) => {

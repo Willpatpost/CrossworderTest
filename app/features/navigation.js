@@ -19,13 +19,6 @@ export const navigationMethods = {
             this._navLogo.addEventListener('click', () => {
                 this.switchView('home-screen');
             });
-
-            this._navLogo.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    this.switchView('home-screen', { focusHeading: true });
-                }
-            });
         }
 
         this._homeActionButtons.forEach((button) => {

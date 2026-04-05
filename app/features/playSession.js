@@ -146,6 +146,9 @@ export const playSessionMethods = {
         const pauseBtn = document.getElementById('pause-btn');
         const overlay = document.getElementById('play-paused-overlay');
         const gridContainer = document.getElementById('play-grid-container');
+        const gamePanels = Array.from(
+            document.querySelectorAll('#game-container > aside, #game-container > section.grid-panel')
+        );
         const disableWhilePaused = [
             'check-menu-btn',
             'reveal-menu-btn',
@@ -171,15 +174,24 @@ export const playSessionMethods = {
         }
 
         if (overlay) {
-            overlay.classList.toggle(
-                'hidden',
-                !(this.modes.isPlayMode && this.isPlayPaused)
-            );
+            const showOverlay = this.modes.isPlayMode && this.isPlayPaused;
+            overlay.classList.toggle('hidden', !showOverlay);
+            overlay.setAttribute('aria-hidden', String(!showOverlay));
         }
 
         if (gridContainer) {
             gridContainer.classList.toggle('paused-grid', this.isPlayPaused);
         }
+
+        gamePanels.forEach((panel) => {
+            if (this.modes.isPlayMode && this.isPlayPaused) {
+                panel.setAttribute('aria-hidden', 'true');
+                panel.inert = true;
+            } else {
+                panel.removeAttribute('aria-hidden');
+                panel.inert = false;
+            }
+        });
 
         disableWhilePaused.forEach((id) => {
             const el = document.getElementById(id);

@@ -356,12 +356,14 @@ export class GridManager {
     =============================== */
 
     _handleLetter(letter, coordinator) {
+        if (coordinator?.hasCompletedPlayPuzzle) return;
         const { r, c } = this.selectedCell;
         this._setCell(r, c, letter, coordinator);
         this._moveWithinWord(1, coordinator);
     }
 
     _handleBackspace(coordinator) {
+        if (coordinator?.hasCompletedPlayPuzzle) return;
         let { r, c } = this.selectedCell;
         const current = coordinator.grid?.[r]?.[c];
 
@@ -376,6 +378,7 @@ export class GridManager {
     }
 
     _handleDelete(coordinator) {
+        if (coordinator?.hasCompletedPlayPuzzle) return;
         const { r, c } = this.selectedCell;
         this._setCell(r, c, '', coordinator);
         this._updateHighlights(coordinator);
@@ -491,6 +494,7 @@ export class GridManager {
 
     _setCell(r, c, value, coordinator) {
         if (!this._isValidCell(r, c, coordinator)) return;
+        if (coordinator?.hasCompletedPlayPuzzle) return;
 
         const normalized = this._normalizeLetter(value);
         coordinator.grid[r][c] = normalized;
@@ -508,6 +512,7 @@ export class GridManager {
         td.classList.remove('correct', 'incorrect');
         coordinator._applyInstantMistakeStateAt?.(r, c);
         coordinator._scheduleRecentPuzzleSave?.();
+        coordinator._checkForPuzzleCompletion?.();
     }
 
     _normalizeLetter(value) {
@@ -535,6 +540,10 @@ export class GridManager {
         if (!this.selectedCell) return null;
 
         const { r, c } = this.selectedCell;
+        const indexedSlot = coordinator?.cellSlotIndex?.[`${r},${c}`]?.[this.selectedDirection];
+        if (indexedSlot) {
+            return indexedSlot;
+        }
 
         return Object.values(coordinator.slots || {}).find((slot) =>
             slot.direction === this.selectedDirection &&

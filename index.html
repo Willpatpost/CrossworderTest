@@ -18,9 +18,9 @@
         <!-- NAVBAR -->
         <nav class="navbar" aria-label="Primary navigation">
             <div class="nav-left">
-                <h1 class="nav-logo" id="nav-logo" role="button" tabindex="0" aria-label="Go to home screen">
+                <button class="nav-logo" id="nav-logo" type="button" aria-label="Go to home screen">
                     CROSSWORDER
-                </h1>
+                </button>
             </div>
 
             <div class="nav-center" role="tablist" aria-label="App sections">
@@ -575,7 +575,8 @@
                         </select>
                         <label for="word-search-input" class="sr-only">Search words by pattern</label>
                         <input type="text" id="word-search-input" placeholder="Search (use ? for wildcards, e.g. C??T)"
-                            autocomplete="off" spellcheck="false" aria-describedby="matches-count" />
+                            autocomplete="off" spellcheck="false" aria-describedby="matches-count"
+                            aria-controls="search-dropdown" aria-expanded="false" aria-autocomplete="list" />
                         <div id="search-dropdown" class="search-dropdown" role="listbox"
                             aria-label="Word search results"></div>
                     </div>

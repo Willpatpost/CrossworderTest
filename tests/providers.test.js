@@ -7,6 +7,8 @@ import { editorMethods } from '../app/features/editor.js';
 import { playMethods } from '../app/features/play.js';
 import { DisplayManager } from '../ui/DisplayManager.js';
 import { GridManager } from '../grid/GridManager.js';
+import { PuzzleSummaryDisplay } from '../ui/display/PuzzleSummaryDisplay.js';
+import { SearchResultsDisplay } from '../ui/display/SearchResultsDisplay.js';
 
 test('WordListProvider clears in-flight promise entries after success', async () => {
     const originalFetch = globalThis.fetch;
@@ -272,6 +274,108 @@ test('DisplayManager describes authored, local, and web clue sources clearly', (
     });
 });
 
+test('SearchResultsDisplay supports keyboard selection with combobox semantics', () => {
+    const originalDocument = globalThis.document;
+    const listeners = {};
+    let selected = null;
+
+    const makeNode = (tagName) => ({
+        tagName,
+        id: '',
+        textContent: '',
+        className: '',
+        children: [],
+        attrs: {},
+        listeners: {},
+        classList: {
+            _set: new Set(),
+            add(name) {
+                this._set.add(name);
+            },
+            remove(name) {
+                this._set.delete(name);
+            },
+            contains(name) {
+                return this._set.has(name);
+            }
+        },
+        append(...nodes) {
+            this.children.push(...nodes);
+        },
+        appendChild(node) {
+            if (Array.isArray(node.children)) {
+                this.children.push(...node.children);
+            } else {
+                this.children.push(node);
+            }
+        },
+        setAttribute(name, value) {
+            this.attrs[name] = value;
+        },
+        removeAttribute(name) {
+            delete this.attrs[name];
+        },
+        addEventListener(name, handler) {
+            this.listeners[name] = handler;
+        },
+        scrollIntoView() {}
+    });
+
+    const input = {
+        attrs: {},
+        addEventListener(name, handler) {
+            listeners[name] = handler;
+        },
+        setAttribute(name, value) {
+            this.attrs[name] = value;
+        },
+        removeAttribute(name) {
+            delete this.attrs[name];
+        }
+    };
+
+    const dropdown = makeNode('div');
+    const matchesCount = { textContent: '' };
+
+    globalThis.document = {
+        createElement(tagName) {
+            return makeNode(tagName);
+        },
+        createDocumentFragment() {
+            return {
+                children: [],
+                appendChild(node) {
+                    this.children.push(node);
+                }
+            };
+        }
+    };
+
+    try {
+        const display = new SearchResultsDisplay({ dropdown, matchesCount, input });
+        display.update(['CAT', 'CAR'], (match) => {
+            selected = match;
+        });
+
+        listeners.keydown({
+            key: 'ArrowDown',
+            preventDefault() {}
+        });
+        assert.equal(input.attrs['aria-activedescendant'], 'search-result-0');
+        assert.equal(dropdown.children[0].attrs['aria-selected'], 'true');
+
+        listeners.keydown({
+            key: 'Enter',
+            preventDefault() {}
+        });
+
+        assert.equal(selected, 'CAT');
+        assert.equal(input.attrs['aria-expanded'], 'false');
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
 test('Direct editor letter entry keeps authored clues while invalidating the saved solution', () => {
     const app = {
         grid: [['', '']],
@@ -337,4 +441,91 @@ test('Play completion check detects a solved puzzle once', () => {
     assert.equal(app.hasCompletedPlayPuzzle, true);
     assert.match(statusMessage, /Puzzle complete!/);
     assert.match(popupMessage, /1:05/);
+});
+
+test('GridManager play entry triggers puzzle completion when the final letter is typed', () => {
+    let completionChecks = 0;
+
+    const coordinator = {
+        grid: [['C', 'A', '']],
+        hasCompletedPlayPuzzle: false,
+        _applyInstantMistakeStateAt() {},
+        _scheduleRecentPuzzleSave() {},
+        _checkForPuzzleCompletion() {
+            completionChecks++;
+        }
+    };
+
+    const letterSpan = { textContent: '' };
+    const td = {
+        classList: {
+            contains() {
+                return false;
+            },
+            remove() {}
+        },
+        querySelector(selector) {
+            return selector === '.cell-letter' ? letterSpan : null;
+        },
+        appendChild() {}
+    };
+
+    const manager = new GridManager();
+    manager.cells = { '0,2': td };
+
+    manager._setCell(0, 2, 'T', coordinator);
+
+    assert.equal(coordinator.grid[0][2], 'T');
+    assert.equal(letterSpan.textContent, 'T');
+    assert.equal(completionChecks, 1);
+});
+
+test('PuzzleSummaryDisplay renders imported metadata as text instead of HTML', () => {
+    const summary = {
+        children: [],
+        innerHTML: '',
+        replaceChildren() {
+            this.children = [];
+            this.innerHTML = '';
+        },
+        appendChild(child) {
+            this.children.push(child);
+        }
+    };
+
+    const originalDocument = globalThis.document;
+    globalThis.document = {
+        createElement(tag) {
+            return {
+                tagName: tag,
+                className: '',
+                textContent: '',
+                children: [],
+                append(...nodes) {
+                    this.children.push(...nodes);
+                }
+            };
+        }
+    };
+
+    try {
+        const display = new PuzzleSummaryDisplay({ puzzleSummary: summary });
+        display.update(
+            [['A', '']],
+            { '1-across': { direction: 'across' }, '1-down': { direction: 'down' } },
+            {},
+            {
+                title: '<img src=x onerror=alert(1)>',
+                author: '<script>alert(1)</script>'
+            }
+        );
+
+        const firstCard = summary.children[0];
+        const [valueEl, labelEl] = firstCard.children;
+        assert.equal(valueEl.textContent, '<img src=x onerror=alert(1)>');
+        assert.equal(labelEl.textContent, '<script>alert(1)</script>');
+        assert.equal(summary.innerHTML, '');
+    } finally {
+        globalThis.document = originalDocument;
+    }
 });

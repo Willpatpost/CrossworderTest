@@ -93,6 +93,9 @@ export const playMethods = {
         this.refreshWordList();
         this._updateInstantMistakeUI();
         this._updatePauseUI();
+        this._updateUndoRedoButtons?.();
+        this._updateDraftButtons?.();
+        this._updateSolveControls?.(false);
         this._updatePlayStatusCopy('idle');
         this.display.updateStatus('Returned to editor mode.', true);
         this._saveRecentPuzzleRecord?.({ silent: true });

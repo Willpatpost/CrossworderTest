@@ -14,9 +14,20 @@ export class PuzzleSummaryDisplay {
         const rows = grid.length;
         const cols = grid[0].length;
         const totalCells = rows * cols;
-        const blockCount = grid.flat().filter((cell) => cell === '#').length;
+        let blockCount = 0;
+        let filledCells = 0;
+
+        grid.forEach((row) => {
+            row.forEach((cell) => {
+                if (cell === '#') {
+                    blockCount++;
+                } else if (/^[A-Z]$/i.test(cell)) {
+                    filledCells++;
+                }
+            });
+        });
+
         const fillableCells = totalCells - blockCount;
-        const filledCells = grid.flat().filter((cell) => /^[A-Z]$/i.test(cell)).length;
         const slotEntries = Object.values(slots || {});
         const acrossCount = slotEntries.filter((slot) => slot.direction === 'across').length;
         const downCount = slotEntries.filter((slot) => slot.direction === 'down').length;
@@ -27,32 +38,44 @@ export class PuzzleSummaryDisplay {
         const title = metadata?.title || 'Untitled';
         const author = metadata?.author || 'Unknown author';
 
+        this.puzzleSummary.replaceChildren();
+
         if (fillableCells === 0) {
-            this.puzzleSummary.innerHTML = `
-                <div class="summary-item summary-item-wide">
-                    <span class="summary-value">No open cells yet</span>
-                    <span class="summary-label">Add fillable squares or load a bundled puzzle to begin.</span>
-                </div>
-            `;
+            this.puzzleSummary.appendChild(
+                this._createSummaryElement(
+                    'No open cells yet',
+                    'Add fillable squares or load a bundled puzzle to begin.',
+                    true
+                )
+            );
             return;
         }
 
-        this.puzzleSummary.innerHTML = [
-            this._createSummaryItem(title, author),
-            this._createSummaryItem(`${rows}x${cols}`, 'Grid'),
-            this._createSummaryItem(String(blockCount), 'Blocks'),
-            this._createSummaryItem(`${acrossCount}/${downCount}`, 'Across/Down'),
-            this._createSummaryItem(`${fillPercent}%`, 'Filled'),
-            this._createSummaryItem(String(authoredClues), 'Authored clues')
-        ].join('');
+        [
+            this._createSummaryElement(title, author),
+            this._createSummaryElement(`${rows}x${cols}`, 'Grid'),
+            this._createSummaryElement(String(blockCount), 'Blocks'),
+            this._createSummaryElement(`${acrossCount}/${downCount}`, 'Across/Down'),
+            this._createSummaryElement(`${fillPercent}%`, 'Filled'),
+            this._createSummaryElement(String(authoredClues), 'Authored clues')
+        ].forEach((element) => {
+            this.puzzleSummary.appendChild(element);
+        });
     }
 
-    _createSummaryItem(value, label) {
-        return `
-            <div class="summary-item">
-                <span class="summary-value">${value}</span>
-                <span class="summary-label">${label}</span>
-            </div>
-        `;
+    _createSummaryElement(value, label, isWide = false) {
+        const item = document.createElement('div');
+        item.className = `summary-item${isWide ? ' summary-item-wide' : ''}`;
+
+        const valueEl = document.createElement('span');
+        valueEl.className = 'summary-value';
+        valueEl.textContent = value;
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'summary-label';
+        labelEl.textContent = label;
+
+        item.append(valueEl, labelEl);
+        return item;
     }
 }

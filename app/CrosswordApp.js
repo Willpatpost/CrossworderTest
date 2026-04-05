@@ -393,6 +393,7 @@ export class CrosswordApp {
         const aliases = [
             ['grid', 'workspaceState', 'grid'],
             ['slots', 'workspaceState', 'slots'],
+            ['cellSlotIndex', 'workspaceState', 'cellSlotIndex'],
             ['wordLengthCache', 'workspaceState', 'wordLengthCache'],
             ['letterFrequencies', 'workspaceState', 'letterFrequencies'],
             ['currentSolution', 'workspaceState', 'currentSolution'],
@@ -439,6 +440,7 @@ export class CrosswordApp {
         return {
             grid: [],
             slots: {},
+            cellSlotIndex: {},
             wordLengthCache: {},
             letterFrequencies: {},
             currentSolution: null,

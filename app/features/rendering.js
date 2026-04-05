@@ -2,6 +2,7 @@ export const renderingMethods = {
     rebuildGridState() {
         const { slots } = this.constraintManager.buildDataStructures(this.grid);
         this.slots = slots;
+        this.cellSlotIndex = this._buildCellSlotIndex(slots);
     },
 
     render() {
@@ -116,6 +117,23 @@ export const renderingMethods = {
             .sort((a, b) => a.number - b.number)[0];
 
         return acrossFirst || allSlots.sort((a, b) => a.number - b.number)[0] || null;
+    },
+
+    _buildCellSlotIndex(slots = {}) {
+        const index = {};
+
+        Object.values(slots || {}).forEach((slot) => {
+            slot.positions.forEach(([r, c]) => {
+                const key = `${r},${c}`;
+                if (!index[key]) {
+                    index[key] = {};
+                }
+
+                index[key][slot.direction] = slot;
+            });
+        });
+
+        return index;
     },
 
     _isInBounds(r, c) {

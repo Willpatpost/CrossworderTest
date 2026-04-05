@@ -291,6 +291,15 @@ test('enterPlayMode snapshots the editor grid and exitPlayMode restores it', () 
         _pausePlayTimer() {},
         _updateInstantMistakeUI() {},
         _updatePauseUI() {},
+        _updateUndoRedoButtons() {
+            app.undoRedoUpdated = (app.undoRedoUpdated || 0) + 1;
+        },
+        _updateDraftButtons() {
+            app.draftButtonsUpdated = (app.draftButtonsUpdated || 0) + 1;
+        },
+        _updateSolveControls(isSolving) {
+            app.solveControlsState = isSolving;
+        },
         _getFirstSlot() {
             return app.slots['1-across'];
         },
@@ -312,6 +321,9 @@ test('enterPlayMode snapshots the editor grid and exitPlayMode restores it', () 
         assert.equal(app.modes.isPlayMode, false);
         assert.deepEqual(app.grid, [['C', 'A', 'T'], ['#', '', '']]);
         assert.equal(app.editorGridSnapshot, null);
+        assert.equal(app.undoRedoUpdated, 1);
+        assert.equal(app.draftButtonsUpdated, 1);
+        assert.equal(app.solveControlsState, false);
     } finally {
         globalThis.document = originalDocument;
     }
@@ -2880,6 +2892,9 @@ test('updatePauseUI reflects completed play state in the toolbar', () => {
         classList: { toggle() {} },
         setAttribute(name, value) {
             this.attrs[name] = value;
+        },
+        removeAttribute(name) {
+            delete this.attrs[name];
         }
     });
 
@@ -2906,6 +2921,12 @@ test('updatePauseUI reflects completed play state in the toolbar', () => {
     globalThis.document = {
         getElementById(id) {
             return elements.get(id) || null;
+        },
+        querySelectorAll() {
+            return [
+                elements.get('play-grid-container'),
+                elements.get('check-menu-btn')
+            ];
         }
     };
 
@@ -2923,6 +2944,18 @@ test('updatePauseUI reflects completed play state in the toolbar', () => {
         assert.equal(elements.get('clear-btn').disabled, true);
         assert.equal(elements.get('next-empty-btn').disabled, true);
         assert.equal(elements.get('previous-clue-button').disabled, false);
+        assert.equal(elements.get('play-grid-container').inert, false);
+
+        playMethods._updatePauseUI.call({
+            modes: { isPlayMode: true },
+            isPlayPaused: true,
+            hasCompletedPlayPuzzle: false,
+            _updateInstantMistakeUI() {}
+        });
+
+        assert.equal(elements.get('play-grid-container').inert, true);
+        assert.equal(elements.get('play-grid-container').attrs['aria-hidden'], 'true');
+        assert.equal(elements.get('play-paused-overlay').attrs['aria-hidden'], 'false');
     } finally {
         globalThis.document = originalDocument;
     }

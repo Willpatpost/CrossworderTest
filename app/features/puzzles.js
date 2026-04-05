@@ -2,6 +2,17 @@ import { DAILY_PUZZLE_FILE, PUZZLES_BASE_PATH } from '../constants.js';
 import { libraryMethods } from './library.js';
 
 export const puzzleMethods = {
+    _shuffleEntries(entries = []) {
+        const shuffled = [...entries];
+
+        for (let index = shuffled.length - 1; index > 0; index--) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+        }
+
+        return shuffled;
+    },
+
     async loadPredefinedPuzzle(name) {
         const file = `${name.toLowerCase()}.json`;
 
@@ -76,8 +87,8 @@ export const puzzleMethods = {
             return;
         }
 
-        const shuffledCandidates = [...candidateEntries]
-            .sort(() => Math.random() - 0.5)
+        const shuffleEntries = this._shuffleEntries || puzzleMethods._shuffleEntries;
+        const shuffledCandidates = shuffleEntries.call(this, candidateEntries)
             .slice(0, 8);
 
         for (const randomEntry of shuffledCandidates) {

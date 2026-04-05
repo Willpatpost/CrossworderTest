@@ -86,6 +86,7 @@ export {};
  * @typedef {{
  *   grid: GridMatrix,
  *   slots: SlotMap,
+ *   cellSlotIndex: Record<string, Partial<Record<'across' | 'down', Slot>>>,
  *   wordLengthCache: Record<string, string[]>,
  *   letterFrequencies: Record<string, number>,
  *   currentSolution: Record<string, string> | null,

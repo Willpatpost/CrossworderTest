@@ -18,6 +18,7 @@ export class DisplayManager {
 
         this.dropdown = document.getElementById('search-dropdown');
         this.matchesCount = document.getElementById('matches-count');
+        this.searchInput = document.getElementById('word-search-input');
         this.puzzleSummary = document.getElementById('puzzle-summary');
         this._activeListMode = 'editor';
 
@@ -27,7 +28,8 @@ export class DisplayManager {
         });
         this.searchResults = new SearchResultsDisplay({
             dropdown: this.dropdown,
-            matchesCount: this.matchesCount
+            matchesCount: this.matchesCount,
+            input: this.searchInput
         });
         this.puzzleSummaryDisplay = new PuzzleSummaryDisplay({
             puzzleSummary: this.puzzleSummary
@@ -73,36 +75,7 @@ export class DisplayManager {
 
     highlightSlotInList(slotId) {
         this._syncClueListBindings();
-        const containers = this._activeListMode === 'play'
-            ? [this.playAcrossDisplay, this.playDownDisplay]
-            : [this.editorAcrossDisplay, this.editorDownDisplay];
-
-        containers.forEach((container) => {
-            if (!container) return;
-
-            container.querySelectorAll('.word-list-item').forEach((el) => {
-                el.classList.remove('selected-clue');
-                el.removeAttribute('aria-current');
-            });
-        });
-
-        for (const container of containers) {
-            if (!container) continue;
-
-            const target = container.querySelector(`.word-list-item[data-slot-id="${slotId}"]`);
-            if (!target) continue;
-
-            target.classList.add('selected-clue');
-            target.setAttribute('aria-current', 'true');
-            this._updateActiveCluePanelFromItem(target);
-            target.scrollIntoView({
-                block: 'nearest',
-                behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-                    ? 'auto'
-                    : 'smooth'
-            });
-            break;
-        }
+        this.clueLists.highlightSlotInList(slotId);
     }
 
     updatePuzzleSummary(grid, slots, clueMap = {}, metadata = {}) {
@@ -110,6 +83,10 @@ export class DisplayManager {
     }
 
     _describeClueSource(clueResult) {
+        if (this.clueLists?._describeClueSource) {
+            return this.clueLists._describeClueSource(clueResult);
+        }
+
         if (!clueResult) return null;
 
         if (typeof clueResult === 'string') {
