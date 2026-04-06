@@ -1,6 +1,6 @@
 # Crossworder
 
-Crossworder is a browser-based crossword editor, solver, and play experience built as a static site. It lets you sketch grid layouts, fill fixed letters, run a CSP-style solver against bundled word lists, and then switch into a play mode with clue lookup, check/reveal tools, and a game timer.
+Crossworder is a browser-based crossword editor, solver, and play experience built as a static site. It lets you sketch grid layouts, fill fixed letters, run a CSP-style solver against bundled word lists, and then switch into a play mode with clue lookup, check/reveal tools, and a game timer. Created by Willpatpost
 
 ## What’s in the project
 
