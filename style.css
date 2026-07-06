@@ -548,6 +548,144 @@ h2 {
     font-size: 0.92rem;
 }
 
+.editor-command-center {
+    display: grid;
+    gap: 16px;
+}
+
+.editor-command-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.editor-command-header h2 {
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.editor-command-header .card-eyebrow {
+    margin-bottom: 4px;
+}
+
+.editor-primary-toolbar,
+.editor-utility-row,
+.editor-search-strip,
+.editor-disclosures,
+.quick-load-cluster,
+.grid-size-cluster,
+.draft-cluster {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.editor-primary-toolbar {
+    justify-content: space-between;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-body);
+}
+
+.editor-utility-row {
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-elevated);
+}
+
+.editor-search-strip {
+    align-items: flex-start;
+}
+
+.editor-search-strip .search-container {
+    flex: 1 1 420px;
+}
+
+.editor-search-strip .matches-count {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    margin-top: 0;
+}
+
+.compact-group {
+    flex-wrap: nowrap;
+}
+
+.solver-action-group {
+    margin-left: auto;
+}
+
+.utility-label {
+    font-family: 'Trebuchet MS', Helvetica, sans-serif;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.utility-btn {
+    padding: 7px 10px;
+}
+
+.grid-size-cluster input[type="number"] {
+    width: 64px;
+    text-align: center;
+}
+
+.dimension-separator {
+    color: var(--text-muted);
+    font-family: 'Trebuchet MS', Helvetica, sans-serif;
+    font-weight: 700;
+}
+
+.editor-disclosures {
+    align-items: stretch;
+}
+
+.editor-details {
+    flex: 1 1 240px;
+    min-width: min(240px, 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-body);
+    overflow: hidden;
+}
+
+.editor-details summary {
+    cursor: pointer;
+    padding: 10px 12px;
+    font-family: 'Trebuchet MS', Helvetica, sans-serif;
+    font-weight: 800;
+    color: var(--text-header);
+    list-style-position: inside;
+}
+
+.editor-details[open] summary {
+    border-bottom: 1px solid var(--border-color);
+    background: var(--dropdown-hover);
+}
+
+.editor-details > .settings-controls,
+.editor-details > .input-group,
+.editor-details > .solver-metrics,
+.editor-details > .solver-diagnostics,
+.editor-details > .solver-blacklist-panel,
+.editor-details > .mode-group {
+    margin: 12px;
+}
+
+.danger-zone {
+    align-items: flex-start;
+}
+
 .settings-controls,
 .mode-controls,
 .button-group {
@@ -1349,6 +1487,16 @@ textarea {
     .toolbar-btn {
         min-height: 42px;
     }
+
+    .editor-primary-toolbar,
+    .editor-command-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .solver-action-group {
+        margin-left: 0;
+    }
 }
 
 @media (max-width: 640px) {
@@ -1408,6 +1556,39 @@ textarea {
         width: 100%;
     }
 
+    .editor-primary-toolbar,
+    .editor-utility-row,
+    .quick-load-cluster,
+    .grid-size-cluster,
+    .draft-cluster,
+    .editor-disclosures {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .compact-group,
+    .solver-action-group {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .editor-primary-toolbar .solve-btn,
+    .editor-search-strip .search-container,
+    .editor-details {
+        width: 100%;
+    }
+
+    .grid-size-cluster {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+    }
+
+    .grid-size-cluster .utility-label,
+    .grid-size-cluster .primary-btn {
+        grid-column: 1 / -1;
+    }
+
     .word-list-display {
         height: 240px;
     }
@@ -1431,6 +1612,7 @@ textarea {
     .home-library,
     .home-dashboard-grid,
     .mode-section,
+    .editor-command-center,
     .search-panel,
     .status-panel,
     .solver-diagnostics,

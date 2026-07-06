@@ -330,256 +330,211 @@
                     <p>Build your grid, run the solver, and inspect entries and clues.</p>
                 </header>
 
-                <!-- QUICK LOAD -->
-                <section class="section predefined-puzzles-section" aria-labelledby="quick-load-heading">
-                    <h2 id="quick-load-heading">Quick Load</h2>
-                    <p class="section-helper">
-                        Start from a bundled puzzle if you want a complete grid fast, or generate a blank board below if
-                        you want to construct from scratch.
-                    </p>
-                    <div class="button-group">
-                        <button id="load-easy-button" class="btn secondary-btn" type="button">Easy</button>
-                        <button id="load-medium-button" class="btn secondary-btn" type="button">Medium</button>
-                        <button id="load-hard-button" class="btn secondary-btn" type="button">Hard</button>
-                        <button id="random-puzzle-button" class="btn accent-btn" type="button">Random Puzzle</button>
-                    </div>
-                </section>
-
-                <!-- GRID SETTINGS -->
-                <section class="section settings-section" aria-labelledby="grid-settings-heading">
-                    <h2 id="grid-settings-heading">Grid Settings</h2>
-                    <div class="settings-controls">
-                        <div class="input-group">
-                            <label for="rows-input">Rows</label>
-                            <input type="number" id="rows-input" min="5" max="25" value="15" inputmode="numeric" />
+                <section class="section editor-command-center" aria-labelledby="editor-controls-heading">
+                    <div class="editor-command-header">
+                        <div>
+                            <p class="card-eyebrow">Editor</p>
+                            <h2 id="editor-controls-heading">Build Surface</h2>
                         </div>
-
-                        <div class="input-group">
-                            <label for="columns-input">Columns</label>
-                            <input type="number" id="columns-input" min="5" max="25" value="15" inputmode="numeric" />
-                        </div>
-
-                        <button id="generate-grid-button" class="btn primary-btn" type="button">
-                            Generate Grid
-                        </button>
-                    </div>
-                </section>
-
-                <section class="section settings-section" aria-labelledby="puzzle-metadata-heading">
-                    <h2 id="puzzle-metadata-heading">Puzzle Metadata</h2>
-                    <p class="section-helper">
-                        These fields travel with drafts and exports, so you can treat the current workspace like a real
-                        puzzle package instead of a loose grid.
-                    </p>
-                    <div class="settings-controls metadata-controls">
-                        <div class="input-group metadata-field">
-                            <label for="puzzle-title-input">Title</label>
-                            <input type="text" id="puzzle-title-input" placeholder="Untitled puzzle" autocomplete="off" spellcheck="false" />
-                        </div>
-
-                        <div class="input-group metadata-field">
-                            <label for="puzzle-author-input">Author</label>
-                            <input type="text" id="puzzle-author-input" placeholder="Author name" autocomplete="off" spellcheck="false" />
-                        </div>
-
-                        <div class="input-group metadata-field">
-                            <label for="puzzle-difficulty-input">Difficulty</label>
-                            <input type="text" id="puzzle-difficulty-input" placeholder="Easy / Medium / Hard" autocomplete="off" spellcheck="false" />
-                        </div>
-
-                        <div class="input-group metadata-field">
-                            <label for="puzzle-tags-input">Tags</label>
-                            <input type="text" id="puzzle-tags-input" placeholder="theme, themeless, mini" autocomplete="off" spellcheck="false" />
-                        </div>
-
-                        <div class="input-group metadata-field">
-                            <label for="puzzle-copyright-input">Copyright</label>
-                            <input type="text" id="puzzle-copyright-input" placeholder="Optional copyright or rights note" autocomplete="off" spellcheck="false" />
-                        </div>
-
-                        <div class="input-group metadata-field">
-                            <label for="puzzle-source-url-input">Source URL</label>
-                            <input type="text" id="puzzle-source-url-input" placeholder="https://example.com/puzzle" autocomplete="off" spellcheck="false" />
-                        </div>
-
-                        <div class="input-group metadata-field metadata-field-wide">
-                            <label for="puzzle-notes-input">Notes</label>
-                            <textarea id="puzzle-notes-input" rows="3" placeholder="Optional notes, theme, or constructor comments"></textarea>
+                        <div id="mode-label" class="mode-label" aria-live="polite">
+                            Mode: Default (Toggle Black Squares)
                         </div>
                     </div>
-                </section>
 
-                <!-- EDITOR CONTROLS -->
-                <section class="section mode-section" aria-labelledby="editor-controls-heading">
-                    <h2 id="editor-controls-heading">Editor Controls</h2>
-
-                    <div class="mode-controls">
-
-                        <!-- Interaction Mode -->
-                        <div class="mode-group" role="group" aria-label="Interaction mode">
-                            <button id="drag-mode-button" class="btn mode-btn" type="button">Drag</button>
-                            <button id="letter-mode-button" class="btn mode-btn" type="button">Letter</button>
+                    <div class="editor-primary-toolbar">
+                        <div class="mode-group compact-group" role="group" aria-label="Interaction mode">
+                            <button id="drag-mode-button" class="btn mode-btn" type="button">Blocks</button>
+                            <button id="letter-mode-button" class="btn mode-btn" type="button">Letters</button>
                         </div>
 
-                        <!-- Grid Tools -->
-                        <div class="mode-group" role="group" aria-label="Grid tools">
-                            <button id="auto-number-button" class="btn secondary-btn" type="button">
-                                Auto Number
-                            </button>
+                        <div class="mode-group compact-group" role="group" aria-label="Grid edit tools">
                             <button id="symmetry-button" class="btn success-btn" type="button">
                                 Symmetry: ON
                             </button>
-                            <button id="undo-button" class="btn secondary-btn" type="button">
-                                Undo
-                            </button>
-                            <button id="redo-button" class="btn secondary-btn" type="button">
-                                Redo
-                            </button>
-                            <button id="save-draft-button" class="btn secondary-btn" type="button">
-                                Save Draft
-                            </button>
-                            <button id="load-draft-button" class="btn secondary-btn" type="button">
-                                Load Draft
-                            </button>
-                            <button id="clear-draft-button" class="btn secondary-btn" type="button">
-                                Clear Saved Draft
-                            </button>
-                            <button id="clear-letters-button" class="btn secondary-btn" type="button">
-                                Clear Letters
-                            </button>
-                            <button id="clear-blocks-button" class="btn secondary-btn" type="button">
-                                Clear Blocks
-                            </button>
-                            <button id="clear-grid-button" class="btn secondary-btn" type="button">
-                                Clear Grid
-                            </button>
-                            <button id="clear-row-button" class="btn secondary-btn" type="button">
-                                Clear Row
-                            </button>
-                            <button id="clear-column-button" class="btn secondary-btn" type="button">
-                                Clear Column
-                            </button>
-                            <button id="export-puzzle-button" class="btn secondary-btn" type="button">
-                                Export Puzzle
-                            </button>
-                            <button id="import-puzzle-button" class="btn secondary-btn" type="button">
-                                Import Puzzle
-                            </button>
-                            <input id="import-puzzle-input" class="sr-only" type="file" accept="application/json,.json" />
+                            <button id="undo-button" class="btn secondary-btn" type="button">Undo</button>
+                            <button id="redo-button" class="btn secondary-btn" type="button">Redo</button>
                         </div>
 
-                        <!-- Solver Actions -->
-                        <div class="mode-group" role="group" aria-label="Solver actions">
+                        <div class="mode-group solver-action-group" role="group" aria-label="Solver actions">
                             <button id="solve-crossword-button" class="btn solve-btn" type="button">
-                                Solve &amp; Generate Clues
-                            </button>
-                            <button id="solve-selected-word-button" class="btn secondary-btn" type="button">
-                                Solve Selected Word
+                                Solve Grid
                             </button>
                             <button id="suggest-fill-button" class="btn secondary-btn" type="button">
-                                Suggest Fill
+                                Suggest
                             </button>
-                            <button id="blacklist-entry-button" class="btn secondary-btn" type="button">
-                                Blacklist Entry
+                            <button id="solve-selected-word-button" class="btn secondary-btn" type="button">
+                                Solve Entry
                             </button>
                             <button id="cancel-solve-button" class="btn danger-btn hidden" type="button">
-                                Cancel Solve
+                                Cancel
                             </button>
                         </div>
                     </div>
 
-                    <div id="mode-label" class="mode-label" aria-live="polite">
-                        Mode: Default (Toggle Black Squares)
+                    <div class="editor-utility-row">
+                        <div class="quick-load-cluster" aria-labelledby="quick-load-heading">
+                            <span id="quick-load-heading" class="utility-label">Start</span>
+                            <button id="load-easy-button" class="btn secondary-btn utility-btn" type="button">Easy</button>
+                            <button id="load-medium-button" class="btn secondary-btn utility-btn" type="button">Medium</button>
+                            <button id="load-hard-button" class="btn secondary-btn utility-btn" type="button">Hard</button>
+                            <button id="random-puzzle-button" class="btn accent-btn utility-btn" type="button">Random</button>
+                        </div>
+
+                        <div class="grid-size-cluster" aria-labelledby="grid-settings-heading">
+                            <span id="grid-settings-heading" class="utility-label">Grid</span>
+                            <label for="rows-input" class="sr-only">Rows</label>
+                            <input type="number" id="rows-input" min="5" max="25" value="15" inputmode="numeric" />
+                            <span class="dimension-separator" aria-hidden="true">x</span>
+                            <label for="columns-input" class="sr-only">Columns</label>
+                            <input type="number" id="columns-input" min="5" max="25" value="15" inputmode="numeric" />
+                            <button id="generate-grid-button" class="btn primary-btn utility-btn" type="button">
+                                New
+                            </button>
+                        </div>
+
+                        <div class="draft-cluster" aria-label="Draft and file actions">
+                            <button id="save-draft-button" class="btn secondary-btn utility-btn" type="button">Save</button>
+                            <button id="load-draft-button" class="btn secondary-btn utility-btn" type="button">Load</button>
+                            <button id="export-puzzle-button" class="btn secondary-btn utility-btn" type="button">Export</button>
+                            <button id="import-puzzle-button" class="btn secondary-btn utility-btn" type="button">Import</button>
+                            <input id="import-puzzle-input" class="sr-only" type="file" accept="application/json,.json" />
+                        </div>
                     </div>
-                </section>
 
-                <!-- SOLVING CONTROLS -->
-                <section class="section solving-controls-section" aria-labelledby="solving-controls-heading">
-                    <h2 id="solving-controls-heading">Solving Controls</h2>
-                    <p class="section-helper">
-                        Use these options when you want help filling the grid. Locked entries stay fixed, theme entries
-                        get prioritized, and deterministic mode makes repeated runs easier to compare.
-                    </p>
-                    <div class="settings-controls">
-                        <label class="toggle-container" for="allow-reuse-toggle">
-                            <input type="checkbox" id="allow-reuse-toggle" />
-                            <span>Allow Word Reuse</span>
-                        </label>
-
-                        <label class="toggle-container" for="lock-filled-toggle">
-                            <input type="checkbox" id="lock-filled-toggle" checked />
-                            <span>Lock Filled Entries</span>
-                        </label>
-
-                        <label class="toggle-container" for="deterministic-solve-toggle">
-                            <input type="checkbox" id="deterministic-solve-toggle" />
-                            <span>Deterministic Solve</span>
-                        </label>
-
-                        <label class="toggle-container" for="visualize-solve-toggle">
-                            <input type="checkbox" id="visualize-solve-toggle" checked />
-                            <span>Visualize Solve</span>
-                        </label>
-
-                        <div class="input-group">
-                            <label for="visualize-speed-select">Visual Speed</label>
-                            <select id="visualize-speed-select">
-                                <option value="fast">Fast</option>
-                                <option value="slow">Slow</option>
+                    <div class="editor-search-strip" aria-labelledby="word-lookup-heading">
+                        <h3 id="word-lookup-heading" class="sr-only">Word Lookup</h3>
+                        <div class="search-container">
+                            <label for="word-search-mode" class="sr-only">Search mode</label>
+                            <select id="word-search-mode" aria-label="Search mode">
+                                <option value="answer">Answer Patterns</option>
+                                <option value="clue">Clue Text</option>
                             </select>
+                            <label for="word-search-input" class="sr-only">Search words by pattern</label>
+                            <input type="text" id="word-search-input" placeholder="Search answers with ? wildcards, or switch to clue text"
+                                autocomplete="off" spellcheck="false" aria-describedby="matches-count" />
+                            <div id="search-dropdown" class="search-dropdown" role="listbox"
+                                aria-label="Word search results"></div>
                         </div>
+                        <div id="matches-count" class="matches-count" aria-live="polite"></div>
                     </div>
 
-                    <div class="input-group solver-theme-group">
-                        <label for="theme-entries-input">Theme Entries</label>
-                        <input
-                            type="text"
-                            id="theme-entries-input"
-                            placeholder="Comma-separated entries to prioritize (e.g. CAT,NOVA)"
-                            autocomplete="off"
-                            spellcheck="false"
-                        />
-                    </div>
+                    <div class="editor-disclosures">
+                        <details class="editor-details">
+                            <summary>Puzzle Details</summary>
+                            <div class="settings-controls metadata-controls">
+                                <div class="input-group metadata-field">
+                                    <label for="puzzle-title-input">Title</label>
+                                    <input type="text" id="puzzle-title-input" placeholder="Untitled puzzle" autocomplete="off" spellcheck="false" />
+                                </div>
 
-                    <div id="solver-metrics" class="solver-metrics" aria-live="polite">
-                        <div class="summary-item summary-item-wide">
-                            <span class="summary-value">No solve yet</span>
-                            <span class="summary-label">Run the solver to inspect timing, search depth, and pruning.</span>
-                        </div>
-                    </div>
+                                <div class="input-group metadata-field">
+                                    <label for="puzzle-author-input">Author</label>
+                                    <input type="text" id="puzzle-author-input" placeholder="Author name" autocomplete="off" spellcheck="false" />
+                                </div>
 
-                    <div id="solver-diagnostics" class="solver-diagnostics muted-text" aria-live="polite">
-                        Detailed solver diagnostics will appear here after a solve.
-                    </div>
+                                <div class="input-group metadata-field">
+                                    <label for="puzzle-difficulty-input">Difficulty</label>
+                                    <input type="text" id="puzzle-difficulty-input" placeholder="Easy / Medium / Hard" autocomplete="off" spellcheck="false" />
+                                </div>
 
-                    <section class="solver-blacklist-panel" aria-labelledby="solver-blacklist-heading">
-                        <h3 id="solver-blacklist-heading">Blacklisted Fills</h3>
-                        <div id="solver-blacklist-list" class="solver-blacklist-list muted-text">
-                            No fills are blacklisted yet.
-                        </div>
-                    </section>
-                </section>
+                                <div class="input-group metadata-field">
+                                    <label for="puzzle-tags-input">Tags</label>
+                                    <input type="text" id="puzzle-tags-input" placeholder="theme, themeless, mini" autocomplete="off" spellcheck="false" />
+                                </div>
 
-                <!-- WORD LOOKUP -->
-                <section class="section word-lookup-section" aria-labelledby="word-lookup-heading">
-                    <h2 id="word-lookup-heading">Word Lookup</h2>
-                    <p class="section-helper">
-                        Search by answer pattern with <code>?</code> wildcards, or switch to clue search when you know
-                        the clue idea but not the fill yet.
-                    </p>
-                    <div class="search-container">
-                        <label for="word-search-mode" class="sr-only">Search mode</label>
-                        <select id="word-search-mode" aria-label="Search mode">
-                            <option value="answer">Answer Patterns</option>
-                            <option value="clue">Clue Text</option>
-                        </select>
-                        <label for="word-search-input" class="sr-only">Search words by pattern</label>
-                        <input type="text" id="word-search-input" placeholder="Search (use ? for wildcards, e.g. C??T)"
-                            autocomplete="off" spellcheck="false" aria-describedby="matches-count" />
-                        <div id="search-dropdown" class="search-dropdown" role="listbox"
-                            aria-label="Word search results"></div>
+                                <div class="input-group metadata-field">
+                                    <label for="puzzle-copyright-input">Copyright</label>
+                                    <input type="text" id="puzzle-copyright-input" placeholder="Optional copyright or rights note" autocomplete="off" spellcheck="false" />
+                                </div>
+
+                                <div class="input-group metadata-field">
+                                    <label for="puzzle-source-url-input">Source URL</label>
+                                    <input type="text" id="puzzle-source-url-input" placeholder="https://example.com/puzzle" autocomplete="off" spellcheck="false" />
+                                </div>
+
+                                <div class="input-group metadata-field metadata-field-wide">
+                                    <label for="puzzle-notes-input">Notes</label>
+                                    <textarea id="puzzle-notes-input" rows="3" placeholder="Optional notes, theme, or constructor comments"></textarea>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="editor-details">
+                            <summary>Solver Options</summary>
+                            <div class="settings-controls">
+                                <label class="toggle-container" for="allow-reuse-toggle">
+                                    <input type="checkbox" id="allow-reuse-toggle" />
+                                    <span>Allow Word Reuse</span>
+                                </label>
+
+                                <label class="toggle-container" for="lock-filled-toggle">
+                                    <input type="checkbox" id="lock-filled-toggle" checked />
+                                    <span>Lock Filled Entries</span>
+                                </label>
+
+                                <label class="toggle-container" for="deterministic-solve-toggle">
+                                    <input type="checkbox" id="deterministic-solve-toggle" />
+                                    <span>Deterministic Solve</span>
+                                </label>
+
+                                <label class="toggle-container" for="visualize-solve-toggle">
+                                    <input type="checkbox" id="visualize-solve-toggle" checked />
+                                    <span>Visualize Solve</span>
+                                </label>
+
+                                <div class="input-group">
+                                    <label for="visualize-speed-select">Visual Speed</label>
+                                    <select id="visualize-speed-select">
+                                        <option value="fast">Fast</option>
+                                        <option value="slow">Slow</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="input-group solver-theme-group">
+                                <label for="theme-entries-input">Theme Entries</label>
+                                <input
+                                    type="text"
+                                    id="theme-entries-input"
+                                    placeholder="Comma-separated entries to prioritize (e.g. CAT,NOVA)"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                />
+                            </div>
+
+                            <div id="solver-metrics" class="solver-metrics" aria-live="polite">
+                                <div class="summary-item summary-item-wide">
+                                    <span class="summary-value">No solve yet</span>
+                                    <span class="summary-label">Run the solver to inspect timing, search depth, and pruning.</span>
+                                </div>
+                            </div>
+
+                            <div id="solver-diagnostics" class="solver-diagnostics muted-text" aria-live="polite">
+                                Detailed solver diagnostics will appear here after a solve.
+                            </div>
+                        </details>
+
+                        <details class="editor-details">
+                            <summary>Cleanup</summary>
+                            <div class="mode-group danger-zone" role="group" aria-label="Cleanup actions">
+                                <button id="auto-number-button" class="btn secondary-btn" type="button">Renumber</button>
+                                <button id="clear-row-button" class="btn secondary-btn" type="button">Clear Row</button>
+                                <button id="clear-column-button" class="btn secondary-btn" type="button">Clear Column</button>
+                                <button id="clear-letters-button" class="btn secondary-btn" type="button">Clear Letters</button>
+                                <button id="clear-blocks-button" class="btn secondary-btn" type="button">Clear Blocks</button>
+                                <button id="clear-grid-button" class="btn danger-btn" type="button">Clear Grid</button>
+                                <button id="clear-draft-button" class="btn danger-btn" type="button">Clear Saved Draft</button>
+                                <button id="blacklist-entry-button" class="btn secondary-btn" type="button">Blacklist Entry</button>
+                            </div>
+
+                            <section class="solver-blacklist-panel" aria-labelledby="solver-blacklist-heading">
+                                <h3 id="solver-blacklist-heading">Blacklisted Fills</h3>
+                                <div id="solver-blacklist-list" class="solver-blacklist-list muted-text">
+                                    No fills are blacklisted yet.
+                                </div>
+                            </section>
+                        </details>
                     </div>
-                    <div id="matches-count" class="matches-count" aria-live="polite"></div>
                 </section>
 
                 <!-- EDITOR WORKSPACE -->
