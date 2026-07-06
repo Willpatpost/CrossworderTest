@@ -35,7 +35,10 @@ export const puzzleMethods = {
         this.currentPuzzleClues = this._extractPuzzleClues(puzzleData);
         this.currentPuzzleMetadata = this._extractPuzzleMetadata(puzzleData);
         this.currentSolution = mode === 'play'
-            ? (puzzleData.solution || this.extractSolutionFromGrid({ requireComplete: true }))
+            ? (
+                this._validateSolutionForCurrentGrid(puzzleData.solution)
+                || this.extractSolutionFromGrid({ requireComplete: true })
+            )
             : null;
         this.syncPuzzleMetadataInputs?.();
         this._updateRecentPuzzleUI?.();
@@ -244,7 +247,9 @@ export const puzzleMethods = {
             };
             this.currentPuzzleClues = dailyPuzzle.clues || {};
             this.currentPuzzleMetadata = this._extractPuzzleMetadata(dailyPuzzle);
-            this.currentSolution = mode === 'play' ? (dailyPuzzle.solution || null) : null;
+            this.currentSolution = mode === 'play'
+                ? this._validateSolutionForCurrentGrid(dailyPuzzle.solution)
+                : null;
             this.hasCompletedPlayPuzzle = false;
             this.syncPuzzleMetadataInputs?.();
             this._updateRecentPuzzleUI?.();
@@ -451,6 +456,43 @@ export const puzzleMethods = {
         const puzzleData = await resp.json();
         this._assertValidPuzzleGrid(puzzleData?.grid, 'puzzle-of-the-day.json');
         return puzzleData;
+    },
+
+    _validateSolutionForCurrentGrid(solution) {
+        if (!solution || typeof solution !== 'object') return null;
+
+        const slots = this.slots || {};
+        const slotIds = Object.keys(slots);
+        if (!slotIds.length) return null;
+
+        const normalizedSolution = {};
+        const expectedCells = new Map();
+
+        for (const slotId of slotIds) {
+            const slot = slots[slotId];
+            const word = String(solution[slotId] || '').trim().toUpperCase();
+
+            if (!slot || word.length !== slot.length || !/^[A-Z]+$/.test(word)) {
+                return null;
+            }
+
+            normalizedSolution[slotId] = word;
+
+            for (let index = 0; index < slot.positions.length; index++) {
+                const [r, c] = slot.positions[index];
+                const key = `${r},${c}`;
+                const letter = word[index];
+                const existing = expectedCells.get(key);
+
+                if (existing && existing !== letter) {
+                    return null;
+                }
+
+                expectedCells.set(key, letter);
+            }
+        }
+
+        return normalizedSolution;
     },
 
     _assertValidPuzzleGrid(rawGrid, sourceLabel = 'puzzle') {

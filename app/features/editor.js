@@ -57,6 +57,7 @@ export const editorMethods = {
         this.hasCompletedPlayPuzzle = false;
 
         this.render();
+        this.currentSolution = this._validateSolutionForCurrentGrid?.(this.currentSolution) || null;
         this.syncActiveGridToDOM();
         this.refreshWordList();
         this.syncPuzzleMetadataInputs?.();
@@ -548,9 +549,7 @@ export const editorMethods = {
             };
             this.currentPuzzleClues = this._extractPuzzleClues?.(puzzleData) || {};
             this.currentPuzzleMetadata = this._extractPuzzleMetadata?.(puzzleData) || {};
-            this.currentSolution = puzzleData?.solution && typeof puzzleData.solution === 'object'
-                ? { ...puzzleData.solution }
-                : null;
+            this.currentSolution = this._validateSolutionForCurrentGrid?.(puzzleData?.solution) || null;
             if (puzzleData?.source && typeof puzzleData.source === 'object') {
                 this.activePuzzleSource = {
                     ...this.activePuzzleSource,

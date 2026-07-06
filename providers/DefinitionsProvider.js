@@ -1,9 +1,15 @@
 // providers/DefinitionsProvider.js
 export class DefinitionsProvider {
-  constructor({ basePath = "data/defs_by_length" } = {}) {
+  constructor({
+    basePath = "data/defs_by_length",
+    searchIndexPath = "data/search/clue-search.json"
+  } = {}) {
     this.basePath = basePath;
+    this.searchIndexPath = searchIndexPath;
     this._cache = new Map();
     this._promises = new Map();
+    this._searchIndex = null;
+    this._searchIndexPromise = null;
     this._searchLengths = Array.from({ length: 19 }, (_, index) => index + 3);
   }
 
@@ -62,6 +68,11 @@ export class DefinitionsProvider {
     const query = String(rawQuery || "").trim().toLowerCase();
     if (!query) return [];
 
+    const indexedMatches = await this._searchIndexedEntries(query, limit);
+    if (indexedMatches) {
+      return indexedMatches;
+    }
+
     const matches = [];
 
     for (const len of this._searchLengths) {
@@ -98,6 +109,51 @@ export class DefinitionsProvider {
     }
 
     return matches
+      .sort((a, b) => b.score - a.score || a.word.localeCompare(b.word))
+      .slice(0, limit)
+      .map(({ score, ...entry }) => entry);
+  }
+
+  async _loadSearchIndex() {
+    if (this._searchIndex) return this._searchIndex;
+    if (this._searchIndexPromise) return this._searchIndexPromise;
+
+    this._searchIndexPromise = (async () => {
+      try {
+        const resp = await fetch(this.searchIndexPath);
+        if (!resp.ok) return null;
+
+        const payload = await resp.json();
+        const entries = Array.isArray(payload?.entries) ? payload.entries : [];
+        this._searchIndex = entries.map((entry) => ({
+          word: String(entry.w || entry.word || "").toUpperCase(),
+          clue: String(entry.c || entry.clue || ""),
+          source: String(entry.s || entry.source || ""),
+          date: entry.d === "0" ? "" : String(entry.d || entry.date || ""),
+          attribution: this._formatAttribution(entry.s || entry.source, entry.d || entry.date)
+        })).filter((entry) => entry.word && entry.clue);
+
+        return this._searchIndex;
+      } catch {
+        return null;
+      } finally {
+        this._searchIndexPromise = null;
+      }
+    })();
+
+    return this._searchIndexPromise;
+  }
+
+  async _searchIndexedEntries(query, limit) {
+    const entries = await this._loadSearchIndex();
+    if (!entries) return null;
+
+    return entries
+      .map((entry) => ({
+        ...entry,
+        score: this._scoreSearchMatch(entry.word, entry, query)
+      }))
+      .filter((entry) => entry.score > this._scoreEntry(entry))
       .sort((a, b) => b.score - a.score || a.word.localeCompare(b.word))
       .slice(0, limit)
       .map(({ score, ...entry }) => entry);
@@ -165,6 +221,12 @@ export class DefinitionsProvider {
         seenClues.add(key);
         return true;
       });
+  }
+
+  _formatAttribution(source, date) {
+    const normalizedSource = String(source || "").trim();
+    const normalizedDate = String(date || "").trim();
+    return `(${normalizedSource}${normalizedDate && normalizedDate !== "0" ? `, ${normalizedDate}` : ""})`;
   }
 
   _scoreEntry(entry) {

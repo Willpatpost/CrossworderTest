@@ -7,6 +7,9 @@ export const playMethods = {
             this.abortActiveSolve();
         }
 
+        this.currentSolution = this._validateSolutionForCurrentGrid?.(this.currentSolution)
+            || null;
+
         if (!this.currentSolution) {
             const extractedSolution = this.extractSolutionFromGrid({ requireComplete: true });
             if (!extractedSolution) {

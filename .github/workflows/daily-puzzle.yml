@@ -25,6 +25,9 @@ jobs:
       - name: Verify tests
         run: npm test
 
+      - name: Verify static app assets
+        run: npm run smoke
+
       - name: Generate puzzle of the day
         run: node scripts/generate-puzzle-of-the-day.mjs
 

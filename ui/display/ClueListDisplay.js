@@ -17,6 +17,7 @@ export class ClueListDisplay {
         this.playActiveClueSource = playActiveClueSource;
         this._clueHydrationToken = 0;
         this._activeListMode = 'editor';
+        this._clueHydrationConcurrency = 4;
     }
 
     async updateWordLists(
@@ -218,13 +219,32 @@ export class ClueListDisplay {
                     continue;
                 }
 
-                tasks.push(
+                tasks.push(() =>
                     this._hydrateSingleClue(slot, word, container, definitionsProvider, hydrationToken)
                 );
             }
         }
 
-        await Promise.all(tasks);
+        await this._runHydrationQueue(tasks, hydrationToken);
+    }
+
+    async _runHydrationQueue(tasks, hydrationToken) {
+        if (!tasks.length) return;
+
+        let nextIndex = 0;
+        const workerCount = Math.min(this._clueHydrationConcurrency, tasks.length);
+        const runNext = async () => {
+            while (
+                hydrationToken === this._clueHydrationToken &&
+                nextIndex < tasks.length
+            ) {
+                const task = tasks[nextIndex];
+                nextIndex++;
+                await task();
+            }
+        };
+
+        await Promise.all(Array.from({ length: workerCount }, runNext));
     }
 
     async _hydrateSingleClue(slot, word, container, definitionsProvider, hydrationToken) {

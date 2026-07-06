@@ -14,11 +14,15 @@ export class WordListProvider {
         const url = `${this.basePath}/words-${len}.txt`;
         const resp = await fetch(url);
         
-        if (!resp.ok) {
-            // If a length doesn't exist (e.g. length 25), return empty array
+        if (resp.status === 404) {
+            // If a length doesn't exist (e.g. length 25), return empty array.
             this._cache.set(len, []);
             this._promises.delete(len);
             return [];
+        }
+
+        if (!resp.ok) {
+            throw new Error(`Failed to fetch ${url}: HTTP ${resp.status}`);
         }
 
         const text = await resp.text();

@@ -248,6 +248,60 @@ test('puzzle clue extraction ignores entries with no usable text', () => {
     assert.deepEqual(clues, {});
 });
 
+test('solution validation accepts complete crossing-consistent solutions', () => {
+    const app = {
+        slots: {
+            '1-across': {
+                length: 3,
+                positions: [[0, 0], [0, 1], [0, 2]]
+            },
+            '1-down': {
+                length: 3,
+                positions: [[0, 0], [1, 0], [2, 0]]
+            }
+        }
+    };
+
+    const solution = puzzleMethods._validateSolutionForCurrentGrid.call(app, {
+        '1-across': 'CAT',
+        '1-down': 'CAR'
+    });
+
+    assert.deepEqual(solution, {
+        '1-across': 'CAT',
+        '1-down': 'CAR'
+    });
+});
+
+test('solution validation rejects stale or crossing-conflicting solutions', () => {
+    const app = {
+        slots: {
+            '1-across': {
+                length: 3,
+                positions: [[0, 0], [0, 1], [0, 2]]
+            },
+            '1-down': {
+                length: 3,
+                positions: [[0, 0], [1, 0], [2, 0]]
+            }
+        }
+    };
+
+    assert.equal(
+        puzzleMethods._validateSolutionForCurrentGrid.call(app, {
+            '1-across': 'CAT'
+        }),
+        null
+    );
+    assert.equal(
+        puzzleMethods._validateSolutionForCurrentGrid.call(app, {
+            '1-across': 'CAT',
+            '1-down': 'BAR'
+        }),
+        null
+    );
+});
+
 test('enterPlayMode snapshots the editor grid and exitPlayMode restores it', () => {
     const originalDocument = globalThis.document;
     globalThis.document = {
@@ -264,6 +318,7 @@ test('enterPlayMode snapshots the editor grid and exitPlayMode restores it', () 
             '1-across': {
                 id: '1-across',
                 direction: 'across',
+                length: 3,
                 positions: [[0, 0], [0, 1], [0, 2]]
             }
         },
@@ -296,6 +351,7 @@ test('enterPlayMode snapshots the editor grid and exitPlayMode restores it', () 
         },
         blankGridForPlayMode: playMethods.blankGridForPlayMode,
         extractSolutionFromGrid: playMethods.extractSolutionFromGrid,
+        _validateSolutionForCurrentGrid: puzzleMethods._validateSolutionForCurrentGrid,
         _updatePlayStatusCopy() {}
     };
 
@@ -1229,6 +1285,7 @@ test('loadBundledPuzzleByFile can load a bundled puzzle directly into play mode'
             return { '1-across': 'A clue' };
         },
         _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
+        _validateSolutionForCurrentGrid: puzzleMethods._validateSolutionForCurrentGrid,
         extractSolutionFromGrid() {
             return { '1-across': 'AT' };
         },
@@ -1625,8 +1682,15 @@ test('importPuzzleFile loads JSON through the existing puzzle import flow', asyn
         _extractClueNumber: puzzleMethods._extractClueNumber,
         _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
         slots: {
-            '1-across': { id: '1-across', direction: 'across', number: 1 }
+            '1-across': {
+                id: '1-across',
+                direction: 'across',
+                number: 1,
+                length: 2,
+                positions: [[0, 0], [0, 1]]
+            }
         },
+        _validateSolutionForCurrentGrid: puzzleMethods._validateSolutionForCurrentGrid,
         _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError,
         syncPuzzleMetadataInputs() {}
     };
@@ -2113,6 +2177,16 @@ test('handleLoadDailyPuzzle play mode keeps solution and navigates to play', asy
         },
         importPuzzleGrid() {},
         _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
+        _validateSolutionForCurrentGrid: puzzleMethods._validateSolutionForCurrentGrid,
+        slots: {
+            '1-across': {
+                id: '1-across',
+                direction: 'across',
+                number: 1,
+                positions: [[0, 0], [0, 1]],
+                length: 2
+            }
+        },
         _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError,
         syncPuzzleMetadataInputs() {}
     };

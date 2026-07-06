@@ -6,6 +6,7 @@ import { DictionaryAPI } from '../providers/DictionaryAPI.js';
 import { editorMethods } from '../app/features/editor.js';
 import { playMethods } from '../app/features/play.js';
 import { DisplayManager } from '../ui/DisplayManager.js';
+import { ClueListDisplay } from '../ui/display/ClueListDisplay.js';
 
 test('WordListProvider clears in-flight promise entries after success', async () => {
     const originalFetch = globalThis.fetch;
@@ -23,6 +24,37 @@ test('WordListProvider clears in-flight promise entries after success', async ()
         assert.deepEqual(words, ['CAT', 'CAR']);
         assert.equal(provider._cache.has(3), true);
         assert.equal(provider._promises.has(3), false);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('WordListProvider caches missing lengths but retries transient server failures', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestCount = 0;
+
+    try {
+        globalThis.fetch = async () => ({ ok: false, status: 404 });
+        const missingProvider = new WordListProvider({ basePath: '/mock' });
+        assert.deepEqual(await missingProvider.getWordsOfLength(25), []);
+        assert.equal(missingProvider._cache.has(25), true);
+
+        globalThis.fetch = async () => {
+            requestCount++;
+            return { ok: false, status: 500 };
+        };
+        const failingProvider = new WordListProvider({ basePath: '/mock' });
+
+        await assert.rejects(
+            () => failingProvider.getWordsOfLength(3),
+            /HTTP 500/
+        );
+        await assert.rejects(
+            () => failingProvider.getWordsOfLength(3),
+            /HTTP 500/
+        );
+        assert.equal(failingProvider._cache.has(3), false);
+        assert.equal(requestCount, 2);
     } finally {
         globalThis.fetch = originalFetch;
     }
@@ -79,7 +111,7 @@ test('DefinitionsProvider ranks stronger local clues ahead of weaker ones', asyn
 test('DefinitionsProvider searchEntries matches clue text and answer text', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (url) => ({
-        ok: true,
+        ok: !String(url).includes('clue-search'),
         async json() {
             if (String(url).includes('defs-3')) {
                 return {
@@ -98,6 +130,45 @@ test('DefinitionsProvider searchEntries matches clue text and answer text', asyn
 
         assert.equal(byClue[0].word, 'CAT');
         assert.equal(byAnswer[0].word, 'CAT');
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('DefinitionsProvider searchEntries uses compact search index when available', async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls = [];
+
+    globalThis.fetch = async (url) => {
+        requestedUrls.push(String(url));
+
+        if (String(url).includes('clue-search')) {
+            return {
+                ok: true,
+                async json() {
+                    return {
+                        entries: [
+                            { w: 'CAT', c: 'Feline friend', s: 'NYT', d: '2025-01-01' },
+                            { w: 'DOG', c: 'Canine friend', s: 'LAT', d: '2024-01-01' }
+                        ]
+                    };
+                }
+            };
+        }
+
+        throw new Error(`Unexpected archive fetch: ${url}`);
+    };
+
+    try {
+        const provider = new DefinitionsProvider({
+            basePath: '/mock-defs',
+            searchIndexPath: '/mock-search/clue-search.json'
+        });
+        const matches = await provider.searchEntries('feline');
+
+        assert.equal(matches.length, 1);
+        assert.equal(matches[0].word, 'CAT');
+        assert.deepEqual(requestedUrls, ['/mock-search/clue-search.json']);
     } finally {
         globalThis.fetch = originalFetch;
     }
@@ -182,6 +253,29 @@ test('DisplayManager describes authored, local, and web clue sources clearly', (
         label: 'Web',
         detail: '(DictionaryAPI)'
     });
+});
+
+test('ClueListDisplay hydrates clues with bounded concurrency', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const resolvers = [];
+    const display = new ClueListDisplay({});
+    display._clueHydrationConcurrency = 2;
+
+    const tasks = Array.from({ length: 5 }, () => async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => {
+            resolvers.push(resolve);
+            setTimeout(resolve, 0);
+        });
+        active--;
+    });
+
+    await display._runHydrationQueue(tasks, display._clueHydrationToken);
+
+    assert.equal(resolvers.length, 5);
+    assert.equal(maxActive, 2);
 });
 
 test('Direct editor letter entry keeps authored clues while invalidating the saved solution', () => {

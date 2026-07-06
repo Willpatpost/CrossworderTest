@@ -259,7 +259,7 @@ export const libraryMethods = {
             });
             this.currentPuzzleClues = { ...(record.currentPuzzleClues || {}) };
             this.currentPuzzleMetadata = { ...(record.currentPuzzleMetadata || {}) };
-            this.currentSolution = record.currentSolution ? { ...record.currentSolution } : null;
+            this.currentSolution = this._validateSolutionForCurrentGrid?.(record.currentSolution) || null;
             this.activePuzzleSource = record.source ? { ...record.source } : {
                 kind: 'workspace',
                 label: 'Recent puzzle'
