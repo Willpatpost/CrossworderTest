@@ -12,7 +12,7 @@ Crossworder is a browser-based crossword editor, solver, and play experience bui
 - `ui/` manages status output, clue lists, popups, and mode UI.
 - `data/words_by_length/` holds the solver’s candidate word lists.
 - `data/defs_by_length/` holds local clue/definition history grouped by word length.
-- `data/search/clue-search.json` is a compact generated index used for fast clue search.
+- `data/search/clue-search.json` is a compact dictionary-backed tuple index used for fast clue search.
 - `data/puzzles/` holds bundled puzzle JSON files and the puzzle index used by the random loader.
 - `data/nyt_puzzles/` is currently archival source material and is not part of the active runtime puzzle flow.
 - `scripts/` contains repository automation helpers, including puzzle-of-the-day generation.

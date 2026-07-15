@@ -10,6 +10,8 @@ export class DefinitionsProvider {
     this._promises = new Map();
     this._searchIndex = null;
     this._searchIndexPromise = null;
+    this._searchIndexSources = [];
+    this._searchIndexDates = [];
     this._searchLengths = Array.from({ length: 19 }, (_, index) => index + 3);
   }
 
@@ -125,10 +127,9 @@ export class DefinitionsProvider {
 
         const payload = await resp.json();
         const entries = Array.isArray(payload?.entries) ? payload.entries : [];
-        this._searchIndex = entries.filter((entry) =>
-          String(entry?.w || entry?.word || "").trim()
-            && String(entry?.c || entry?.clue || "").trim()
-        );
+        this._searchIndexSources = Array.isArray(payload?.sources) ? payload.sources : [];
+        this._searchIndexDates = Array.isArray(payload?.dates) ? payload.dates : [];
+        this._searchIndex = entries;
 
         return this._searchIndex;
       } catch {
@@ -148,11 +149,10 @@ export class DefinitionsProvider {
     const matches = [];
 
     for (const rawEntry of entries) {
-      const entry = this._normalizeSearchIndexEntry(rawEntry);
-      const baseScore = this._scoreEntry(entry);
-      const score = this._scoreSearchMatch(entry.word, entry, query);
-      if (score <= baseScore) continue;
+      if (!this._searchIndexEntryMatches(rawEntry, query)) continue;
 
+      const entry = this._normalizeSearchIndexEntry(rawEntry);
+      const score = this._scoreSearchMatch(entry.word, entry, query);
       matches.push({ ...entry, score });
     }
 
@@ -162,13 +162,27 @@ export class DefinitionsProvider {
       .map(({ score, ...entry }) => entry);
   }
 
+  _searchIndexEntryMatches(entry, query) {
+    const isTuple = Array.isArray(entry);
+    const word = String(isTuple ? entry[0] : entry?.w || entry?.word || "").toLowerCase();
+    const clue = String(isTuple ? entry[1] : entry?.c || entry?.clue || "").toLowerCase();
+    return Boolean(word && clue && (word.includes(query) || clue.includes(query)));
+  }
+
   _normalizeSearchIndexEntry(entry) {
-    const source = entry?.s || entry?.source;
-    const date = entry?.d || entry?.date;
+    const isTuple = Array.isArray(entry);
+    const rawSource = isTuple ? entry[2] : entry?.s || entry?.source;
+    const rawDate = isTuple ? entry[3] : entry?.d || entry?.date;
+    const source = isTuple && Number.isInteger(rawSource)
+      ? this._searchIndexSources[rawSource]
+      : rawSource;
+    const date = isTuple && Number.isInteger(rawDate)
+      ? this._searchIndexDates[rawDate]
+      : rawDate;
 
     return {
-      word: String(entry?.w || entry?.word || "").toUpperCase(),
-      clue: String(entry?.c || entry?.clue || ""),
+      word: String(isTuple ? entry[0] : entry?.w || entry?.word || "").toUpperCase(),
+      clue: String(isTuple ? entry[1] : entry?.c || entry?.clue || ""),
       source: String(source || ""),
       date: date === "0" ? "" : String(date || ""),
       attribution: this._formatAttribution(source, date)

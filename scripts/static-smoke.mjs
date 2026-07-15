@@ -84,6 +84,18 @@ async function main() {
             throw new Error('clue-search.json is empty');
         }
 
+        if (searchIndex.schemaVersion >= 2) {
+            const firstEntry = searchIndex.entries[0];
+            if (
+                !Array.isArray(firstEntry)
+                || firstEntry.length !== 4
+                || !Array.isArray(searchIndex.sources)
+                || !Array.isArray(searchIndex.dates)
+            ) {
+                throw new Error('clue-search.json has an invalid compact schema');
+            }
+        }
+
         console.log(`Static smoke test passed at ${baseUrl}.`);
     } finally {
         await new Promise((resolve) => server.close(resolve));

@@ -180,6 +180,71 @@ test('DefinitionsProvider searchEntries uses compact search index when available
     }
 });
 
+test('DefinitionsProvider searches dictionary-backed tuple indexes', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: true,
+        async json() {
+            return {
+                schemaVersion: 2,
+                sources: ['NYT', 'LAT'],
+                dates: ['2025-01-01', '0'],
+                entries: [
+                    ['CAT', 'Feline friend', 0, 0],
+                    ['DOG', 'Canine friend', 1, 1]
+                ]
+            };
+        }
+    });
+
+    try {
+        const provider = new DefinitionsProvider({
+            searchIndexPath: '/mock-search/clue-search.json'
+        });
+        const matches = await provider.searchEntries('feline');
+
+        assert.deepEqual(matches, [{
+            word: 'CAT',
+            clue: 'Feline friend',
+            source: 'NYT',
+            date: '2025-01-01',
+            attribution: '(NYT, 2025-01-01)'
+        }]);
+        assert.deepEqual(provider._searchIndex[0], ['CAT', 'Feline friend', 0, 0]);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('DefinitionsProvider skips malformed compact entries during search', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: true,
+        async json() {
+            return {
+                schemaVersion: 2,
+                sources: ['NYT'],
+                dates: ['2025'],
+                entries: [
+                    ['', 'Missing answer', 0, 0],
+                    ['CAT', '', 0, 0],
+                    ['CAT', 'Feline', 0, 0]
+                ]
+            };
+        }
+    });
+
+    try {
+        const provider = new DefinitionsProvider();
+        const matches = await provider.searchEntries('feline');
+
+        assert.equal(matches.length, 1);
+        assert.equal(matches[0].word, 'CAT');
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
 test('DefinitionsProvider scoreWords weights clue history quality and count', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => ({

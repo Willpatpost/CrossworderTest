@@ -28,7 +28,7 @@ async function main() {
             return leftLen - rightLen;
         });
 
-    const entries = [];
+    const normalizedEntries = [];
 
     for (const file of files) {
         const defsMap = JSON.parse(await fs.readFile(path.join(defsDir, file), 'utf8'));
@@ -38,19 +38,33 @@ async function main() {
             const best = ranked[0];
             if (!best?.clue) return;
 
-            entries.push({
-                w: word.toUpperCase(),
-                c: best.clue,
-                s: best.source,
-                d: best.date || '0'
-            });
+            normalizedEntries.push([
+                word.toUpperCase(),
+                best.clue,
+                best.source || '',
+                best.date || '0'
+            ]);
         });
     }
 
+    const sources = [...new Set(normalizedEntries.map((entry) => entry[2]))];
+    const dates = [...new Set(normalizedEntries.map((entry) => entry[3]))];
+    const sourceIds = new Map(sources.map((source, index) => [source, index]));
+    const dateIds = new Map(dates.map((date, index) => [date, index]));
+    const entries = normalizedEntries.map(([word, clue, source, date]) => [
+        word,
+        clue,
+        sourceIds.get(source),
+        dateIds.get(date)
+    ]);
+
     const payload = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         generatedAt: new Date().toISOString(),
         entryCount: entries.length,
+        entryFormat: ['word', 'clue', 'sourceIndex', 'dateIndex'],
+        sources,
+        dates,
         entries
     };
 

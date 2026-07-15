@@ -1,8 +1,19 @@
 import { spawn } from 'node:child_process';
+import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
-const baseUrl = 'http://127.0.0.1:4173';
 const playwrightCli = fileURLToPath(import.meta.resolve('@playwright/test/cli'));
+
+async function findAvailablePort() {
+    const probe = net.createServer();
+    await new Promise((resolve, reject) => {
+        probe.once('error', reject);
+        probe.listen(0, '127.0.0.1', resolve);
+    });
+    const address = probe.address();
+    await new Promise((resolve) => probe.close(resolve));
+    return address.port;
+}
 
 function waitForExit(child) {
     return new Promise((resolve) => {
@@ -15,7 +26,7 @@ function waitForExit(child) {
     });
 }
 
-async function waitForServer(server, timeoutMs = 30_000) {
+async function waitForServer(server, baseUrl, timeoutMs = 30_000) {
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
@@ -37,16 +48,22 @@ async function waitForServer(server, timeoutMs = 30_000) {
 }
 
 async function main() {
-    const server = spawn(process.execPath, ['scripts/serve-static.mjs', '4173'], {
+    const port = await findAvailablePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const server = spawn(process.execPath, ['scripts/serve-static.mjs', String(port)], {
         stdio: ['ignore', 'ignore', 'inherit']
     });
     const serverExit = waitForExit(server);
 
     try {
-        await waitForServer(server);
+        await waitForServer(server, baseUrl);
 
         const testRunner = spawn(process.execPath, [playwrightCli, 'test'], {
-            stdio: 'inherit'
+            stdio: 'inherit',
+            env: {
+                ...process.env,
+                PLAYWRIGHT_BASE_URL: baseUrl
+            }
         });
         const testExitCode = await waitForExit(testRunner);
         process.exitCode = testExitCode ?? 1;
