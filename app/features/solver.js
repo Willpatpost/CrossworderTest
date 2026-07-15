@@ -298,7 +298,7 @@ export const solverMethods = {
                     true
                 );
                 this.syncActiveGridToDOM();
-                return;
+                return false;
             }
 
             const uniqueLengths = [
@@ -333,7 +333,7 @@ export const solverMethods = {
                     true
                 );
                 this.syncActiveGridToDOM();
-                return;
+                return false;
             }
 
             const solveSettings = this._getSelectedSolveSettings
@@ -475,7 +475,7 @@ export const solverMethods = {
             });
 
             if (runId !== this._solveRunId) {
-                return;
+                return false;
             }
 
             const end = performance.now();
@@ -492,23 +492,26 @@ export const solverMethods = {
                 );
 
                 this.refreshWordList();
+                return true;
             } else {
                 this.display.updateStatus('No solution found.', true);
                 this.syncActiveGridToDOM();
+                return false;
             }
         } catch (error) {
             if (runId !== this._solveRunId) {
-                return;
+                return false;
             }
 
             if (error?.message === 'SOLVE_CANCELLED') {
-                return;
+                return false;
             }
 
             if (this.isSolving) {
                 console.error(error);
                 this.display.updateStatus(`Solver error: ${error.message}`, true);
             }
+            return false;
         } finally {
             if (runId === this._solveRunId) {
                 this.activeWorker = null;
@@ -815,6 +818,9 @@ export const solverMethods = {
         const suggestBtn = document.getElementById('suggest-fill-button');
         const blacklistBtn = document.getElementById('blacklist-entry-button');
         const cancelBtn = document.getElementById('cancel-solve-button');
+        const automatedFillBtn = document.getElementById('automated-fill-button');
+        const generateAndFillBtn = document.getElementById('generate-and-fill-button');
+        const randomLayoutBtn = document.getElementById('generate-random-layout-button');
         const speedSelect = document.getElementById('visualize-speed-select');
 
         if (solveBtn) solveBtn.disabled = isSolving;
@@ -822,6 +828,9 @@ export const solverMethods = {
         if (suggestBtn) suggestBtn.disabled = isSolving;
         if (blacklistBtn) blacklistBtn.disabled = isSolving;
         if (cancelBtn) cancelBtn.classList.toggle('hidden', !isSolving);
+        if (automatedFillBtn) automatedFillBtn.disabled = isSolving;
+        if (generateAndFillBtn) generateAndFillBtn.disabled = isSolving;
+        if (randomLayoutBtn) randomLayoutBtn.disabled = isSolving;
         if (speedSelect) speedSelect.disabled = isSolving;
     }
 };

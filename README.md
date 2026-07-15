@@ -45,7 +45,8 @@ The dev server is a small Node script, so it works consistently on Windows, macO
 
 ## Core features
 
-- Grid generation and manual editing
+- Distinct Manual and Automated editor workflows over one editable grid workspace
+- Automated divider-row/column layout generation and CSP-backed random fill
 - Optional rotational symmetry while painting blocks
 - Fixed-letter entry for themed or constrained fills
 - Backtracking solver running in a web worker
@@ -58,7 +59,7 @@ The dev server is a small Node script, so it works consistently on Windows, macO
 
 - [`main.js`](main.js) bootstraps the app, navigation, theme toggle, and play toolbar behavior.
 - [`app/CrosswordApp.js`](app/CrosswordApp.js) owns shared runtime state and wires together the major subsystems.
-- [`app/features/`](app/features/) contains the main feature slices: editor input, rendering, solving, puzzles, and play mode.
+- [`app/features/`](app/features/) contains the main feature slices: manual and automated editing, rendering, solving, puzzles, and play mode.
 - [`grid/GridManager.js`](grid/GridManager.js) handles grid DOM rendering, selection, keyboard entry, and highlighting.
 - [`solver/`](solver/) contains slot/constraint extraction, the CSP solver, and the browser worker entrypoint.
 - [`providers/`](providers/) loads local word and clue data and falls back to the dictionary API when needed.

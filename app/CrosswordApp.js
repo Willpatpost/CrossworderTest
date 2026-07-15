@@ -9,6 +9,7 @@ import { ModeManager } from '../ui/ModeManager.js';
 import { PopupManager } from '../ui/PopupManager.js';
 import { PUZZLES_BASE_PATH } from './constants.js';
 import { editorMethods } from './features/editor.js';
+import { automatedEditorMethods } from './features/automatedEditor.js';
 import { puzzleMethods } from './features/puzzles.js';
 import { renderingMethods } from './features/rendering.js';
 import { solverMethods } from './features/solver.js';
@@ -54,6 +55,7 @@ export class CrosswordApp {
         this._searchDebounceTimer = null;
         this._draftAutosaveTimer = null;
         this._recentPuzzleUpdateTimer = null;
+        this.editorWorkspaceMode = 'manual';
     }
 
     async init() {
@@ -80,6 +82,7 @@ export class CrosswordApp {
         this._updateTimerDisplay();
         this._updatePauseUI();
         this.updateSearchModeUI();
+        this.setEditorWorkspaceMode('manual');
         this.renderSolverBlacklist?.();
         this._updateSolverDiagnostics?.(null, null);
         this._updateRecentPuzzleUI?.();
@@ -191,6 +194,53 @@ export class CrosswordApp {
     }
 
     _bindEditorActions() {
+        const editorTabs = [
+            document.getElementById('manual-editor-tab'),
+            document.getElementById('automated-editor-tab')
+        ].filter(Boolean);
+
+        editorTabs.forEach((tab, index) => {
+            tab.addEventListener('keydown', (event) => {
+                let nextIndex = null;
+                if (event.key === 'ArrowRight') nextIndex = (index + 1) % editorTabs.length;
+                if (event.key === 'ArrowLeft') {
+                    nextIndex = (index - 1 + editorTabs.length) % editorTabs.length;
+                }
+                if (event.key === 'Home') nextIndex = 0;
+                if (event.key === 'End') nextIndex = editorTabs.length - 1;
+                if (nextIndex === null) return;
+
+                event.preventDefault();
+                const nextTab = editorTabs[nextIndex];
+                this.setEditorWorkspaceMode(
+                    nextTab.id === 'automated-editor-tab' ? 'automated' : 'manual'
+                );
+                nextTab.focus();
+            });
+        });
+
+        this._bindClick('manual-editor-tab', () => {
+            this.setEditorWorkspaceMode('manual');
+        });
+
+        this._bindClick('automated-editor-tab', () => {
+            this.setEditorWorkspaceMode('automated');
+        });
+
+        this._bindClick('generate-random-layout-button', () => {
+            this.abortActiveSolve();
+            this.generateAutomatedLayout();
+        });
+
+        this._bindClick('automated-fill-button', () => {
+            void this.fillAutomatedGrid();
+        });
+
+        this._bindClick('generate-and-fill-button', () => {
+            this.abortActiveSolve();
+            void this.generateAndFillAutomatedGrid();
+        });
+
         this._bindClick('drag-mode-button', () => {
             this.modes.setMode('drag');
             this.display.updateStatus('Drag mode enabled.', true);
@@ -525,6 +575,7 @@ export class CrosswordApp {
 Object.assign(
     CrosswordApp.prototype,
     editorMethods,
+    automatedEditorMethods,
     navigationMethods,
     puzzleMethods,
     renderingMethods,

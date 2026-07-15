@@ -572,6 +572,89 @@ h2 {
     margin-bottom: 4px;
 }
 
+.editor-kind-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.editor-kind-tab {
+    border: 0;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: 'Trebuchet MS', Helvetica, sans-serif;
+    font-size: 0.95rem;
+    font-weight: 800;
+    padding: 10px 14px 9px;
+}
+
+.editor-kind-tab:hover {
+    color: var(--text-header);
+    background: var(--bg-elevated);
+}
+
+.editor-kind-tab.active {
+    color: var(--text-header);
+    border-bottom-color: var(--accent);
+}
+
+.editor-kind-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.editor-kind-panel {
+    min-width: 0;
+}
+
+.automated-editor-controls {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) auto;
+    gap: 14px;
+    align-items: end;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-elevated);
+}
+
+.automation-setting-group {
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) 68px;
+    gap: 8px 10px;
+    align-items: center;
+}
+
+.automation-setting-group .utility-label {
+    grid-column: 1 / -1;
+}
+
+.automation-setting-group label {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.automation-setting-group input[type="number"] {
+    width: 68px;
+    text-align: center;
+}
+
+.automation-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.automated-editor-controls .solver-action-group {
+    grid-column: 1 / -1;
+    margin-left: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
 .editor-primary-toolbar,
 .editor-utility-row,
 .editor-search-strip,
@@ -1497,6 +1580,14 @@ textarea {
     .solver-action-group {
         margin-left: 0;
     }
+
+    .automated-editor-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .automation-actions {
+        grid-column: 1 / -1;
+    }
 }
 
 @media (max-width: 640px) {
@@ -1558,12 +1649,39 @@ textarea {
 
     .editor-primary-toolbar,
     .editor-utility-row,
+    .automated-editor-controls,
     .quick-load-cluster,
     .grid-size-cluster,
     .draft-cluster,
     .editor-disclosures {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .editor-kind-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .editor-kind-tab {
+        width: 100%;
+    }
+
+    .automated-editor-controls {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .automation-setting-group,
+    .automation-actions,
+    .automated-editor-controls .solver-action-group {
+        grid-column: 1;
+    }
+
+    .automation-actions {
+        display: grid;
+        grid-template-columns: 1fr;
     }
 
     .compact-group,
