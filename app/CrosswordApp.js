@@ -458,6 +458,8 @@ export class CrosswordApp {
             ['activeWorker', 'solverState', 'activeWorker'],
             ['activeSolveSession', 'solverState', 'activeSession'],
             ['_solveRunId', 'solverState', 'solveRunId'],
+            ['isAutomating', 'solverState', 'isAutomating'],
+            ['_automationRunId', 'solverState', 'automationRunId'],
             ['puzzleIndex', 'libraryState', 'puzzleIndex'],
             ['missingPuzzleFiles', 'libraryState', 'missingPuzzleFiles'],
             ['puzzleOfTheDay', 'libraryState', 'puzzleOfTheDay'],
@@ -519,7 +521,9 @@ export class CrosswordApp {
             isSolving: false,
             activeWorker: null,
             activeSession: null,
-            solveRunId: 0
+            solveRunId: 0,
+            isAutomating: false,
+            automationRunId: 0
         };
     }
 
@@ -549,6 +553,11 @@ export class CrosswordApp {
     }
 
     abortActiveSolve(isManualCancel = false) {
+        if (isManualCancel && this.isAutomating) {
+            this._automationRunId++;
+            this.isAutomating = false;
+        }
+
         const session = this.activeSolveSession;
 
         if (session && !session.settled) {

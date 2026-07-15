@@ -114,7 +114,9 @@ export {};
  *     settled: boolean,
  *     reject: (error: Error) => void
  *   } | null,
- *   solveRunId: number
+ *   solveRunId: number,
+ *   isAutomating: boolean,
+ *   automationRunId: number
  * }} SolverState
  */
 

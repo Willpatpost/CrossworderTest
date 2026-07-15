@@ -611,7 +611,7 @@ h2 {
 
 .automated-editor-controls {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) auto;
+    grid-template-columns: repeat(3, minmax(190px, 1fr)) auto;
     gap: 14px;
     align-items: end;
     padding: 12px;
@@ -642,6 +642,15 @@ h2 {
     text-align: center;
 }
 
+.automation-run-settings input[type="text"] {
+    width: min(150px, 100%);
+    min-width: 0;
+}
+
+.automation-run-settings {
+    grid-template-columns: minmax(max-content, 1fr) minmax(110px, 150px);
+}
+
 .automation-actions {
     display: flex;
     flex-wrap: wrap;
@@ -653,6 +662,22 @@ h2 {
     margin-left: 0;
     padding-top: 12px;
     border-top: 1px solid var(--border-color);
+}
+
+.automated-progress {
+    grid-column: 1 / -1;
+    min-height: 1.25rem;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.automated-progress[data-state="success"] {
+    color: var(--success, #18794e);
+}
+
+.automated-progress[data-state="error"] {
+    color: var(--danger, #b42318);
 }
 
 .editor-primary-toolbar,
@@ -1592,7 +1617,26 @@ textarea {
 
 @media (max-width: 640px) {
     .navbar {
-        padding: 0 1rem;
+        height: auto;
+        min-height: var(--nav-height);
+        padding: 8px 1rem;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px 12px;
+    }
+
+    .nav-center {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-content: center;
+    }
+
+    .nav-btn {
+        padding: 6px 12px;
+    }
+
+    .nav-right {
+        justify-self: end;
     }
 
     .view-section {
@@ -1679,6 +1723,10 @@ textarea {
         grid-column: 1;
     }
 
+    .automation-run-settings {
+        grid-template-columns: minmax(max-content, 1fr) minmax(110px, 1fr);
+    }
+
     .automation-actions {
         display: grid;
         grid-template-columns: 1fr;
@@ -1695,6 +1743,16 @@ textarea {
     .editor-search-strip .search-container,
     .editor-details {
         width: 100%;
+    }
+
+    .solver-theme-group {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .solver-theme-group input {
+        width: 100%;
+        min-width: 0;
     }
 
     .grid-size-cluster {

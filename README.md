@@ -99,6 +99,6 @@ Optional fields currently used by the runtime include:
 
 - The solver depends on the bundled word lists, so fill quality is only as strong as that data.
 - Puzzle clues are optional in the bundled JSON format. If a puzzle file does not include clues, the app falls back to the local definitions database during play mode.
-- Clue search uses the compact generated search index first, while exact clue lookup still uses the full length-grouped archives.
+- Clue search uses the compact generated search index, while exact clue lookup uses the compact prefix shards.
 - The automated suite covers core behavior, static assets, the production artifact, and the primary play workflow. Manual browser verification is still useful after UI-heavy changes.
 - The source tree is intentionally organized so top-level app code stays minimal, with feature logic living under `app/` and domain-specific modules staying in their own folders.

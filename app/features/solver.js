@@ -812,6 +812,7 @@ export const solverMethods = {
 
     _updateSolveControls(isSolving) {
         this.isSolving = isSolving;
+        const isBusy = isSolving || this.isAutomating;
 
         const solveBtn = document.getElementById('solve-crossword-button');
         const solveSelectedBtn = document.getElementById('solve-selected-word-button');
@@ -823,14 +824,14 @@ export const solverMethods = {
         const randomLayoutBtn = document.getElementById('generate-random-layout-button');
         const speedSelect = document.getElementById('visualize-speed-select');
 
-        if (solveBtn) solveBtn.disabled = isSolving;
-        if (solveSelectedBtn) solveSelectedBtn.disabled = isSolving;
-        if (suggestBtn) suggestBtn.disabled = isSolving;
-        if (blacklistBtn) blacklistBtn.disabled = isSolving;
-        if (cancelBtn) cancelBtn.classList.toggle('hidden', !isSolving);
-        if (automatedFillBtn) automatedFillBtn.disabled = isSolving;
-        if (generateAndFillBtn) generateAndFillBtn.disabled = isSolving;
-        if (randomLayoutBtn) randomLayoutBtn.disabled = isSolving;
-        if (speedSelect) speedSelect.disabled = isSolving;
+        if (solveBtn) solveBtn.disabled = isBusy;
+        if (solveSelectedBtn) solveSelectedBtn.disabled = isBusy;
+        if (suggestBtn) suggestBtn.disabled = isBusy;
+        if (blacklistBtn) blacklistBtn.disabled = isBusy;
+        if (cancelBtn) cancelBtn.classList.toggle('hidden', !isBusy);
+        if (automatedFillBtn) automatedFillBtn.disabled = isBusy;
+        if (generateAndFillBtn) generateAndFillBtn.disabled = isBusy;
+        if (randomLayoutBtn) randomLayoutBtn.disabled = isBusy;
+        if (speedSelect) speedSelect.disabled = isBusy;
     }
 };

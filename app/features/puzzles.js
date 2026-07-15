@@ -146,8 +146,14 @@ export const puzzleMethods = {
         );
     },
 
-    importPuzzleGrid(rawGrid, { sourceLabel = 'puzzle' } = {}) {
-        this._recordEditorSnapshot?.();
+    importPuzzleGrid(rawGrid, {
+        sourceLabel = 'puzzle',
+        recordSnapshot = true,
+        persist = true
+    } = {}) {
+        if (recordSnapshot) {
+            this._recordEditorSnapshot?.();
+        }
         this._assertValidPuzzleGrid(rawGrid, sourceLabel);
 
         this.grid = rawGrid.map((row) => {
@@ -175,8 +181,10 @@ export const puzzleMethods = {
         this.syncPuzzleMetadataInputs?.();
         this._updateUndoRedoButtons?.();
         this._updateDraftButtons?.();
-        this._updateRecentPuzzleUI?.();
-        this._scheduleEditorAutosave?.();
+        if (persist) {
+            this._updateRecentPuzzleUI?.();
+            this._scheduleEditorAutosave?.();
+        }
     },
 
     async loadPuzzleOfTheDaySummary() {

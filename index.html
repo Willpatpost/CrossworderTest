@@ -404,6 +404,14 @@
                                 <input type="number" id="automated-block-columns-input" min="0" max="3" value="1" inputmode="numeric" />
                             </div>
 
+                            <div class="automation-setting-group automation-run-settings" aria-labelledby="automated-run-heading">
+                                <span id="automated-run-heading" class="utility-label">Generation</span>
+                                <label for="automated-seed-input">Seed</label>
+                                <input type="text" id="automated-seed-input" maxlength="48" autocomplete="off" spellcheck="false" placeholder="Random" />
+                                <label for="automated-attempts-input">Attempts</label>
+                                <input type="number" id="automated-attempts-input" min="1" max="8" value="4" inputmode="numeric" />
+                            </div>
+
                             <div class="automation-actions" role="group" aria-label="Automated editor actions">
                                 <button id="generate-random-layout-button" class="btn secondary-btn" type="button">
                                     Random Layout
@@ -422,6 +430,7 @@
                                 <button id="solve-selected-word-button" class="btn secondary-btn" type="button">Solve Entry</button>
                                 <button id="cancel-solve-button" class="btn danger-btn hidden" type="button">Cancel</button>
                             </div>
+                            <p id="automated-progress" class="automated-progress" role="status" aria-live="polite"></p>
                         </div>
                     </section>
 

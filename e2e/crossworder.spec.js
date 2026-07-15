@@ -42,10 +42,21 @@ test('manual and automated editors share an editable grid workspace', async ({ p
     await page.locator('#automated-columns-input').fill('9');
     await page.locator('#automated-block-rows-input').fill('1');
     await page.locator('#automated-block-columns-input').fill('1');
+    await page.locator('#automated-seed-input').fill('playwright-layout');
     await page.locator('#generate-random-layout-button').click();
 
     await expect(page.locator('#grid-container .grid-cell')).toHaveCount(81);
     await expect(page.locator('#grid-container .grid-cell.block')).not.toHaveCount(0);
+    await expect(page.locator('#automated-progress')).toContainText('playwright-layout');
+
+    const firstBlockIndexes = await page.locator('#grid-container .grid-cell').evaluateAll((cells) =>
+        cells.flatMap((cell, index) => cell.classList.contains('block') ? [index] : [])
+    );
+    await page.locator('#generate-random-layout-button').click();
+    const secondBlockIndexes = await page.locator('#grid-container .grid-cell').evaluateAll((cells) =>
+        cells.flatMap((cell, index) => cell.classList.contains('block') ? [index] : [])
+    );
+    expect(secondBlockIndexes).toEqual(firstBlockIndexes);
 
     await page.locator('#letter-mode-button').click();
     const editableCell = page.locator('#grid-container .grid-cell:not(.block)').first();

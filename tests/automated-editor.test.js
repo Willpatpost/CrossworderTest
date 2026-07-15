@@ -4,9 +4,15 @@ import { automatedEditorMethods } from '../app/features/automatedEditor.js';
 
 function createAutomatedEditor(overrides = {}) {
     return {
-        _clampAutomatedInteger: automatedEditorMethods._clampAutomatedInteger,
-        _selectRandomDividerIndexes: automatedEditorMethods._selectRandomDividerIndexes,
-        createRandomAutomatedLayout: automatedEditorMethods.createRandomAutomatedLayout,
+        ...automatedEditorMethods,
+        display: { updateStatus() {} },
+        editorHistory: [],
+        editorFuture: [],
+        _automationRunId: 0,
+        isAutomating: false,
+        _updateSolveControls() {},
+        _updateRecentPuzzleUI() {},
+        _scheduleEditorAutosave() {},
         ...overrides
     };
 }
@@ -59,15 +65,53 @@ test('automated layout dimensions and divider counts are bounded', () => {
     assert.deepEqual(layout.columnDividers, []);
 });
 
+test('seeded automated layouts are reproducible', () => {
+    const editor = createAutomatedEditor();
+    const settings = {
+        rows: 15,
+        columns: 15,
+        blockedRows: 2,
+        blockedColumns: 2
+    };
+    const first = editor.createRandomAutomatedLayout({
+        ...settings,
+        random: editor._createSeededRandom('daily-seed')
+    });
+    const second = editor.createRandomAutomatedLayout({
+        ...settings,
+        random: editor._createSeededRandom('daily-seed')
+    });
+
+    assert.deepEqual(first, second);
+});
+
+test('automated layout validation rejects unsupported entry lengths', () => {
+    const editor = createAutomatedEditor();
+    const valid = editor._analyzeAutomatedLayout(
+        Array.from({ length: 7 }, () => Array(7).fill(''))
+    );
+    const unsupported = editor._analyzeAutomatedLayout(
+        Array.from({ length: 7 }, () => Array(25).fill(''))
+    );
+
+    assert.equal(valid.valid, true);
+    assert.equal(unsupported.valid, false);
+    assert.match(unsupported.reason, /outside the bundled 3-21 letter word data/);
+});
+
 test('automated fill preserves blocks and user letters while recording an editable result', async () => {
-    let snapshots = 0;
     let solveCalls = 0;
-    const editor = {
-        grid: [['C', '#'], ['A', 'T']],
+    const originalGrid = [
+        ['C', '', 'T'],
+        ['', '#', ''],
+        ['A', '', 'E']
+    ];
+    const editor = createAutomatedEditor({
+        grid: originalGrid.map((row) => [...row]),
         currentSolution: { old: 'CAT' },
         isSolving: false,
-        _recordEditorSnapshot() {
-            snapshots++;
+        _captureEditorState() {
+            return { grid: this.grid.map((row) => [...row]) };
         },
         rebuildGridState() {},
         syncActiveGridToDOM() {},
@@ -77,18 +121,17 @@ test('automated fill preserves blocks and user letters while recording an editab
             assert.equal(this.grid[0][0], 'C');
             this.grid[1][0] = 'A';
             return true;
-        },
-        _updateRecentPuzzleUI() {},
-        _scheduleEditorAutosave() {}
-    };
+        }
+    });
 
-    const filled = await automatedEditorMethods.fillAutomatedGrid.call(editor);
+    const filled = await editor.fillAutomatedGrid();
 
     assert.equal(filled, true);
-    assert.equal(snapshots, 1);
+    assert.equal(editor.editorHistory.length, 1);
+    assert.deepEqual(editor.editorHistory[0].grid, originalGrid);
     assert.equal(solveCalls, 1);
     assert.equal(editor.grid[0][0], 'C');
-    assert.equal(editor.grid[0][1], '#');
+    assert.equal(editor.grid[1][1], '#');
     assert.equal(editor.grid[1][0], 'A');
     assert.deepEqual(editor.activePuzzleSource, {
         kind: 'automated',
@@ -97,20 +140,91 @@ test('automated fill preserves blocks and user letters while recording an editab
 });
 
 test('automated fill reports failure without marking the workspace as automated', async () => {
-    const editor = {
-        grid: [['']],
+    const editor = createAutomatedEditor({
+        grid: Array.from({ length: 3 }, () => Array(3).fill('')),
         isSolving: false,
-        _recordEditorSnapshot() {},
+        _captureEditorState() {
+            return { grid: this.grid.map((row) => [...row]) };
+        },
         rebuildGridState() {},
         syncActiveGridToDOM() {},
         refreshWordList() {},
         async handleSolve() {
             return false;
         }
-    };
+    });
 
-    const filled = await automatedEditorMethods.fillAutomatedGrid.call(editor);
+    const filled = await editor.fillAutomatedGrid();
 
     assert.equal(filled, false);
+    assert.equal(editor.editorHistory.length, 0);
     assert.equal(editor.activePuzzleSource, undefined);
+});
+
+test('generate and fill retries layouts and commits one undo state', async () => {
+    const attempts = [];
+    const originalGrid = Array.from({ length: 3 }, () => Array(3).fill('O'));
+    const editor = createAutomatedEditor({
+        grid: originalGrid.map((row) => [...row]),
+        _captureEditorState() {
+            return { grid: this.grid.map((row) => [...row]) };
+        },
+        generateAutomatedLayout(settings) {
+            attempts.push(settings.seed);
+            this.grid = Array.from({ length: 7 }, () => Array(7).fill(''));
+            return { grid: this.grid, seed: settings.seed };
+        },
+        async handleSolve() {
+            return attempts.length === 3;
+        }
+    });
+
+    const filled = await editor.generateAndFillAutomatedGrid({
+        rows: 7,
+        columns: 7,
+        blockedRows: 0,
+        blockedColumns: 0,
+        attempts: 4,
+        seed: 'reliable'
+    });
+
+    assert.equal(filled, true);
+    assert.deepEqual(attempts, ['reliable:1', 'reliable:2', 'reliable:3']);
+    assert.equal(editor.editorHistory.length, 1);
+    assert.deepEqual(editor.editorHistory[0].grid, originalGrid);
+    assert.equal(editor.activePuzzleSource.seed, 'reliable:3');
+});
+
+test('generate and fill restores the original workspace after all attempts fail', async () => {
+    const originalGrid = Array.from({ length: 3 }, () => Array(3).fill('O'));
+    let restores = 0;
+    const editor = createAutomatedEditor({
+        grid: originalGrid.map((row) => [...row]),
+        _captureEditorState() {
+            return { grid: this.grid.map((row) => [...row]) };
+        },
+        _restoreEditorState(state) {
+            restores++;
+            this.grid = state.grid.map((row) => [...row]);
+        },
+        generateAutomatedLayout(settings) {
+            this.grid = Array.from({ length: 7 }, () => Array(7).fill(''));
+            return { grid: this.grid, seed: settings.seed };
+        },
+        async handleSolve() {
+            return false;
+        }
+    });
+
+    const filled = await editor.generateAndFillAutomatedGrid({
+        rows: 7,
+        columns: 7,
+        attempts: 2,
+        seed: 'impossible'
+    });
+
+    assert.equal(filled, false);
+    assert.equal(restores, 1);
+    assert.deepEqual(editor.grid, originalGrid);
+    assert.equal(editor.editorHistory.length, 0);
 });
