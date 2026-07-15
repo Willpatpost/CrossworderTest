@@ -62,6 +62,10 @@ export const navigationMethods = {
         this._updateNavigationState(targetId);
         this._updateViewState(targetId);
 
+        if (targetId === 'play-screen') {
+            this.gridManager?._updateHighlights?.(this);
+        }
+
         if (focusHeading) {
             this._focusPrimaryHeading(targetId);
         }

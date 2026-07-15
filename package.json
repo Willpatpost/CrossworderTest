@@ -7,8 +7,14 @@
     "start": "node scripts/serve-static.mjs 4173",
     "dev": "node scripts/serve-static.mjs 4173",
     "test": "node --test",
+    "test:e2e": "node scripts/run-e2e.mjs",
     "smoke": "node scripts/static-smoke.mjs",
+    "smoke:dist": "node scripts/static-smoke.mjs dist",
+    "build": "node scripts/build-static-site.mjs",
     "generate:clue-index": "node scripts/generate-clue-search-index.mjs",
     "generate:potd": "node scripts/generate-puzzle-of-the-day.mjs --force"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }

@@ -84,6 +84,9 @@ Optional fields currently used by the runtime include:
 
 - `.github/workflows/ci.yml` runs the Node test suite on pushes and pull requests.
 - `npm run smoke` serves a local in-process static site and verifies that the app shell, worker, puzzle data, word lists, and clue-search index are all reachable.
+- `npm run test:e2e` runs the daily-puzzle play workflow in Chromium with Playwright.
+- `npm run build` creates a deployable `dist/` directory containing runtime files only. Archival NYT puzzles, tests, docs, and repository automation are excluded.
+- `npm run smoke:dist` verifies the generated deployment artifact.
 - `.github/workflows/daily-puzzle.yml` generates `data/puzzles/puzzle-of-the-day.json` on a nightly schedule and commits it back to the repository.
 - `npm run generate:clue-index` rebuilds `data/search/clue-search.json` from the larger definition archives.
 - `npm run generate:potd` lets you generate the daily puzzle locally on demand.
@@ -93,5 +96,5 @@ Optional fields currently used by the runtime include:
 - The solver depends on the bundled word lists, so fill quality is only as strong as that data.
 - Puzzle clues are optional in the bundled JSON format. If a puzzle file does not include clues, the app falls back to the local definitions database during play mode.
 - Clue search uses the compact generated search index first, while exact clue lookup still uses the full length-grouped archives.
-- The automated suite covers core behavior and static asset smoke checks, but manual browser verification is still useful after UI-heavy changes.
+- The automated suite covers core behavior, static assets, the production artifact, and the primary play workflow. Manual browser verification is still useful after UI-heavy changes.
 - The source tree is intentionally organized so top-level app code stays minimal, with feature logic living under `app/` and domain-specific modules staying in their own folders.

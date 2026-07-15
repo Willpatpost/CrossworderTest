@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { resolveStaticPath } from './static-path.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
-const rootDir = path.resolve(path.dirname(__filename), '..');
+const repositoryRoot = path.resolve(path.dirname(__filename), '..');
+const rootDir = process.argv[2]
+    ? path.resolve(process.argv[2])
+    : repositoryRoot;
 const port = 0;
 
 const expectedPaths = [

@@ -248,6 +248,36 @@ test('puzzle clue extraction ignores entries with no usable text', () => {
     assert.deepEqual(clues, {});
 });
 
+test('navigation refreshes grid focus after revealing the play screen', () => {
+    const originalDocument = globalThis.document;
+    let highlightUpdates = 0;
+
+    globalThis.document = {
+        dispatchEvent() {}
+    };
+
+    try {
+        const app = {
+            modes: { isPlayMode: true },
+            gridManager: {
+                _updateHighlights(coordinator) {
+                    assert.equal(coordinator, app);
+                    highlightUpdates++;
+                }
+            },
+            _updateNavigationState() {},
+            _updateViewState() {}
+        };
+
+        const switched = navigationMethods.switchView.call(app, 'play-screen');
+
+        assert.equal(switched, true);
+        assert.equal(highlightUpdates, 1);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
+
 test('solution validation accepts complete crossing-consistent solutions', () => {
     const app = {
         slots: {
