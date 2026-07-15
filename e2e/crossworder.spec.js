@@ -53,3 +53,20 @@ test('manual and automated editors share an editable grid workspace', async ({ p
     await editableCell.press('Z');
     await expect(page.locator('#grid-container').getByText('Z', { exact: true })).toHaveCount(1);
 });
+
+test('answer lookup loads an exact clue from the compact prefix shard', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('tab', { name: 'Editor', exact: true }).click();
+
+    await page.locator('#word-search-input').fill('CAT');
+    const catResult = page.locator('#search-dropdown .search-result-item').filter({
+        hasText: 'CAT'
+    });
+    await expect(catResult).toHaveCount(1);
+    await catResult.click();
+
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.locator('.popup-title')).toHaveText('CAT');
+    await expect(page.locator('.popup-clue')).toHaveText('Meower');
+    await expect(page.locator('.popup-footer-source')).toHaveText('Source: Local Database');
+});

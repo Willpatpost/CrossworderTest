@@ -11,7 +11,8 @@ Crossworder is a browser-based crossword editor, solver, and play experience bui
 - `providers/` loads bundled word/definition data and the fallback dictionary API.
 - `ui/` manages status output, clue lists, popups, and mode UI.
 - `data/words_by_length/` holds the solver’s candidate word lists.
-- `data/defs_by_length/` holds local clue/definition history grouped by word length.
+- `data/defs_by_length/` holds archival clue history used to generate runtime data; production builds exclude it.
+- `data/clues_by_prefix/` holds compact best-clue shards used by exact lookup and solver scoring.
 - `data/search/clue-search.json` is a compact dictionary-backed tuple index used for fast clue search.
 - `data/puzzles/` holds bundled puzzle JSON files and the puzzle index used by the random loader.
 - `data/nyt_puzzles/` is currently archival source material and is not part of the active runtime puzzle flow.
@@ -90,6 +91,8 @@ Optional fields currently used by the runtime include:
 - `npm run smoke:dist` verifies the generated deployment artifact.
 - `.github/workflows/daily-puzzle.yml` generates `data/puzzles/puzzle-of-the-day.json` on a nightly schedule and commits it back to the repository.
 - `npm run generate:clue-index` rebuilds `data/search/clue-search.json` from the larger definition archives.
+- `npm run generate:clue-shards` rebuilds compact runtime lookup shards from the clue-search index.
+- `npm run generate:clue-data` rebuilds both generated clue datasets in the required order.
 - `npm run generate:potd` lets you generate the daily puzzle locally on demand.
 
 ## Notes

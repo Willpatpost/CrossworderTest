@@ -14,7 +14,7 @@ const runtimeDirectories = [
     'solver',
     'ui',
     'utils',
-    'data/defs_by_length',
+    'data/clues_by_prefix',
     'data/puzzles',
     'data/search',
     'data/words_by_length'

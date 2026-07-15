@@ -326,6 +326,80 @@ test('DisplayManager describes authored, local, and web clue sources clearly', (
     });
 });
 
+test('DefinitionsProvider uses compact prefix shards for lookup and solver scores', async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls = [];
+    const manifest = {
+        schemaVersion: 1,
+        sources: ['NYT', 'LAT'],
+        dates: ['2025', '0'],
+        shards: {
+            c: { file: 'clues-c.json' },
+            d: { file: 'clues-d.json' }
+        }
+    };
+
+    globalThis.fetch = async (url) => {
+        requestedUrls.push(String(url));
+        if (String(url).endsWith('/manifest.json')) {
+            return { ok: true, async json() { return manifest; } };
+        }
+        if (String(url).endsWith('/clues-c.json')) {
+            return {
+                ok: true,
+                async json() {
+                    return { CAT: ['Feline friend', 0, 0, 52.5] };
+                }
+            };
+        }
+        if (String(url).endsWith('/clues-d.json')) {
+            return {
+                ok: true,
+                async json() {
+                    return { DOG: ['Canine friend', 1, 1, 38.25] };
+                }
+            };
+        }
+        throw new Error(`Unexpected request: ${url}`);
+    };
+
+    try {
+        const provider = new DefinitionsProvider({
+            basePath: '/legacy',
+            clueShardBasePath: '/compact-clues'
+        });
+        const definitions = await provider.lookup('cat');
+        const scores = await provider.scoreWords(['CAT', 'DOG', 'MISSING']);
+
+        assert.deepEqual(definitions, [{
+            clue: 'Feline friend',
+            source: 'NYT',
+            date: '2025',
+            attribution: '(NYT, 2025)'
+        }]);
+        assert.deepEqual(scores, {
+            CAT: 52.5,
+            DOG: 38.25,
+            MISSING: 0
+        });
+        assert.equal(
+            requestedUrls.filter((url) => url.endsWith('/manifest.json')).length,
+            1
+        );
+        assert.equal(requestedUrls.includes('/legacy/defs-3.json'), false);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('DefinitionsProvider keeps custom base paths on the legacy lookup contract', () => {
+    const defaultProvider = new DefinitionsProvider();
+    const legacyProvider = new DefinitionsProvider({ basePath: '/custom-defs' });
+
+    assert.equal(defaultProvider.clueShardBasePath, 'data/clues_by_prefix');
+    assert.equal(legacyProvider.clueShardBasePath, null);
+});
+
 test('ClueListDisplay hydrates clues with bounded concurrency', async () => {
     let active = 0;
     let maxActive = 0;

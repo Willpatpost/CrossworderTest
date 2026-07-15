@@ -1,13 +1,22 @@
 // providers/DefinitionsProvider.js
 export class DefinitionsProvider {
-  constructor({
-    basePath = "data/defs_by_length",
-    searchIndexPath = "data/search/clue-search.json"
-  } = {}) {
+  constructor(options = {}) {
+    const hasCustomBasePath = Object.prototype.hasOwnProperty.call(options, "basePath");
+    const basePath = options.basePath || "data/defs_by_length";
+    const searchIndexPath = options.searchIndexPath || "data/search/clue-search.json";
+    const clueShardBasePath = options.clueShardBasePath === undefined
+      ? (hasCustomBasePath ? null : "data/clues_by_prefix")
+      : options.clueShardBasePath;
+
     this.basePath = basePath;
     this.searchIndexPath = searchIndexPath;
+    this.clueShardBasePath = clueShardBasePath;
     this._cache = new Map();
     this._promises = new Map();
+    this._clueShardManifest = null;
+    this._clueShardManifestPromise = null;
+    this._clueShardCache = new Map();
+    this._clueShardPromises = new Map();
     this._searchIndex = null;
     this._searchIndexPromise = null;
     this._searchIndexSources = [];
@@ -47,6 +56,11 @@ export class DefinitionsProvider {
     const len = word.length;
 
     try {
+      if (this.clueShardBasePath) {
+        const shardEntry = await this._lookupClueShardEntry(word.toUpperCase());
+        return shardEntry ? [this._normalizeClueShardEntry(shardEntry)] : null;
+      }
+
       const defsMap = await this._loadLength(len);
       const rawEntries = defsMap[word];
 
@@ -114,6 +128,72 @@ export class DefinitionsProvider {
       .sort((a, b) => b.score - a.score || a.word.localeCompare(b.word))
       .slice(0, limit)
       .map(({ score, ...entry }) => entry);
+  }
+
+  _getClueShardKey(word) {
+    const initial = String(word || "").charAt(0).toLowerCase();
+    return /^[a-z]$/.test(initial) ? initial : "other";
+  }
+
+  async _loadClueShardManifest() {
+    if (this._clueShardManifest) return this._clueShardManifest;
+    if (this._clueShardManifestPromise) return this._clueShardManifestPromise;
+
+    this._clueShardManifestPromise = (async () => {
+      const url = `${this.clueShardBasePath}/manifest.json`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+      this._clueShardManifest = await resp.json();
+      return this._clueShardManifest;
+    })().finally(() => {
+      this._clueShardManifestPromise = null;
+    });
+
+    return this._clueShardManifestPromise;
+  }
+
+  async _loadClueShard(shardKey) {
+    if (this._clueShardCache.has(shardKey)) {
+      return this._clueShardCache.get(shardKey);
+    }
+    if (this._clueShardPromises.has(shardKey)) {
+      return this._clueShardPromises.get(shardKey);
+    }
+
+    const promise = (async () => {
+      const manifest = await this._loadClueShardManifest();
+      const file = manifest?.shards?.[shardKey]?.file || `clues-${shardKey}.json`;
+      const url = `${this.clueShardBasePath}/${file}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+      const entries = await resp.json();
+      this._clueShardCache.set(shardKey, entries);
+      return entries;
+    })().finally(() => {
+      this._clueShardPromises.delete(shardKey);
+    });
+
+    this._clueShardPromises.set(shardKey, promise);
+    return promise;
+  }
+
+  async _lookupClueShardEntry(word) {
+    const shard = await this._loadClueShard(this._getClueShardKey(word));
+    return shard?.[word] || null;
+  }
+
+  _normalizeClueShardEntry(entry) {
+    const manifest = this._clueShardManifest || {};
+    const source = manifest.sources?.[entry?.[1]] || "";
+    const rawDate = manifest.dates?.[entry?.[2]] || "";
+    const date = rawDate === "0" ? "" : String(rawDate);
+
+    return {
+      clue: String(entry?.[0] || ""),
+      source,
+      date,
+      attribution: this._formatAttribution(source, rawDate)
+    };
   }
 
   async _loadSearchIndex() {
@@ -197,6 +277,32 @@ export class DefinitionsProvider {
     )];
     const scores = {};
     if (!words.length) return scores;
+
+    if (this.clueShardBasePath) {
+      const byShard = new Map();
+      words.forEach((word) => {
+        const shardKey = this._getClueShardKey(word);
+        const list = byShard.get(shardKey) || [];
+        list.push(word);
+        byShard.set(shardKey, list);
+      });
+
+      await Promise.all([...byShard.entries()].map(async ([shardKey, shardWords]) => {
+        try {
+          const shard = await this._loadClueShard(shardKey);
+          shardWords.forEach((word) => {
+            const rawEntry = shard?.[word.toUpperCase()];
+            scores[word.toUpperCase()] = Number(rawEntry?.[3]) || 0;
+          });
+        } catch {
+          shardWords.forEach((word) => {
+            scores[word.toUpperCase()] = 0;
+          });
+        }
+      }));
+
+      return scores;
+    }
 
     const byLength = new Map();
     words.forEach((word) => {

@@ -19,6 +19,8 @@ const expectedPaths = [
     '/solver/SolverWorker.js',
     '/data/puzzles/easy.json',
     '/data/puzzles/puzzle_index.json',
+    '/data/clues_by_prefix/manifest.json',
+    '/data/clues_by_prefix/clues-a.json',
     '/data/search/clue-search.json',
     '/data/words_by_length/words-3.txt'
 ];
@@ -82,6 +84,26 @@ async function main() {
         const searchIndex = JSON.parse(responseMap['/data/search/clue-search.json']);
         if (!Array.isArray(searchIndex.entries) || searchIndex.entries.length === 0) {
             throw new Error('clue-search.json is empty');
+        }
+
+        const clueManifest = JSON.parse(responseMap['/data/clues_by_prefix/manifest.json']);
+        const clueShard = JSON.parse(responseMap['/data/clues_by_prefix/clues-a.json']);
+        if (
+            clueManifest.schemaVersion !== 1
+            || clueManifest.entryCount !== searchIndex.entryCount
+            || !clueManifest.shards?.a
+            || !Array.isArray(clueShard.AAA)
+        ) {
+            throw new Error('Compact clue lookup shards are invalid');
+        }
+
+        if (rootDir !== repositoryRoot) {
+            try {
+                await fs.access(path.join(rootDir, 'data', 'defs_by_length'));
+                throw new Error('Production artifact includes archival definition files');
+            } catch (error) {
+                if (error?.code !== 'ENOENT') throw error;
+            }
         }
 
         if (searchIndex.schemaVersion >= 2) {
