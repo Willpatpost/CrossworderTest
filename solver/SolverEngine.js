@@ -449,6 +449,7 @@ export class SolverEngine {
 
     ac3(domains, constraints) {
         const queue = [];
+        let queueIndex = 0;
 
         for (const slotA in constraints) {
             for (const slotB in constraints[slotA]) {
@@ -456,10 +457,10 @@ export class SolverEngine {
             }
         }
 
-        while (queue.length > 0) {
+        while (queueIndex < queue.length) {
             this._throwIfInterrupted();
 
-            const [var1, var2] = queue.shift();
+            const [var1, var2] = queue[queueIndex++];
 
             if (this.revise(var1, var2, domains, constraints)) {
                 if (!domains[var1] || domains[var1].length === 0) {

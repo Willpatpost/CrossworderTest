@@ -169,6 +169,12 @@ test('DefinitionsProvider searchEntries uses compact search index when available
         assert.equal(matches.length, 1);
         assert.equal(matches[0].word, 'CAT');
         assert.deepEqual(requestedUrls, ['/mock-search/clue-search.json']);
+        assert.deepEqual(provider._searchIndex[0], {
+            w: 'CAT',
+            c: 'Feline friend',
+            s: 'NYT',
+            d: '2025-01-01'
+        });
     } finally {
         globalThis.fetch = originalFetch;
     }

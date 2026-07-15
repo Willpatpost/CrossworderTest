@@ -210,6 +210,8 @@ export class GridManager {
         }
 
         this._boundKeyHandler = (e) => {
+            if (!this.container?.contains?.(e.target)) return;
+
             const tagName = e.target?.tagName;
             if (tagName && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)) return;
 

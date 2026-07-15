@@ -7,7 +7,7 @@ export class PuzzleSummaryDisplay {
         if (!this.puzzleSummary) return;
 
         if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0])) {
-            this.puzzleSummary.innerHTML = '';
+            this.puzzleSummary.replaceChildren();
             return;
         }
 
@@ -28,31 +28,38 @@ export class PuzzleSummaryDisplay {
         const author = metadata?.author || 'Unknown author';
 
         if (fillableCells === 0) {
-            this.puzzleSummary.innerHTML = `
-                <div class="summary-item summary-item-wide">
-                    <span class="summary-value">No open cells yet</span>
-                    <span class="summary-label">Add fillable squares or load a bundled puzzle to begin.</span>
-                </div>
-            `;
+            const emptyItem = this._createSummaryItem(
+                'No open cells yet',
+                'Add fillable squares or load a bundled puzzle to begin.'
+            );
+            emptyItem.classList.add('summary-item-wide');
+            this.puzzleSummary.replaceChildren(emptyItem);
             return;
         }
 
-        this.puzzleSummary.innerHTML = [
+        this.puzzleSummary.replaceChildren(
             this._createSummaryItem(title, author),
             this._createSummaryItem(`${rows}x${cols}`, 'Grid'),
             this._createSummaryItem(String(blockCount), 'Blocks'),
             this._createSummaryItem(`${acrossCount}/${downCount}`, 'Across/Down'),
             this._createSummaryItem(`${fillPercent}%`, 'Filled'),
             this._createSummaryItem(String(authoredClues), 'Authored clues')
-        ].join('');
+        );
     }
 
     _createSummaryItem(value, label) {
-        return `
-            <div class="summary-item">
-                <span class="summary-value">${value}</span>
-                <span class="summary-label">${label}</span>
-            </div>
-        `;
+        const item = document.createElement('div');
+        item.className = 'summary-item';
+
+        const valueElement = document.createElement('span');
+        valueElement.className = 'summary-value';
+        valueElement.textContent = value;
+
+        const labelElement = document.createElement('span');
+        labelElement.className = 'summary-label';
+        labelElement.textContent = label;
+
+        item.append(valueElement, labelElement);
+        return item;
     }
 }

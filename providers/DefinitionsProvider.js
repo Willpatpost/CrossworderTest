@@ -125,13 +125,10 @@ export class DefinitionsProvider {
 
         const payload = await resp.json();
         const entries = Array.isArray(payload?.entries) ? payload.entries : [];
-        this._searchIndex = entries.map((entry) => ({
-          word: String(entry.w || entry.word || "").toUpperCase(),
-          clue: String(entry.c || entry.clue || ""),
-          source: String(entry.s || entry.source || ""),
-          date: entry.d === "0" ? "" : String(entry.d || entry.date || ""),
-          attribution: this._formatAttribution(entry.s || entry.source, entry.d || entry.date)
-        })).filter((entry) => entry.word && entry.clue);
+        this._searchIndex = entries.filter((entry) =>
+          String(entry?.w || entry?.word || "").trim()
+            && String(entry?.c || entry?.clue || "").trim()
+        );
 
         return this._searchIndex;
       } catch {
@@ -148,15 +145,34 @@ export class DefinitionsProvider {
     const entries = await this._loadSearchIndex();
     if (!entries) return null;
 
-    return entries
-      .map((entry) => ({
-        ...entry,
-        score: this._scoreSearchMatch(entry.word, entry, query)
-      }))
-      .filter((entry) => entry.score > this._scoreEntry(entry))
+    const matches = [];
+
+    for (const rawEntry of entries) {
+      const entry = this._normalizeSearchIndexEntry(rawEntry);
+      const baseScore = this._scoreEntry(entry);
+      const score = this._scoreSearchMatch(entry.word, entry, query);
+      if (score <= baseScore) continue;
+
+      matches.push({ ...entry, score });
+    }
+
+    return matches
       .sort((a, b) => b.score - a.score || a.word.localeCompare(b.word))
       .slice(0, limit)
       .map(({ score, ...entry }) => entry);
+  }
+
+  _normalizeSearchIndexEntry(entry) {
+    const source = entry?.s || entry?.source;
+    const date = entry?.d || entry?.date;
+
+    return {
+      word: String(entry?.w || entry?.word || "").toUpperCase(),
+      clue: String(entry?.c || entry?.clue || ""),
+      source: String(source || ""),
+      date: date === "0" ? "" : String(date || ""),
+      attribution: this._formatAttribution(source, date)
+    };
   }
 
   async scoreWords(rawWords) {

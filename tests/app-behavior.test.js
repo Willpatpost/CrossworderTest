@@ -601,6 +601,12 @@ test('editor key handling uses tab to jump between words', () => {
 
     try {
         const manager = new GridManager();
+        const gridCell = {};
+        manager.container = {
+            contains(target) {
+                return target === gridCell;
+            }
+        };
         manager.selectedCell = { r: 0, c: 0 };
         manager._jumpToNextWord = (_coordinator, delta) => {
             jumpDelta = delta;
@@ -617,7 +623,7 @@ test('editor key handling uses tab to jump between words', () => {
             metaKey: false,
             ctrlKey: false,
             altKey: false,
-            target: {},
+            target: gridCell,
             preventDefault() {
                 prevented = true;
             }
@@ -625,6 +631,50 @@ test('editor key handling uses tab to jump between words', () => {
 
         assert.equal(jumpDelta, -1);
         assert.equal(prevented, true);
+    } finally {
+        globalThis.window = originalWindow;
+    }
+});
+
+test('grid key handling ignores events after focus leaves the active grid', () => {
+    const originalWindow = globalThis.window;
+    const listeners = new Map();
+    let enteredLetter = '';
+    let prevented = false;
+
+    globalThis.window = {
+        addEventListener(type, handler) {
+            listeners.set(type, handler);
+        },
+        removeEventListener(type) {
+            listeners.delete(type);
+        }
+    };
+
+    try {
+        const manager = new GridManager();
+        manager.container = { contains: () => false };
+        manager.selectedCell = { r: 0, c: 0 };
+        manager._setupGlobalListeners({
+            modes: { isPlayMode: false, currentMode: 'letter' },
+            handleEditorLetterInput(letter) {
+                enteredLetter = letter;
+            }
+        });
+
+        listeners.get('keydown')({
+            key: 'A',
+            metaKey: false,
+            ctrlKey: false,
+            altKey: false,
+            target: { tagName: 'BUTTON' },
+            preventDefault() {
+                prevented = true;
+            }
+        });
+
+        assert.equal(enteredLetter, '');
+        assert.equal(prevented, false);
     } finally {
         globalThis.window = originalWindow;
     }

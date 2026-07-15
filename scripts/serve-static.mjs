@@ -3,6 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { resolveStaticPath } from './static-path.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(__filename), '..');
@@ -18,16 +19,7 @@ const contentTypes = {
 };
 
 function resolveRequestPath(url = '/') {
-    const requestUrl = new URL(url, `http://localhost:${port}`);
-    const pathname = decodeURIComponent(requestUrl.pathname);
-    const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
-    const resolvedPath = path.resolve(rootDir, relativePath);
-
-    if (!resolvedPath.startsWith(rootDir)) {
-        return null;
-    }
-
-    return resolvedPath;
+    return resolveStaticPath(rootDir, url, `http://localhost:${port}`);
 }
 
 const server = http.createServer(async (req, res) => {
