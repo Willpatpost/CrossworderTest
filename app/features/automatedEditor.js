@@ -1,3 +1,15 @@
+import {
+    analyzeCrosswordLayout,
+    clampInteger,
+    cloneGrid,
+    countBlocks,
+    createRandomCrosswordLayout,
+    createSeededRandom,
+    hasConnectedOpenCells,
+    hasFullDivider,
+    shuffleValues
+} from '../../utils/CrosswordLayoutGenerator.js';
+
 export const automatedEditorMethods = {
     setEditorWorkspaceMode(mode) {
         if (!['manual', 'automated'].includes(mode)) return false;
@@ -30,9 +42,7 @@ export const automatedEditorMethods = {
     },
 
     _clampAutomatedInteger(value, min, max, fallback) {
-        const parsed = Number.parseInt(value, 10);
-        if (!Number.isFinite(parsed)) return fallback;
-        return Math.min(max, Math.max(min, parsed));
+        return clampInteger(value, min, max, fallback);
     },
 
     _readAutomatedLayoutSettings() {
@@ -82,19 +92,7 @@ export const automatedEditorMethods = {
     },
 
     _createSeededRandom(seed) {
-        let state = 2166136261;
-        for (const character of String(seed)) {
-            state ^= character.charCodeAt(0);
-            state = Math.imul(state, 16777619);
-        }
-
-        return () => {
-            state += 0x6D2B79F5;
-            let value = state;
-            value = Math.imul(value ^ (value >>> 15), value | 1);
-            value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-            return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-        };
+        return createSeededRandom(seed);
     },
 
     _resolveAutomatedSeed(seed = '', { syncInput = true } = {}) {
@@ -119,49 +117,7 @@ export const automatedEditorMethods = {
     },
 
     _analyzeAutomatedLayout(grid) {
-        if (
-            !Array.isArray(grid) ||
-            !grid.length ||
-            !Array.isArray(grid[0]) ||
-            !grid[0].length ||
-            !grid.every((row) => Array.isArray(row) && row.length === grid[0].length)
-        ) {
-            return { valid: false, reason: 'The generated grid is empty or malformed.', slotLengths: [] };
-        }
-
-        const lengths = [];
-        const collectRuns = (values) => {
-            let runLength = 0;
-            for (const value of [...values, '#']) {
-                if (value !== '#') {
-                    runLength++;
-                } else {
-                    if (runLength > 0) lengths.push(runLength);
-                    runLength = 0;
-                }
-            }
-        };
-
-        grid.forEach(collectRuns);
-        for (let column = 0; column < grid[0].length; column++) {
-            collectRuns(grid.map((row) => row[column]));
-        }
-
-        if (!lengths.length) {
-            return { valid: false, reason: 'The layout does not contain any fillable entries.', slotLengths: [] };
-        }
-
-        const unsupported = [...new Set(lengths.filter((length) => length < 3 || length > 21))]
-            .sort((left, right) => left - right);
-        if (unsupported.length) {
-            return {
-                valid: false,
-                reason: `Entry length${unsupported.length === 1 ? '' : 's'} ${unsupported.join(', ')} ${unsupported.length === 1 ? 'is' : 'are'} outside the bundled 3-21 letter word data. Add dividers or reduce the grid size.`,
-                slotLengths: lengths
-            };
-        }
-
-        return { valid: true, reason: '', slotLengths: lengths };
+        return analyzeCrosswordLayout(grid);
     },
 
     _commitAutomatedSnapshot(snapshot) {
@@ -175,12 +131,7 @@ export const automatedEditorMethods = {
     },
 
     _shuffleAutomatedValues(values, random = Math.random) {
-        const shuffled = [...values];
-        for (let index = shuffled.length - 1; index > 0; index--) {
-            const swapIndex = Math.floor(random() * (index + 1));
-            [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
-        }
-        return shuffled;
+        return shuffleValues(values, random);
     },
 
     _getAutomatedTargetBlockCount(rows, columns, blockedRows, blockedColumns) {
@@ -218,30 +169,15 @@ export const automatedEditorMethods = {
     },
 
     _cloneAutomatedGrid(grid) {
-        return grid.map((row) => [...row]);
+        return cloneGrid(grid);
     },
 
     _countAutomatedBlocks(grid) {
-        return grid.reduce(
-            (count, row) => count + row.filter((cell) => cell === '#').length,
-            0
-        );
+        return countBlocks(grid);
     },
 
     _hasAutomatedFullDivider(grid) {
-        if (!grid.length || !grid[0]?.length) return true;
-
-        if (grid.some((row) => row.every((cell) => cell === '#'))) {
-            return true;
-        }
-
-        for (let column = 0; column < grid[0].length; column++) {
-            if (grid.every((row) => row[column] === '#')) {
-                return true;
-            }
-        }
-
-        return false;
+        return hasFullDivider(grid);
     },
 
     _countAutomatedOpenLines(grid) {
@@ -277,51 +213,7 @@ export const automatedEditorMethods = {
     },
 
     _hasConnectedAutomatedOpenCells(grid) {
-        const rows = grid.length;
-        const columns = grid[0]?.length || 0;
-        let firstOpen = null;
-        let openCount = 0;
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < columns; c++) {
-                if (grid[r][c] === '#') continue;
-                openCount++;
-                if (!firstOpen) firstOpen = [r, c];
-            }
-        }
-
-        if (!firstOpen) return false;
-
-        const visited = new Set();
-        const queue = [firstOpen];
-        visited.add(firstOpen.join(','));
-
-        for (let index = 0; index < queue.length; index++) {
-            const [r, c] = queue[index];
-            [
-                [r - 1, c],
-                [r + 1, c],
-                [r, c - 1],
-                [r, c + 1]
-            ].forEach(([nextR, nextC]) => {
-                if (
-                    nextR < 0 ||
-                    nextR >= rows ||
-                    nextC < 0 ||
-                    nextC >= columns ||
-                    grid[nextR][nextC] === '#'
-                ) {
-                    return;
-                }
-
-                const key = `${nextR},${nextC}`;
-                if (visited.has(key)) return;
-                visited.add(key);
-                queue.push([nextR, nextC]);
-            });
-        }
-
-        return visited.size === openCount;
+        return hasConnectedOpenCells(grid);
     },
 
     _isAutomatedBlockPlacementAcceptable(grid) {
@@ -403,67 +295,13 @@ export const automatedEditorMethods = {
         blockedColumns = 1,
         random = Math.random
     } = {}) {
-        const safeRows = this._clampAutomatedInteger(rows, 7, 25, 15);
-        const safeColumns = this._clampAutomatedInteger(columns, 7, 25, 15);
-        const safeBlockedRows = this._clampAutomatedInteger(blockedRows, 0, 3, 1);
-        const safeBlockedColumns = this._clampAutomatedInteger(blockedColumns, 0, 3, 1);
-        const targetBlockCount = this._getAutomatedTargetBlockCount(
-            safeRows,
-            safeColumns,
-            safeBlockedRows,
-            safeBlockedColumns
-        );
-        let bestLayout = null;
-
-        for (let attempt = 0; attempt < 36; attempt++) {
-            const grid = Array.from(
-                { length: safeRows },
-                () => Array(safeColumns).fill('')
-            );
-            const blockPairs = this._createRotationalBlockPairs(safeRows, safeColumns, random);
-
-            for (const pair of blockPairs) {
-                const currentBlockCount = this._countAutomatedBlocks(grid);
-                if (currentBlockCount >= targetBlockCount) break;
-                if (currentBlockCount + pair.length > targetBlockCount + 1) continue;
-
-                const candidate = this._cloneAutomatedGrid(grid);
-                pair.forEach(([r, c]) => {
-                    candidate[r][c] = '#';
-                });
-
-                if (this._isAutomatedBlockPlacementAcceptable(candidate)) {
-                    pair.forEach(([r, c]) => {
-                        grid[r][c] = '#';
-                    });
-                }
-            }
-
-            const improvedGrid = this._improveAutomatedOpenLineCoverage(
-                grid,
-                targetBlockCount,
-                random
-            );
-
-            const score = this._scoreAutomatedLayout(improvedGrid, targetBlockCount);
-            if (!bestLayout || score > bestLayout.score) {
-                bestLayout = { grid: improvedGrid, score };
-            }
-        }
-
-        const grid = bestLayout?.grid || Array.from(
-            { length: safeRows },
-            () => Array(safeColumns).fill('')
-        );
-        const blockCount = this._countAutomatedBlocks(grid);
-
-        return {
-            grid,
-            rowDividers: [],
-            columnDividers: [],
-            blockCount,
-            targetBlockCount
-        };
+        return createRandomCrosswordLayout({
+            rows,
+            columns,
+            blockedRows,
+            blockedColumns,
+            random
+        });
     },
 
     generateAutomatedLayout(settings = null, options = {}) {

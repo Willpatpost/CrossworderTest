@@ -14,6 +14,27 @@ async function loadWordsByLength(lengths) {
     return cache;
 }
 
+async function loadWordScoresByLength(lengths) {
+    const scores = {};
+
+    for (const length of lengths) {
+        try {
+            const text = await fs.readFile(
+                new URL(`../../data/wordnet/entries_by_length/words-${length}.json`, import.meta.url),
+                'utf8'
+            );
+            const entries = JSON.parse(text);
+            Object.entries(entries || {}).forEach(([word, entry]) => {
+                scores[word.toUpperCase()] = Number(entry?.q) || 0;
+            });
+        } catch {
+            continue;
+        }
+    }
+
+    return scores;
+}
+
 async function loadWordListForLength(length) {
     const candidatePaths = [
         `../../data/playable_words_by_length/words-${length}.txt`,
@@ -88,6 +109,7 @@ async function solvePuzzle() {
 
     const lengths = [...new Set(Object.values(slots).map((slot) => slot.length))];
     const wordLengthCache = await loadWordsByLength(lengths);
+    const wordHistoryScores = await loadWordScoresByLength(lengths);
     const sampleSize = Number(workerData.domainSampleSize) || 0;
     if (sampleSize > 0) {
         const samplePoolSize = Math.max(
@@ -113,7 +135,8 @@ async function solvePuzzle() {
         cellContents,
         {
             allowReuse: workerData.allowReuse ?? true,
-            randomize: true
+            randomize: workerData.randomize ?? true,
+            wordHistoryScores
         }
     );
 

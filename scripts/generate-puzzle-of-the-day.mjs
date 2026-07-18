@@ -4,6 +4,11 @@ import process from 'node:process';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { ConstraintManager } from '../solver/ConstraintManager.js';
+import {
+    analyzeCrosswordLayout,
+    createRandomCrosswordLayout,
+    createSeededRandom
+} from '../utils/CrosswordLayoutGenerator.js';
 import { getNewYorkDateParts } from '../utils/PuzzleOfDay.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,69 +21,102 @@ const GENERATED_DIFFICULTIES = [
     {
         key: 'easy',
         label: 'Easy',
-        attempts: 12,
-        mask: [
+        attempts: 18,
+        templates: [[
             '...#...',
             '...#...',
-            '...#...',
-            '#######',
-            '...#...',
+            '.......',
+            '##...##',
+            '.......',
             '...#...',
             '...#...'
-        ]
+        ]],
+        layout: {
+            rows: 7,
+            columns: 7,
+            blockedRows: 1,
+            blockedColumns: 1,
+            attempts: 64,
+            densityRange: [0.16, 0.22],
+            desiredLengths: [3, 6],
+            longRunLimit: 7,
+            threeLetterPenalty: 1
+        },
+        solve: {
+            domainSampleSize: 0,
+            domainSamplePoolSize: 0,
+            allowReuse: true
+        },
+        quality: {
+            minAverageLength: 3.6,
+            maxThreeLetterShare: 0.85,
+            minUniqueRatio: 0.8
+        }
     },
     {
         key: 'medium',
         label: 'Medium',
-        attempts: 16,
-        mask: [
-            '...#...#...',
-            '...#...#...',
-            '...#...#...',
-            '###########',
-            '...#...#...',
-            '...#...#...',
-            '...#...#...',
-            '###########',
-            '...#...#...',
-            '...#...#...',
-            '...#...#...'
-        ]
+        attempts: 24,
+        layout: {
+            rows: 11,
+            columns: 11,
+            blockedRows: 2,
+            blockedColumns: 2,
+            attempts: 72,
+            densityRange: [0.17, 0.24],
+            desiredLengths: [4, 8],
+            longRunLimit: 10,
+            threeLetterPenalty: 2
+        },
+        solve: {
+            domainSampleSize: 0,
+            domainSamplePoolSize: 0,
+            allowReuse: true
+        },
+        quality: {
+            minAverageLength: 4.3,
+            maxThreeLetterShare: 0.55,
+            minUniqueRatio: 0.72
+        }
     },
     {
         key: 'hard',
         label: 'Hard',
-        attempts: 20,
-        mask: [
-            '...#...#...#...',
-            '...#...#...#...',
-            '...#...#...#...',
-            '###############',
-            '...#...#...#...',
-            '...#...#...#...',
-            '...#...#...#...',
-            '###############',
-            '...#...#...#...',
-            '...#...#...#...',
-            '...#...#...#...',
-            '###############',
-            '...#...#...#...',
-            '...#...#...#...',
-            '...#...#...#...'
-        ]
+        attempts: 16,
+        layout: {
+            rows: 15,
+            columns: 15,
+            blockedRows: 3,
+            blockedColumns: 3,
+            attempts: 84,
+            densityRange: [0.18, 0.25],
+            desiredLengths: [5, 10],
+            longRunLimit: 12,
+            threeLetterPenalty: 3
+        },
+        solve: {
+            domainSampleSize: 0,
+            domainSamplePoolSize: 0,
+            allowReuse: true
+        },
+        quality: {
+            minAverageLength: 4.2,
+            maxThreeLetterShare: 0.5,
+            minUniqueRatio: 0.65
+        }
     }
 ];
 
-async function solveGeneratedPuzzle(puzzleData, seed) {
+async function solveGeneratedPuzzle(puzzleData, seed, solveOptions = {}) {
     return await new Promise((resolve, reject) => {
         const worker = new Worker(solverWorkerPath, {
             workerData: {
                 slug: puzzleData.id || seed,
                 puzzleData,
                 seed,
-                domainSampleSize: 100,
-                domainSamplePoolSize: 140,
-                allowReuse: true
+                domainSampleSize: solveOptions.domainSampleSize ?? 100,
+                domainSamplePoolSize: solveOptions.domainSamplePoolSize ?? 140,
+                allowReuse: solveOptions.allowReuse ?? true
             }
         });
 
@@ -131,6 +169,72 @@ function applySolutionToGrid(grid, slots, solution) {
     return solvedGrid;
 }
 
+function createDailyLayout(difficulty, seed) {
+    if (difficulty.templates?.length) {
+        const random = createSeededRandom(seed);
+        const template = difficulty.templates[
+            Math.floor(random() * difficulty.templates.length)
+        ];
+        return template.map((row) => [...row].map((cell) => cell === '#' ? '#' : ''));
+    }
+
+    const layout = createRandomCrosswordLayout({
+        ...difficulty.layout,
+        random: createSeededRandom(seed)
+    });
+
+    if (!layout.analysis.valid) {
+        throw new Error(layout.analysis.reason);
+    }
+
+    return layout.grid.map((row) =>
+        row.map((cell) => cell === '#' ? '#' : '')
+    );
+}
+
+function evaluateSolvedPuzzle(grid, solution, quality = {}) {
+    const analysis = analyzeCrosswordLayout(grid, { maxLength: 15 });
+    if (!analysis.valid) return { valid: false, reason: analysis.reason };
+
+    const answers = Object.values(solution || {}).filter(Boolean);
+    if (!answers.length) return { valid: false, reason: 'The filled puzzle has no answers.' };
+
+    const uniqueAnswers = new Set(answers);
+    const averageLength = answers.reduce((sum, answer) => sum + answer.length, 0) / answers.length;
+    const threeLetterShare = answers.filter((answer) => answer.length === 3).length / answers.length;
+    const uniqueRatio = uniqueAnswers.size / answers.length;
+
+    if (averageLength < (quality.minAverageLength || 0)) {
+        return {
+            valid: false,
+            reason: `Average answer length ${averageLength.toFixed(2)} is below target.`
+        };
+    }
+
+    if (threeLetterShare > (quality.maxThreeLetterShare ?? 1)) {
+        return {
+            valid: false,
+            reason: `Three-letter answer share ${(threeLetterShare * 100).toFixed(0)}% is above target.`
+        };
+    }
+
+    if (uniqueRatio < (quality.minUniqueRatio || 0)) {
+        return {
+            valid: false,
+            reason: `Unique answer ratio ${(uniqueRatio * 100).toFixed(0)}% is below target.`
+        };
+    }
+
+    return {
+        valid: true,
+        averageLength,
+        threeLetterShare,
+        uniqueRatio,
+        slotCount: answers.length,
+        uniqueCount: uniqueAnswers.size
+    };
+}
+
 function buildDailyPuzzlePayload(dateKey, difficulty, solvedPayload, seed) {
     const unsolvedGrid = createSolvedGrid(solvedPayload.grid, solvedPayload.solution);
     const constraintManager = new ConstraintManager();
@@ -164,11 +268,9 @@ async function generateDifficultyPuzzle(dateKey, difficulty) {
 
     for (let attempt = 1; attempt <= difficulty.attempts; attempt++) {
         const seed = `${dateKey}:${difficulty.key}:${attempt}`;
-        const grid = difficulty.mask.map((row) =>
-            [...row].map((cell) => cell === '#' ? '#' : '')
-        );
 
         try {
+            const grid = createDailyLayout(difficulty, seed);
             const solved = await solveGeneratedPuzzle({
                 id: `daily-${dateKey}-${difficulty.key}`,
                 title: `${difficulty.label} Daily Crossword`,
@@ -177,7 +279,11 @@ async function generateDifficultyPuzzle(dateKey, difficulty) {
                 date: dateKey,
                 grid,
                 clues: {}
-            }, seed);
+            }, seed, difficulty.solve);
+            const quality = evaluateSolvedPuzzle(grid, solved.solution, difficulty.quality);
+            if (!quality.valid) {
+                throw new Error(quality.reason);
+            }
 
             return buildDailyPuzzlePayload(dateKey, difficulty, solved, seed);
         } catch (error) {
@@ -214,13 +320,11 @@ async function main() {
         return;
     }
 
-    const puzzleEntries = await Promise.all(
-        GENERATED_DIFFICULTIES.map(async (difficulty) => [
-            difficulty.key,
-            await generateDifficultyPuzzle(dateKey, difficulty)
-        ])
-    );
-    const payload = await writePuzzleOfTheDayPack(dateKey, Object.fromEntries(puzzleEntries));
+    const puzzles = {};
+    for (const difficulty of GENERATED_DIFFICULTIES) {
+        puzzles[difficulty.key] = await generateDifficultyPuzzle(dateKey, difficulty);
+    }
+    const payload = await writePuzzleOfTheDayPack(dateKey, puzzles);
     console.log(
         `Generated daily puzzle pack for ${payload.generatedFor}: ${Object.keys(payload.puzzles).join(', ')}.`
     );

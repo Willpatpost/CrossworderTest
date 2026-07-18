@@ -111,11 +111,17 @@ function normalizeAnswer(term) {
 
 function isLikelyProperTerm(term, synset) {
     const value = String(term || '');
-    return /[A-Z]/.test(value.slice(1));
+    return value !== value.toLowerCase() || String(synset.lexname || '').includes('noun.person');
 }
 
 function isSensitiveDefinition(definition) {
     return /\b(offensive|ethnic slur|racial slur|derogatory|vulgar|obscene)\b/i.test(
+        String(definition || '')
+    );
+}
+
+function isWeakDailyDefinition(definition) {
+    return /\b(genus|genera|disease|syndrome|archaic|obsolete|17th century|18th century|of or relating to)\b/i.test(
         String(definition || '')
     );
 }
@@ -155,7 +161,7 @@ function compactEntry(answer, records) {
     const termKeys = new Set();
     const synonyms = new Set();
     const partsOfSpeech = new Set();
-    let hasProper = false;
+    let hasProper = true;
 
     for (const record of records) {
         if (!termKeys.has(record.term)) {
@@ -163,7 +169,7 @@ function compactEntry(answer, records) {
             terms.push(record.term);
         }
         if (record.pos) partsOfSpeech.add(record.pos);
-        if (record.isProper) hasProper = true;
+        if (!record.isProper) hasProper = false;
 
         for (const synonym of record.members || []) {
             const normalized = normalizeAnswer(synonym);
@@ -192,8 +198,9 @@ function shouldUseAsPlayable(answer, entry) {
     if (entry.q < 76) return false;
     if (/^[IVXLCDM]+$/.test(answer)) return false;
     if (/^[BCDFGHJKLMNPQRSTVWXYZ]{3,}$/.test(answer)) return false;
-    if (entry.proper && entry.q < 82) return false;
+    if (entry.proper && entry.q < 88) return false;
     if (entry.d.some(([definition]) => isSensitiveDefinition(definition))) return false;
+    if (entry.d.every(([definition]) => isWeakDailyDefinition(definition))) return false;
     return entry.d.length > 0;
 }
 
