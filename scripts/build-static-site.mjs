@@ -16,7 +16,9 @@ const runtimeDirectories = [
     'utils',
     'data/clues_by_prefix',
     'data/puzzles',
+    'data/playable_words_by_length',
     'data/search',
+    'data/wordnet',
     'data/words_by_length'
 ];
 

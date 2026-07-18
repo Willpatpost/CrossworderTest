@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "source": "english-wordnet-2025-plus-json.zip",
+  "generatedAt": "2026-07-18T01:47:03.939Z",
+  "entryCount": 127136,
+  "playableCount": 88881,
+  "answerLengthRange": [
+    3,
+    15
+  ],
+  "entryFormat": {
+    "t": "source terms",
+    "p": "parts of speech",
+    "d": [
+      "definition",
+      "partOfSpeech",
+      "sourceTerm",
+      "synsetId"
+    ],
+    "s": "normalized synonyms",
+    "q": "quality score",
+    "proper": "contains proper-noun signal"
+  },
+  "lengths": {
+    "3": {
+      "entryCount": 1277,
+      "playableCount": 670,
+      "file": "entries_by_length/words-3.json"
+    },
+    "4": {
+      "entryCount": 3207,
+      "playableCount": 2550,
+      "file": "entries_by_length/words-4.json"
+    },
+    "5": {
+      "entryCount": 5673,
+      "playableCount": 4688,
+      "file": "entries_by_length/words-5.json"
+    },
+    "6": {
+      "entryCount": 9330,
+      "playableCount": 7819,
+      "file": "entries_by_length/words-6.json"
+    },
+    "7": {
+      "entryCount": 12232,
+      "playableCount": 10352,
+      "file": "entries_by_length/words-7.json"
+    },
+    "8": {
+      "entryCount": 14830,
+      "playableCount": 12877,
+      "file": "entries_by_length/words-8.json"
+    },
+    "9": {
+      "entryCount": 16099,
+      "playableCount": 13997,
+      "file": "entries_by_length/words-9.json"
+    },
+    "10": {
+      "entryCount": 15402,
+      "playableCount": 13109,
+      "file": "entries_by_length/words-10.json"
+    },
+    "11": {
+      "entryCount": 13729,
+      "playableCount": 11421,
+      "file": "entries_by_length/words-11.json"
+    },
+    "12": {
+      "entryCount": 11464,
+      "playableCount": 5771,
+      "file": "entries_by_length/words-12.json"
+    },
+    "13": {
+      "entryCount": 9536,
+      "playableCount": 5118,
+      "file": "entries_by_length/words-13.json"
+    },
+    "14": {
+      "entryCount": 7860,
+      "playableCount": 385,
+      "file": "entries_by_length/words-14.json"
+    },
+    "15": {
+      "entryCount": 6497,
+      "playableCount": 124,
+      "file": "entries_by_length/words-15.json"
+    }
+  }
+}

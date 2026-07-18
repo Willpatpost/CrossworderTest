@@ -22,6 +22,8 @@ const expectedPaths = [
     '/data/clues_by_prefix/manifest.json',
     '/data/clues_by_prefix/clues-a.json',
     '/data/search/clue-search.json',
+    '/data/wordnet/manifest.json',
+    '/data/playable_words_by_length/words-3.txt',
     '/data/words_by_length/words-3.txt'
 ];
 
@@ -88,6 +90,7 @@ async function main() {
 
         const clueManifest = JSON.parse(responseMap['/data/clues_by_prefix/manifest.json']);
         const clueShard = JSON.parse(responseMap['/data/clues_by_prefix/clues-a.json']);
+        const wordnetManifest = JSON.parse(responseMap['/data/wordnet/manifest.json']);
         if (
             clueManifest.schemaVersion !== 1
             || clueManifest.entryCount !== searchIndex.entryCount
@@ -95,6 +98,14 @@ async function main() {
             || !Array.isArray(clueShard.AAA)
         ) {
             throw new Error('Compact clue lookup shards are invalid');
+        }
+
+        if (
+            wordnetManifest.schemaVersion !== 1
+            || wordnetManifest.playableCount <= 0
+            || !responseMap['/data/playable_words_by_length/words-3.txt'].includes('ACT')
+        ) {
+            throw new Error('WordNet-derived playable word data is invalid');
         }
 
         if (rootDir !== repositoryRoot) {

@@ -7,12 +7,18 @@ export class DefinitionsProvider {
     const clueShardBasePath = options.clueShardBasePath === undefined
       ? (hasCustomBasePath ? null : "data/clues_by_prefix")
       : options.clueShardBasePath;
+    const wordnetBasePath = options.wordnetBasePath === undefined
+      ? (hasCustomBasePath ? null : "data/wordnet/entries_by_length")
+      : options.wordnetBasePath;
 
     this.basePath = basePath;
     this.searchIndexPath = searchIndexPath;
     this.clueShardBasePath = clueShardBasePath;
+    this.wordnetBasePath = wordnetBasePath;
     this._cache = new Map();
     this._promises = new Map();
+    this._wordnetCache = new Map();
+    this._wordnetPromises = new Map();
     this._clueShardManifest = null;
     this._clueShardManifestPromise = null;
     this._clueShardCache = new Map();
@@ -58,7 +64,9 @@ export class DefinitionsProvider {
     try {
       if (this.clueShardBasePath) {
         const shardEntry = await this._lookupClueShardEntry(word.toUpperCase());
-        return shardEntry ? [this._normalizeClueShardEntry(shardEntry)] : null;
+        if (shardEntry) return [this._normalizeClueShardEntry(shardEntry)];
+
+        return await this._lookupWordnetEntries(word.toUpperCase());
       }
 
       const defsMap = await this._loadLength(len);
@@ -182,6 +190,47 @@ export class DefinitionsProvider {
     return shard?.[word] || null;
   }
 
+  async _loadWordnetLength(len) {
+    if (!this.wordnetBasePath) return null;
+    if (this._wordnetCache.has(len)) return this._wordnetCache.get(len);
+    if (this._wordnetPromises.has(len)) return this._wordnetPromises.get(len);
+
+    const promise = (async () => {
+      const url = `${this.wordnetBasePath}/words-${len}.json`;
+      const resp = await fetch(url);
+      if (resp.status === 404) return null;
+      if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+      const entries = await resp.json();
+      this._wordnetCache.set(len, entries);
+      return entries;
+    })().finally(() => {
+      this._wordnetPromises.delete(len);
+    });
+
+    this._wordnetPromises.set(len, promise);
+    return promise;
+  }
+
+  async _lookupWordnetEntries(word) {
+    try {
+      const entries = await this._loadWordnetLength(word.length);
+      const entry = entries?.[word];
+      if (!entry?.d?.length) return null;
+
+      return entry.d.map(([definition, partOfSpeech, sourceTerm]) => ({
+        clue: definition,
+        source: 'WordNet',
+        date: '2025',
+        attribution: '(Open English WordNet 2025)',
+        partOfSpeech,
+        sourceTerm
+      }));
+    } catch (error) {
+      console.warn(`WordNet definition load failed for ${word}:`, error);
+      return null;
+    }
+  }
+
   _normalizeClueShardEntry(entry) {
     const manifest = this._clueShardManifest || {};
     const source = manifest.sources?.[entry?.[1]] || "";
@@ -301,6 +350,7 @@ export class DefinitionsProvider {
         }
       }));
 
+      await this._scoreMissingWordsFromWordnet(words, scores);
       return scores;
     }
 
@@ -343,6 +393,33 @@ export class DefinitionsProvider {
     }
 
     return scores;
+  }
+
+  async _scoreMissingWordsFromWordnet(words, scores) {
+    if (!this.wordnetBasePath) return;
+
+    const byLength = new Map();
+    words.forEach((word) => {
+      const answer = word.toUpperCase();
+      if (scores[answer] > 0) return;
+
+      const list = byLength.get(answer.length) || [];
+      list.push(answer);
+      byLength.set(answer.length, list);
+    });
+
+    await Promise.all([...byLength.entries()].map(async ([len, lengthWords]) => {
+      try {
+        const entries = await this._loadWordnetLength(len);
+        lengthWords.forEach((word) => {
+          scores[word] = Number(entries?.[word]?.q) || scores[word] || 0;
+        });
+      } catch {
+        lengthWords.forEach((word) => {
+          scores[word] = scores[word] || 0;
+        });
+      }
+    }));
   }
 
   _rankEntries(entries) {

@@ -392,12 +392,70 @@ test('DefinitionsProvider uses compact prefix shards for lookup and solver score
     }
 });
 
+test('DefinitionsProvider falls back to WordNet entries when clue shards miss', async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls = [];
+
+    globalThis.fetch = async (url) => {
+        requestedUrls.push(String(url));
+        if (String(url).endsWith('/manifest.json')) {
+            return {
+                ok: true,
+                async json() {
+                    return { schemaVersion: 1, shards: { c: { file: 'clues-c.json' } } };
+                }
+            };
+        }
+        if (String(url).endsWith('/clues-c.json')) {
+            return { ok: true, async json() { return {}; } };
+        }
+        if (String(url).endsWith('/words-3.json')) {
+            return {
+                ok: true,
+                async json() {
+                    return {
+                        CAT: {
+                            d: [['feline mammal', 'n', 'cat', '02121620-n']],
+                            q: 88
+                        }
+                    };
+                }
+            };
+        }
+        throw new Error(`Unexpected request: ${url}`);
+    };
+
+    try {
+        const provider = new DefinitionsProvider({
+            clueShardBasePath: '/compact-clues',
+            wordnetBasePath: '/wordnet'
+        });
+        const definitions = await provider.lookup('CAT');
+        const scores = await provider.scoreWords(['CAT']);
+
+        assert.deepEqual(definitions, [{
+            clue: 'feline mammal',
+            source: 'WordNet',
+            date: '2025',
+            attribution: '(Open English WordNet 2025)',
+            partOfSpeech: 'n',
+            sourceTerm: 'cat'
+        }]);
+        assert.equal(scores.CAT, 88);
+        assert.equal(requestedUrls.includes('/wordnet/words-3.json'), true);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
 test('DefinitionsProvider keeps custom base paths on the legacy lookup contract', () => {
     const defaultProvider = new DefinitionsProvider();
     const legacyProvider = new DefinitionsProvider({ basePath: '/custom-defs' });
 
     assert.equal(defaultProvider.clueShardBasePath, 'data/clues_by_prefix');
+    assert.equal(defaultProvider.wordnetBasePath, 'data/wordnet/entries_by_length');
     assert.equal(legacyProvider.clueShardBasePath, null);
+    assert.equal(legacyProvider.wordnetBasePath, null);
 });
 
 test('ClueListDisplay hydrates clues with bounded concurrency', async () => {

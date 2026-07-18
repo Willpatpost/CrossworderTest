@@ -76,7 +76,8 @@ async function solveGeneratedPuzzle(puzzleData, seed) {
                 slug: puzzleData.id || seed,
                 puzzleData,
                 seed,
-                domainSampleSize: 80,
+                domainSampleSize: 100,
+                domainSamplePoolSize: 140,
                 allowReuse: true
             }
         });

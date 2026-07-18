@@ -8,22 +8,33 @@ async function loadWordsByLength(lengths) {
     const cache = {};
 
     for (const len of lengths) {
-        try {
-            const text = await fs.readFile(
-                new URL(`../../data/words_by_length/words-${len}.txt`, import.meta.url),
-                'utf8'
-            );
-
-            cache[len] = text
-                .split(/\r?\n/)
-                .map((word) => word.trim().toUpperCase())
-                .filter(Boolean);
-        } catch {
-            cache[len] = [];
-        }
+        cache[len] = await loadWordListForLength(len);
     }
 
     return cache;
+}
+
+async function loadWordListForLength(length) {
+    const candidatePaths = [
+        `../../data/playable_words_by_length/words-${length}.txt`,
+        `../../data/words_by_length/words-${length}.txt`
+    ];
+
+    for (const candidatePath of candidatePaths) {
+        try {
+            const text = await fs.readFile(new URL(candidatePath, import.meta.url), 'utf8');
+            const words = text
+                .split(/\r?\n/)
+                .map((word) => word.trim().toUpperCase())
+                .filter(Boolean);
+
+            if (words.length) return words;
+        } catch {
+            continue;
+        }
+    }
+
+    return [];
 }
 
 function normalizePuzzleGrid(rawGrid) {
@@ -79,8 +90,15 @@ async function solvePuzzle() {
     const wordLengthCache = await loadWordsByLength(lengths);
     const sampleSize = Number(workerData.domainSampleSize) || 0;
     if (sampleSize > 0) {
+        const samplePoolSize = Math.max(
+            sampleSize,
+            Number(workerData.domainSamplePoolSize) || sampleSize
+        );
         lengths.forEach((length) => {
-            wordLengthCache[length] = shuffleValues(wordLengthCache[length], Math.random)
+            wordLengthCache[length] = shuffleValues(
+                wordLengthCache[length].slice(0, samplePoolSize),
+                Math.random
+            )
                 .slice(0, sampleSize);
         });
     }

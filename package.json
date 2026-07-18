@@ -14,6 +14,7 @@
     "generate:clue-index": "node scripts/generate-clue-search-index.mjs",
     "generate:clue-shards": "node scripts/generate-clue-lookup-shards.mjs",
     "generate:clue-data": "npm run generate:clue-index && npm run generate:clue-shards",
+    "import:wordnet": "node scripts/import-wordnet-json.mjs",
     "generate:potd": "node scripts/generate-puzzle-of-the-day.mjs --force"
   },
   "devDependencies": {

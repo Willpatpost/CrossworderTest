@@ -1,7 +1,8 @@
 // providers/WordListProvider.js
 export class WordListProvider {
-  constructor({ basePath = "data/words_by_length" } = {}) {
+  constructor({ basePath = "data/playable_words_by_length", fallbackBasePath = "data/words_by_length" } = {}) {
     this.basePath = basePath;
+    this.fallbackBasePath = fallbackBasePath;
     this._cache = new Map();
     this._promises = new Map();
   }
@@ -11,25 +12,17 @@ export class WordListProvider {
 
     if (!this._promises.has(len)) {
       const p = (async () => {
-        const url = `${this.basePath}/words-${len}.txt`;
-        const resp = await fetch(url);
-        
-        if (resp.status === 404) {
+        let words = await this._fetchWords(this.basePath, len);
+        if (words === null && this.fallbackBasePath) {
+            words = await this._fetchWords(this.fallbackBasePath, len);
+        }
+
+        if (words === null) {
             // If a length doesn't exist (e.g. length 25), return empty array.
             this._cache.set(len, []);
             this._promises.delete(len);
             return [];
         }
-
-        if (!resp.ok) {
-            throw new Error(`Failed to fetch ${url}: HTTP ${resp.status}`);
-        }
-
-        const text = await resp.text();
-        // Convert to uppercase for the solver's internal logic
-        const words = text.split(/\r?\n/)
-                          .map(w => w.trim().toUpperCase())
-                          .filter(w => w.length > 0);
 
         this._cache.set(len, words);
         this._promises.delete(len);
@@ -43,6 +36,22 @@ export class WordListProvider {
     }
 
     return await this._promises.get(len);
+  }
+
+  async _fetchWords(basePath, len) {
+    const url = `${basePath}/words-${len}.txt`;
+    const resp = await fetch(url);
+
+    if (resp.status === 404) return null;
+
+    if (!resp.ok) {
+        throw new Error(`Failed to fetch ${url}: HTTP ${resp.status}`);
+    }
+
+    const text = await resp.text();
+    return text.split(/\r?\n/)
+        .map(w => w.trim().toUpperCase())
+        .filter(w => w.length > 0);
   }
 
   async preloadLengths(lengths) {
