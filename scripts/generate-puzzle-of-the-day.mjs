@@ -22,15 +22,32 @@ const GENERATED_DIFFICULTIES = [
         key: 'easy',
         label: 'Easy',
         attempts: 18,
-        templates: [[
-            '...#...',
-            '...#...',
-            '.......',
-            '##...##',
-            '.......',
-            '...#...',
-            '...#...'
-        ]],
+        templates: [
+            {
+                name: 'pinwheel',
+                rows: [
+                    '...#...',
+                    '...#...',
+                    '.......',
+                    '##...##',
+                    '.......',
+                    '...#...',
+                    '...#...'
+                ]
+            },
+            {
+                name: 'open-corners',
+                rows: [
+                    '...#...',
+                    '.......',
+                    '.......',
+                    '##...##',
+                    '.......',
+                    '.......',
+                    '...#...'
+                ]
+            }
+        ],
         layout: {
             rows: 7,
             columns: 7,
@@ -46,7 +63,8 @@ const GENERATED_DIFFICULTIES = [
             domainSampleSize: 0,
             domainSamplePoolSize: 0,
             allowReuse: false,
-            randomize: false
+            randomize: true,
+            qualityFirst: true
         },
         quality: {
             minAverageLength: 3.6,
@@ -73,7 +91,8 @@ const GENERATED_DIFFICULTIES = [
             domainSampleSize: 0,
             domainSamplePoolSize: 0,
             allowReuse: true,
-            randomize: true
+            randomize: true,
+            qualityFirst: true
         },
         quality: {
             minAverageLength: 4.15,
@@ -114,16 +133,17 @@ const GENERATED_DIFFICULTIES = [
             threeLetterPenalty: 3
         },
         solve: {
-            domainSampleSize: 800,
-            domainSamplePoolSize: 3000,
-            allowReuse: true,
+            domainSampleSize: 0,
+            domainSamplePoolSize: 0,
+            allowReuse: false,
             randomize: true,
-            useDailyWordList: false
+            useDailyWordList: true,
+            qualityFirst: true
         },
         quality: {
             minAverageLength: 3,
             maxThreeLetterShare: 1,
-            minUniqueRatio: 0.55
+            minUniqueRatio: 0.95
         }
     }
 ];
@@ -139,7 +159,8 @@ async function solveGeneratedPuzzle(puzzleData, seed, solveOptions = {}) {
                 domainSamplePoolSize: solveOptions.domainSamplePoolSize ?? 140,
                 allowReuse: solveOptions.allowReuse ?? true,
                 randomize: solveOptions.randomize ?? true,
-                useDailyWordList: solveOptions.useDailyWordList ?? true
+                useDailyWordList: solveOptions.useDailyWordList ?? true,
+                qualityFirst: solveOptions.qualityFirst ?? false
             }
         });
 
@@ -198,7 +219,8 @@ function createDailyLayout(difficulty, seed) {
         const template = difficulty.templates[
             Math.floor(random() * difficulty.templates.length)
         ];
-        return template.map((row) => [...row].map((cell) => cell === '#' ? '#' : ''));
+        const rows = Array.isArray(template) ? template : template.rows;
+        return rows.map((row) => [...row].map((cell) => cell === '#' ? '#' : ''));
     }
 
     const layout = createRandomCrosswordLayout({

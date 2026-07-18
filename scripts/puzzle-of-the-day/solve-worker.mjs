@@ -140,7 +140,8 @@ async function solvePuzzle() {
         {
             allowReuse: workerData.allowReuse ?? true,
             randomize: workerData.randomize ?? true,
-            wordHistoryScores
+            wordHistoryScores,
+            qualityFirst: workerData.qualityFirst ?? false
         }
     );
 

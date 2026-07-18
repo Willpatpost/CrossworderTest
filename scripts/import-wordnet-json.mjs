@@ -12,6 +12,7 @@ const playableOutputDir = path.join(rootDir, 'data', 'playable_words_by_length')
 const dailyOutputDir = path.join(rootDir, 'data', 'daily_words_by_length');
 const defsInputDir = path.join(rootDir, 'data', 'defs_by_length');
 const dailyBlocklistPath = path.join(rootDir, 'data', 'daily_blocklist.txt');
+const dailyAllowlistPath = path.join(rootDir, 'data', 'daily_allowlist.txt');
 const MIN_WORD_LENGTH = 3;
 const MAX_WORD_LENGTH = 15;
 
@@ -130,8 +131,16 @@ function isWeakDailyDefinition(definition) {
 }
 
 async function loadDailyBlocklist() {
+    return loadWordSet(dailyBlocklistPath);
+}
+
+async function loadDailyAllowlist() {
+    return loadWordSet(dailyAllowlistPath);
+}
+
+async function loadWordSet(filePath) {
     try {
-        const text = await fs.readFile(dailyBlocklistPath, 'utf8');
+        const text = await fs.readFile(filePath, 'utf8');
         return new Set(
             text.split(/\r?\n/)
                 .map((line) => line.replace(/#.*/, '').trim().toUpperCase())
@@ -245,7 +254,7 @@ function scoreEntry(answer, records) {
     return Math.max(0, Math.round(score));
 }
 
-function compactEntry(answer, records, clueHistory = null) {
+function compactEntry(answer, records, clueHistory = null, dailyAllowlist = new Set()) {
     const definitions = [];
     const definitionKeys = new Set();
     const terms = [];
@@ -277,7 +286,15 @@ function compactEntry(answer, records, clueHistory = null) {
 
     const history = clueHistory || { count: 0, recentCount: 0, sourceCount: 0, bestScore: 0 };
     const wordnetScore = scoreEntry(answer, records);
-    const familiarityScore = scoreFamiliarity(answer, wordnetScore, definitions, history, hasProper);
+    const isAllowedDailyAnswer = dailyAllowlist.has(answer);
+    const familiarityScore = scoreFamiliarity(
+        answer,
+        wordnetScore,
+        definitions,
+        history,
+        hasProper,
+        isAllowedDailyAnswer
+    );
 
     return {
         t: terms.slice(0, 8),
@@ -292,11 +309,12 @@ function compactEntry(answer, records, clueHistory = null) {
             history.sourceCount || 0,
             history.bestScore || 0
         ],
+        allow: isAllowedDailyAnswer,
         proper: hasProper
     };
 }
 
-function scoreFamiliarity(answer, wordnetScore, definitions, history, isProper) {
+function scoreFamiliarity(answer, wordnetScore, definitions, history, isProper, isAllowedDailyAnswer = false) {
     const count = history?.count || 0;
     const recentCount = history?.recentCount || 0;
     const sourceCount = history?.sourceCount || 0;
@@ -316,6 +334,7 @@ function scoreFamiliarity(answer, wordnetScore, definitions, history, isProper) 
     if (isProper) score -= 10;
     if (/[^A-Z]/.test(answer)) score -= 20;
     if (/^[A-Z]{3}$/.test(answer) && count < 3 && wordnetScore < 82) score -= 10;
+    if (isAllowedDailyAnswer) score += answer.length <= 3 ? 18 : 32;
 
     return Number(Math.max(0, score).toFixed(3));
 }
@@ -337,6 +356,7 @@ function shouldUseAsDaily(answer, entry, dailyBlocklist = new Set()) {
     if (entry.proper && entry.f < 120) return false;
 
     const [clueCount = 0, recentCount = 0, sourceCount = 0] = entry.h || [];
+    if (entry.allow && entry.f >= 95) return true;
     if (answer.length >= 5 && entry.q < 78 && recentCount < 1) return false;
     if (answer.length <= 3) {
         return entry.f >= 92 && (clueCount >= 2 || entry.q >= 84);
@@ -360,6 +380,7 @@ async function main() {
     const zipEntries = readZipEntries(buffer);
     const clueHistoryByAnswer = await loadClueHistoryByAnswer();
     const dailyBlocklist = await loadDailyBlocklist();
+    const dailyAllowlist = await loadDailyAllowlist();
     const synsets = new Map();
 
     for (const name of [...zipEntries.keys()].sort()) {
@@ -404,7 +425,7 @@ async function main() {
 
     const byLength = new Map();
     for (const [answer, records] of recordsByAnswer.entries()) {
-        const entry = compactEntry(answer, records, clueHistoryByAnswer.get(answer));
+        const entry = compactEntry(answer, records, clueHistoryByAnswer.get(answer), dailyAllowlist);
         const lengthEntries = byLength.get(answer.length) || {};
         lengthEntries[answer] = entry;
         byLength.set(answer.length, lengthEntries);
@@ -476,6 +497,7 @@ async function main() {
             q: 'quality score',
             f: 'daily familiarity score',
             h: ['clueCount', 'recentClueCount', 'sourceCount', 'bestClueScore'],
+            allow: 'explicit daily allowlist match',
             proper: 'contains proper-noun signal'
         },
         lengths: manifestLengths

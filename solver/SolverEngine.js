@@ -14,6 +14,7 @@ export class SolverEngine {
         this.themeEntries = [];
         this.stats = null;
         this.preferredSlotId = null;
+        this.qualityFirst = false;
     }
 
     interrupt() {
@@ -47,6 +48,7 @@ export class SolverEngine {
             : [];
         this.preferredSlotId = settings.preferredSlotId || null;
         this.wordHistoryScores = settings.wordHistoryScores || {};
+        this.qualityFirst = settings.qualityFirst ?? false;
         const startedAt = performance.now();
 
         const assignment = { ...(settings.initialAssignment || {}) };
@@ -313,14 +315,21 @@ export class SolverEngine {
         );
 
         return domain.sort((a, b) => {
-            const lcvDelta = getConstraintImpact(b) - getConstraintImpact(a);
-            if (lcvDelta !== 0) return lcvDelta;
-
             const themeDelta = getThemeBoost(b) - getThemeBoost(a);
             if (themeDelta !== 0) return themeDelta;
 
-            const historyDelta = getHistoryScore(b) - getHistoryScore(a);
-            if (historyDelta !== 0) return historyDelta;
+            if (this.qualityFirst) {
+                const historyDelta = getHistoryScore(b) - getHistoryScore(a);
+                if (historyDelta !== 0) return historyDelta;
+            }
+
+            const lcvDelta = getConstraintImpact(b) - getConstraintImpact(a);
+            if (lcvDelta !== 0) return lcvDelta;
+
+            if (!this.qualityFirst) {
+                const historyDelta = getHistoryScore(b) - getHistoryScore(a);
+                if (historyDelta !== 0) return historyDelta;
+            }
 
             const frequencyDelta = getFrequencyScore(b) - getFrequencyScore(a);
             if (frequencyDelta !== 0) return frequencyDelta;

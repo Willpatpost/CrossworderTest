@@ -173,3 +173,29 @@ test('SolverEngine orderDomainValues uses clue-history scores when other heurist
 
     assert.deepEqual(ordered, ['NOVA', 'ATOM']);
 });
+
+test('SolverEngine can prefer quality scores before least-constraining order', () => {
+    const solver = new SolverEngine();
+    solver.qualityFirst = true;
+
+    const ordered = solver.orderDomainValues(
+        '1-across',
+        {
+            '1-across': ['CAT', 'CAR'],
+            '1-down': ['TEN', 'RUG', 'RAT']
+        },
+        {
+            '1-across': {
+                '1-down': [[2, 0]]
+            }
+        },
+        {},
+        {},
+        {
+            CAT: 100,
+            CAR: 10
+        }
+    );
+
+    assert.deepEqual(ordered, ['CAT', 'CAR']);
+});

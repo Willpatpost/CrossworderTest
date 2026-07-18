@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "source": "english-wordnet-2025-plus-json.zip",
-  "generatedAt": "2026-07-18T03:01:16.388Z",
+  "generatedAt": "2026-07-18T03:27:40.674Z",
   "entryCount": 127136,
   "playableCount": 74242,
   "answerLengthRange": [
@@ -26,25 +26,26 @@
       "sourceCount",
       "bestClueScore"
     ],
+    "allow": "explicit daily allowlist match",
     "proper": "contains proper-noun signal"
   },
   "lengths": {
     "3": {
       "entryCount": 1277,
       "playableCount": 591,
-      "dailyCount": 586,
+      "dailyCount": 570,
       "file": "entries_by_length/words-3.json"
     },
     "4": {
       "entryCount": 3207,
       "playableCount": 2150,
-      "dailyCount": 2113,
+      "dailyCount": 2111,
       "file": "entries_by_length/words-4.json"
     },
     "5": {
       "entryCount": 5673,
       "playableCount": 3742,
-      "dailyCount": 2942,
+      "dailyCount": 2940,
       "file": "entries_by_length/words-5.json"
     },
     "6": {
