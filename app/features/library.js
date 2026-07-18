@@ -162,7 +162,11 @@ export const libraryMethods = {
     },
 
     _calculateDailyStreak(dateKeys = []) {
-        const normalized = [...new Set(dateKeys.filter(Boolean))]
+        const normalized = [...new Set(
+            dateKeys
+                .map((value) => String(value || '').split(':')[0])
+                .filter(Boolean)
+        )]
             .sort((left, right) => String(right).localeCompare(String(left)));
         if (!normalized.length) {
             return {

@@ -47,9 +47,9 @@ export class ModeUiController {
         const label = document.getElementById('mode-label');
         if (!label) return;
 
-        let text = 'Default (Toggle Black Squares)';
-        if (currentMode === 'drag') text = 'Drag';
-        if (currentMode === 'letter') text = 'Letter';
+        let text = 'Click cells to toggle blocks';
+        if (currentMode === 'drag') text = 'Blocks: drag to paint';
+        if (currentMode === 'letter') text = 'Letters: type into cells';
         if (currentMode === 'play') text = 'Play Mode';
 
         label.textContent = `Mode: ${text}`;

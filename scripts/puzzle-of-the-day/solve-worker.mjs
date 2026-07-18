@@ -37,8 +37,38 @@ function normalizePuzzleGrid(rawGrid) {
     });
 }
 
+function shuffleValues(values, random = Math.random) {
+    const shuffled = [...values];
+    for (let index = shuffled.length - 1; index > 0; index--) {
+        const swapIndex = Math.floor(random() * (index + 1));
+        [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+    }
+    return shuffled;
+}
+
+function createSeededRandom(seed) {
+    let state = 2166136261;
+    for (const character of String(seed)) {
+        state ^= character.charCodeAt(0);
+        state = Math.imul(state, 16777619);
+    }
+
+    return () => {
+        state += 0x6D2B79F5;
+        let value = state;
+        value = Math.imul(value ^ (value >>> 15), value | 1);
+        value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+        return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
 async function solvePuzzle() {
-    const puzzleData = JSON.parse(await fs.readFile(workerData.filePath, 'utf8'));
+    if (workerData.seed) {
+        Math.random = createSeededRandom(workerData.seed);
+    }
+
+    const puzzleData = workerData.puzzleData
+        || JSON.parse(await fs.readFile(workerData.filePath, 'utf8'));
     const grid = normalizePuzzleGrid(puzzleData.grid);
 
     const constraintManager = new ConstraintManager();
@@ -47,6 +77,13 @@ async function solvePuzzle() {
 
     const lengths = [...new Set(Object.values(slots).map((slot) => slot.length))];
     const wordLengthCache = await loadWordsByLength(lengths);
+    const sampleSize = Number(workerData.domainSampleSize) || 0;
+    if (sampleSize > 0) {
+        lengths.forEach((length) => {
+            wordLengthCache[length] = shuffleValues(wordLengthCache[length], Math.random)
+                .slice(0, sampleSize);
+        });
+    }
     const letterFrequencies = GridUtils.calculateLetterFrequencies(wordLengthCache);
     const domains = constraintManager.setupDomains(slots, wordLengthCache, grid);
 
@@ -57,8 +94,8 @@ async function solvePuzzle() {
         letterFrequencies,
         cellContents,
         {
-            allowReuse: false,
-            randomize: false
+            allowReuse: workerData.allowReuse ?? true,
+            randomize: true
         }
     );
 

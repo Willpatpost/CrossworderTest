@@ -2,7 +2,7 @@ import { ModeUiController } from './ModeUiController.js';
 
 export class ModeManager {
     constructor() {
-        this.currentMode = 'none'; // none | drag | letter | play
+        this.currentMode = 'drag'; // none | drag | letter | play
         this.editorModes = ['drag', 'letter'];
 
         this.isSymmetryEnabled = true;

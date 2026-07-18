@@ -7,7 +7,7 @@ import { GridManager } from '../grid/GridManager.js';
 import { DisplayManager } from '../ui/DisplayManager.js';
 import { ModeManager } from '../ui/ModeManager.js';
 import { PopupManager } from '../ui/PopupManager.js';
-import { PUZZLES_BASE_PATH } from './constants.js';
+import { DAILY_PUZZLE_DIFFICULTIES, PUZZLES_BASE_PATH } from './constants.js';
 import { editorMethods } from './features/editor.js';
 import { automatedEditorMethods } from './features/automatedEditor.js';
 import { puzzleMethods } from './features/puzzles.js';
@@ -135,12 +135,14 @@ export class CrosswordApp {
             void this.loadRandomPuzzle();
         });
 
-        this._bindClick('load-daily-editor-button', () => {
-            void this.handleLoadDailyPuzzle('editor');
-        });
+        DAILY_PUZZLE_DIFFICULTIES.forEach((difficulty) => {
+            this._bindClick(`load-daily-${difficulty}-editor-button`, () => {
+                void this.handleLoadDailyPuzzle('editor', difficulty);
+            });
 
-        this._bindClick('play-daily-button', () => {
-            void this.handleLoadDailyPuzzle('play');
+            this._bindClick(`play-daily-${difficulty}-button`, () => {
+                void this.handleLoadDailyPuzzle('play', difficulty);
+            });
         });
 
         this._bindClick('resume-recent-editor-button', () => {

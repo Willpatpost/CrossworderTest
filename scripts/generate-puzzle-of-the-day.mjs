@@ -4,34 +4,86 @@ import process from 'node:process';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { ConstraintManager } from '../solver/ConstraintManager.js';
-import { getNewYorkDateParts, pickPuzzleForDate } from '../utils/PuzzleOfDay.js';
+import { getNewYorkDateParts } from '../utils/PuzzleOfDay.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
-const indexPath = path.join(rootDir, 'data/puzzles/puzzle_index.json');
 const outputPath = path.join(rootDir, 'data/puzzles/puzzle-of-the-day.json');
 const solverWorkerPath = path.join(__dirname, 'puzzle-of-the-day/solve-worker.mjs');
-const SOLVE_TIMEOUT_MS = 15000;
+const SOLVE_TIMEOUT_MS = 30000;
+const GENERATED_DIFFICULTIES = [
+    {
+        key: 'easy',
+        label: 'Easy',
+        attempts: 12,
+        mask: [
+            '...#...',
+            '...#...',
+            '...#...',
+            '#######',
+            '...#...',
+            '...#...',
+            '...#...'
+        ]
+    },
+    {
+        key: 'medium',
+        label: 'Medium',
+        attempts: 16,
+        mask: [
+            '...#...#...',
+            '...#...#...',
+            '...#...#...',
+            '###########',
+            '...#...#...',
+            '...#...#...',
+            '...#...#...',
+            '###########',
+            '...#...#...',
+            '...#...#...',
+            '...#...#...'
+        ]
+    },
+    {
+        key: 'hard',
+        label: 'Hard',
+        attempts: 20,
+        mask: [
+            '...#...#...#...',
+            '...#...#...#...',
+            '...#...#...#...',
+            '###############',
+            '...#...#...#...',
+            '...#...#...#...',
+            '...#...#...#...',
+            '###############',
+            '...#...#...#...',
+            '...#...#...#...',
+            '...#...#...#...',
+            '###############',
+            '...#...#...#...',
+            '...#...#...#...',
+            '...#...#...#...'
+        ]
+    }
+];
 
-function rotateEntries(entries, selectedEntry) {
-    const selectedIndex = entries.findIndex((entry) => entry.file === selectedEntry.file);
-    if (selectedIndex === -1) return entries;
-    return [...entries.slice(selectedIndex), ...entries.slice(0, selectedIndex)];
-}
-
-async function solveEntry(entry) {
+async function solveGeneratedPuzzle(puzzleData, seed) {
     return await new Promise((resolve, reject) => {
         const worker = new Worker(solverWorkerPath, {
             workerData: {
-                slug: entry.id || entry.file,
-                filePath: path.join(rootDir, 'data/puzzles', entry.file)
+                slug: puzzleData.id || seed,
+                puzzleData,
+                seed,
+                domainSampleSize: 80,
+                allowReuse: true
             }
         });
 
         const timeout = setTimeout(() => {
             worker.terminate();
-            reject(new Error(`Timed out while solving ${entry.file}`));
+            reject(new Error(`Timed out while solving ${puzzleData.id}`));
         }, SOLVE_TIMEOUT_MS);
 
         worker.once('message', (message) => {
@@ -78,7 +130,7 @@ function applySolutionToGrid(grid, slots, solution) {
     return solvedGrid;
 }
 
-async function writePuzzleOfTheDay(dateKey, entry, solvedPayload) {
+function buildDailyPuzzlePayload(dateKey, difficulty, solvedPayload, seed) {
     const unsolvedGrid = createSolvedGrid(solvedPayload.grid, solvedPayload.solution);
     const constraintManager = new ConstraintManager();
     const { slots } = constraintManager.buildDataStructures(unsolvedGrid);
@@ -88,21 +140,64 @@ async function writePuzzleOfTheDay(dateKey, entry, solvedPayload) {
         solvedPayload.solution
     );
 
-    const payload = {
+    return {
         generatedFor: dateKey,
         timezone: 'America/New_York',
-        id: `daily-${dateKey}`,
-        title: `Puzzle of the Day`,
-        sourceId: entry.id || entry.file,
-        sourceTitle: solvedPayload.title,
-        sourceFile: entry.file,
-        sourceAuthor: solvedPayload.metadata.author || entry.author || '',
-        sourceDate: solvedPayload.metadata.date || entry.date || '',
-        difficulty: solvedPayload.metadata.difficulty || entry.difficulty || '',
+        id: `daily-${dateKey}-${difficulty.key}`,
+        title: `${difficulty.label} Daily Crossword`,
+        seed,
+        sourceId: `generated:${difficulty.key}`,
+        sourceTitle: `${difficulty.label} generated layout`,
+        sourceAuthor: 'Crossworder',
+        sourceDate: dateKey,
+        difficulty: difficulty.key,
         grid: unsolvedGrid,
         solvedGrid,
         solution: solvedPayload.solution,
         clues: solvedPayload.clues || {}
+    };
+}
+
+async function generateDifficultyPuzzle(dateKey, difficulty) {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= difficulty.attempts; attempt++) {
+        const seed = `${dateKey}:${difficulty.key}:${attempt}`;
+        const grid = difficulty.mask.map((row) =>
+            [...row].map((cell) => cell === '#' ? '#' : '')
+        );
+
+        try {
+            const solved = await solveGeneratedPuzzle({
+                id: `daily-${dateKey}-${difficulty.key}`,
+                title: `${difficulty.label} Daily Crossword`,
+                difficulty: difficulty.key,
+                author: 'Crossworder',
+                date: dateKey,
+                grid,
+                clues: {}
+            }, seed);
+
+            return buildDailyPuzzlePayload(dateKey, difficulty, solved, seed);
+        } catch (error) {
+            lastError = error;
+            console.warn(`Skipping ${difficulty.key} attempt ${attempt}: ${error.message}`);
+        }
+    }
+
+    throw new Error(
+        `Could not generate a ${difficulty.label.toLowerCase()} daily puzzle after ${difficulty.attempts} attempts.${lastError ? ` Last error: ${lastError.message}` : ''}`
+    );
+}
+
+async function writePuzzleOfTheDayPack(dateKey, puzzles) {
+    const payload = {
+        generatedFor: dateKey,
+        dateKey,
+        timezone: 'America/New_York',
+        schemaVersion: 2,
+        title: 'Daily Crossword Pack',
+        puzzles
     };
 
     await fs.writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
@@ -118,38 +213,15 @@ async function main() {
         return;
     }
 
-    const entries = JSON.parse(await fs.readFile(indexPath, 'utf8'));
-    const selected = pickPuzzleForDate(entries, dateKey);
-
-    if (!selected) {
-        throw new Error('No eligible puzzles found in puzzle_index.json');
-    }
-
-    const candidates = rotateEntries(
-        entries.filter((entry) => entry?.dailyEligible !== false),
-        selected
+    const puzzleEntries = await Promise.all(
+        GENERATED_DIFFICULTIES.map(async (difficulty) => [
+            difficulty.key,
+            await generateDifficultyPuzzle(dateKey, difficulty)
+        ])
     );
-
-    let solved = null;
-    let chosenEntry = null;
-
-    for (const entry of candidates) {
-        try {
-            solved = await solveEntry(entry);
-            chosenEntry = entry;
-            break;
-        } catch (error) {
-            console.warn(`Skipping ${entry.file}: ${error.message}`);
-        }
-    }
-
-    if (!solved || !chosenEntry) {
-        throw new Error('Could not solve any eligible puzzle for the daily rotation.');
-    }
-
-    const payload = await writePuzzleOfTheDay(dateKey, chosenEntry, solved);
+    const payload = await writePuzzleOfTheDayPack(dateKey, Object.fromEntries(puzzleEntries));
     console.log(
-        `Generated puzzle of the day for ${payload.generatedFor} from ${payload.sourceFile}.`
+        `Generated daily puzzle pack for ${payload.generatedFor}: ${Object.keys(payload.puzzles).join(', ')}.`
     );
 }
 

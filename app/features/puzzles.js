@@ -1,4 +1,4 @@
-import { DAILY_PUZZLE_FILE, PUZZLES_BASE_PATH } from '../constants.js';
+import { DAILY_PUZZLE_DIFFICULTIES, DAILY_PUZZLE_FILE, PUZZLES_BASE_PATH } from '../constants.js';
 import { libraryMethods } from './library.js';
 
 export const puzzleMethods = {
@@ -189,10 +189,7 @@ export const puzzleMethods = {
 
     async loadPuzzleOfTheDaySummary() {
         const summaryEl = document.getElementById('daily-puzzle-summary');
-        const actionButtons = [
-            document.getElementById('load-daily-editor-button'),
-            document.getElementById('play-daily-button')
-        ].filter(Boolean);
+        const actionButtons = this._getDailyPuzzleActionButtons();
 
         actionButtons.forEach((button) => {
             button.disabled = true;
@@ -204,23 +201,31 @@ export const puzzleMethods = {
         }
 
         try {
-            const puzzleData = await this._fetchDailyPuzzle();
-            this.puzzleOfTheDay = puzzleData;
+            const dailyPack = await this._fetchDailyPuzzle();
+            this.puzzleOfTheDay = dailyPack;
+            const puzzles = this._getDailyPuzzleMap(dailyPack);
+            const available = DAILY_PUZZLE_DIFFICULTIES.filter((difficulty) => puzzles[difficulty]);
 
             if (summaryEl) {
-                const sourceTitle = puzzleData.title || puzzleData.sourceTitle || 'Today’s puzzle';
-                const sourceDate = puzzleData.dateKey || puzzleData.generatedFor || '';
-                const puzzleName = puzzleData.sourceTitle && puzzleData.sourceTitle !== sourceTitle
-                    ? `${sourceTitle} from ${puzzleData.sourceTitle}`
-                    : sourceTitle;
+                const sourceDate = dailyPack.dateKey || dailyPack.generatedFor || '';
+                const sizeSummary = available
+                    .map((difficulty) => {
+                        const puzzle = puzzles[difficulty];
+                        return `${this._formatDailyDifficulty(difficulty)} ${puzzle.grid?.length || '?'}x${puzzle.grid?.[0]?.length || '?'}`;
+                    })
+                    .join(', ');
                 summaryEl.textContent = sourceDate
-                    ? `${puzzleName} is ready for ${sourceDate}. Load it into the editor to inspect the fill, or jump straight into play mode if you want a clean solve.`
-                    : `${puzzleName} is ready to play.`;
+                    ? `Daily puzzles are ready for ${sourceDate}: ${sizeSummary}. Choose a difficulty to edit or play.`
+                    : `Daily puzzles are ready: ${sizeSummary}. Choose a difficulty to edit or play.`;
             }
 
             actionButtons.forEach((button) => {
-                button.disabled = false;
-                button.title = 'Load the current daily puzzle';
+                const difficulty = button.dataset.dailyDifficulty || 'easy';
+                const isAvailable = Boolean(puzzles[difficulty]);
+                button.disabled = !isAvailable;
+                button.title = isAvailable
+                    ? `Load the current ${this._formatDailyDifficulty(difficulty).toLowerCase()} daily puzzle`
+                    : `The ${this._formatDailyDifficulty(difficulty).toLowerCase()} daily puzzle is not available right now.`;
             });
             this.renderHomeDashboard?.();
         } catch (error) {
@@ -240,18 +245,21 @@ export const puzzleMethods = {
         }
     },
 
-    async handleLoadDailyPuzzle(mode = 'editor') {
+    async handleLoadDailyPuzzle(mode = 'editor', difficulty = 'easy') {
         try {
-            const dailyPuzzle = this.puzzleOfTheDay || await this._fetchDailyPuzzle();
-            this.puzzleOfTheDay = dailyPuzzle;
+            const dailyPack = this.puzzleOfTheDay || await this._fetchDailyPuzzle();
+            this.puzzleOfTheDay = dailyPack;
+            const dailyPuzzle = this._getDailyPuzzleForDifficulty(dailyPack, difficulty);
+            const label = this._formatDailyDifficulty(dailyPuzzle.difficulty || difficulty);
 
             this.importPuzzleGrid(dailyPuzzle.grid, {
-                sourceLabel: 'daily puzzle'
+                sourceLabel: `${label} daily puzzle`
             });
             this.activePuzzleSource = {
                 kind: 'daily',
-                id: dailyPuzzle.dateKey || dailyPuzzle.generatedFor || 'daily',
-                label: dailyPuzzle.title || dailyPuzzle.sourceTitle || 'Daily puzzle'
+                id: dailyPuzzle.id || `${dailyPack.dateKey || dailyPack.generatedFor || 'daily'}:${dailyPuzzle.difficulty || difficulty}`,
+                label: dailyPuzzle.title || `${label} daily puzzle`,
+                difficulty: dailyPuzzle.difficulty || difficulty
             };
             this.currentPuzzleClues = dailyPuzzle.clues || {};
             this.currentPuzzleMetadata = this._extractPuzzleMetadata(dailyPuzzle);
@@ -268,7 +276,7 @@ export const puzzleMethods = {
                 return;
             }
 
-            this.display.updateStatus('Loaded the puzzle of the day into the editor.', true);
+            this.display.updateStatus(`Loaded the ${label.toLowerCase()} daily puzzle into the editor.`, true);
             document.getElementById('nav-editor')?.click();
         } catch (error) {
             console.error(error);
@@ -462,8 +470,41 @@ export const puzzleMethods = {
         }
 
         const puzzleData = await resp.json();
-        this._assertValidPuzzleGrid(puzzleData?.grid, 'puzzle-of-the-day.json');
+        const puzzles = this._getDailyPuzzleMap(puzzleData);
+        const firstPuzzle = Object.values(puzzles)[0];
+        this._assertValidPuzzleGrid(firstPuzzle?.grid, 'puzzle-of-the-day.json');
         return puzzleData;
+    },
+
+    _getDailyPuzzleActionButtons() {
+        return DAILY_PUZZLE_DIFFICULTIES.flatMap((difficulty) => [
+            document.getElementById(`load-daily-${difficulty}-editor-button`),
+            document.getElementById(`play-daily-${difficulty}-button`)
+        ]).filter(Boolean);
+    },
+
+    _getDailyPuzzleMap(dailyPack) {
+        if (dailyPack?.puzzles && typeof dailyPack.puzzles === 'object') {
+            return dailyPack.puzzles;
+        }
+
+        return dailyPack?.grid ? { easy: dailyPack } : {};
+    },
+
+    _getDailyPuzzleForDifficulty(dailyPack, difficulty = 'easy') {
+        const normalizedDifficulty = String(difficulty || 'easy').toLowerCase();
+        const puzzles = this._getDailyPuzzleMap(dailyPack);
+        const puzzle = puzzles[normalizedDifficulty] || puzzles.easy || Object.values(puzzles)[0];
+        if (!puzzle) {
+            throw new Error(`The ${normalizedDifficulty} daily puzzle is not available.`);
+        }
+        this._assertValidPuzzleGrid(puzzle.grid, `${normalizedDifficulty} daily puzzle`);
+        return puzzle;
+    },
+
+    _formatDailyDifficulty(difficulty = 'easy') {
+        const value = String(difficulty || 'easy').toLowerCase();
+        return value.charAt(0).toUpperCase() + value.slice(1);
     },
 
     _validateSolutionForCurrentGrid(solution) {

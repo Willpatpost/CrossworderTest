@@ -138,8 +138,8 @@
 
                 <section class="home-daily section" aria-labelledby="daily-puzzle-heading">
                     <div class="daily-puzzle-copy">
-                        <p class="card-eyebrow">Daily Puzzle</p>
-                        <h2 id="daily-puzzle-heading">A fresh crossword, picked and solved automatically every night.</h2>
+                        <p class="card-eyebrow">Daily Puzzles</p>
+                        <h2 id="daily-puzzle-heading">Fresh easy, medium, and hard crosswords every night.</h2>
                         <p id="daily-puzzle-summary" class="daily-puzzle-summary">
                             Loading today’s puzzle details...
                         </p>
@@ -148,11 +148,23 @@
                         </p>
                     </div>
                     <div class="daily-puzzle-actions">
-                        <button id="load-daily-editor-button" class="btn primary-btn" type="button">
-                            Load in Editor
+                        <button id="load-daily-easy-editor-button" class="btn primary-btn" type="button" data-daily-difficulty="easy" data-daily-mode="editor">
+                            Edit Easy
                         </button>
-                        <button id="play-daily-button" class="btn secondary-btn" type="button">
-                            Play Today’s Puzzle
+                        <button id="play-daily-easy-button" class="btn secondary-btn" type="button" data-daily-difficulty="easy" data-daily-mode="play">
+                            Play Easy
+                        </button>
+                        <button id="load-daily-medium-editor-button" class="btn primary-btn" type="button" data-daily-difficulty="medium" data-daily-mode="editor">
+                            Edit Medium
+                        </button>
+                        <button id="play-daily-medium-button" class="btn secondary-btn" type="button" data-daily-difficulty="medium" data-daily-mode="play">
+                            Play Medium
+                        </button>
+                        <button id="load-daily-hard-editor-button" class="btn primary-btn" type="button" data-daily-difficulty="hard" data-daily-mode="editor">
+                            Edit Hard
+                        </button>
+                        <button id="play-daily-hard-button" class="btn secondary-btn" type="button" data-daily-difficulty="hard" data-daily-mode="play">
+                            Play Hard
                         </button>
                     </div>
                 </section>
@@ -337,7 +349,7 @@
                             <h2 id="editor-controls-heading">Build Surface</h2>
                         </div>
                         <div id="mode-label" class="mode-label" aria-live="polite">
-                            Mode: Default (Toggle Black Squares)
+                            Mode: Blocks: drag to paint
                         </div>
                     </div>
 
@@ -436,8 +448,8 @@
 
                     <div class="editor-primary-toolbar">
                         <div class="mode-group compact-group" role="group" aria-label="Interaction mode">
-                            <button id="drag-mode-button" class="btn mode-btn" type="button">Blocks</button>
-                            <button id="letter-mode-button" class="btn mode-btn" type="button">Letters</button>
+                            <button id="drag-mode-button" class="btn mode-btn" type="button">Blocks: Drag</button>
+                            <button id="letter-mode-button" class="btn mode-btn" type="button">Letters: Type</button>
                         </div>
 
                         <div class="mode-group compact-group" role="group" aria-label="Grid edit tools">
@@ -527,7 +539,7 @@
                                 </label>
 
                                 <label class="toggle-container" for="visualize-solve-toggle">
-                                    <input type="checkbox" id="visualize-solve-toggle" checked />
+                                    <input type="checkbox" id="visualize-solve-toggle" />
                                     <span>Visualize Solve</span>
                                 </label>
 

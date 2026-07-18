@@ -4,7 +4,7 @@ test('daily puzzle opens in play mode and accepts grid input', async ({ page }) 
     await page.goto('/');
 
     const playDailyButton = page.getByRole('button', {
-        name: 'Play Today’s Puzzle'
+        name: 'Play Easy'
     });
     await expect(playDailyButton).toBeEnabled();
     await playDailyButton.click();

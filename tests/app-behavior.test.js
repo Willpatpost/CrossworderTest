@@ -2294,15 +2294,23 @@ test('loadPuzzleOfTheDaySummary updates button states for success and failure', 
     const originalWarn = console.warn;
 
     const summaryEl = { textContent: '' };
-    const editorButton = { disabled: false, title: '' };
-    const playButton = { disabled: false, title: '' };
+    const editorButton = { disabled: false, title: '', dataset: { dailyDifficulty: 'easy' } };
+    const playButton = { disabled: false, title: '', dataset: { dailyDifficulty: 'easy' } };
+    const mediumEditorButton = { disabled: false, title: '', dataset: { dailyDifficulty: 'medium' } };
+    const mediumPlayButton = { disabled: false, title: '', dataset: { dailyDifficulty: 'medium' } };
+    const hardEditorButton = { disabled: false, title: '', dataset: { dailyDifficulty: 'hard' } };
+    const hardPlayButton = { disabled: false, title: '', dataset: { dailyDifficulty: 'hard' } };
 
     const documentStub = {
         getElementById(id) {
             const elements = {
                 'daily-puzzle-summary': summaryEl,
-                'load-daily-editor-button': editorButton,
-                'play-daily-button': playButton
+                'load-daily-easy-editor-button': editorButton,
+                'play-daily-easy-button': playButton,
+                'load-daily-medium-editor-button': mediumEditorButton,
+                'play-daily-medium-button': mediumPlayButton,
+                'load-daily-hard-editor-button': hardEditorButton,
+                'play-daily-hard-button': hardPlayButton
             };
 
             return elements[id] || null;
@@ -2315,17 +2323,26 @@ test('loadPuzzleOfTheDaySummary updates button states for success and failure', 
 
     const successApp = {
         puzzleOfTheDay: null,
+        _getDailyPuzzleActionButtons: puzzleMethods._getDailyPuzzleActionButtons,
+        _getDailyPuzzleMap: puzzleMethods._getDailyPuzzleMap,
+        _formatDailyDifficulty: puzzleMethods._formatDailyDifficulty,
         async _fetchDailyPuzzle() {
             return {
-                title: 'Puzzle of the Day',
-                sourceTitle: 'Daily Source',
-                generatedFor: '2026-03-26'
+                generatedFor: '2026-03-26',
+                puzzles: {
+                    easy: { grid: [['A', 'T']], difficulty: 'easy' },
+                    medium: { grid: [['C', 'A', 'T']], difficulty: 'medium' },
+                    hard: { grid: [['D', 'O', 'G']], difficulty: 'hard' }
+                }
             };
         }
     };
 
     const failureApp = {
         puzzleOfTheDay: null,
+        _getDailyPuzzleActionButtons: puzzleMethods._getDailyPuzzleActionButtons,
+        _getDailyPuzzleMap: puzzleMethods._getDailyPuzzleMap,
+        _formatDailyDifficulty: puzzleMethods._formatDailyDifficulty,
         async _fetchDailyPuzzle() {
             throw new Error('missing');
         }
@@ -2335,12 +2352,15 @@ test('loadPuzzleOfTheDaySummary updates button states for success and failure', 
         await puzzleMethods.loadPuzzleOfTheDaySummary.call(successApp);
         assert.equal(editorButton.disabled, false);
         assert.equal(playButton.disabled, false);
-        assert.equal(editorButton.title, 'Load the current daily puzzle');
+        assert.equal(hardPlayButton.disabled, false);
+        assert.equal(editorButton.title, 'Load the current easy daily puzzle');
         assert.match(summaryEl.textContent, /2026-03-26/);
+        assert.match(summaryEl.textContent, /Easy 1x2/);
 
         await puzzleMethods.loadPuzzleOfTheDaySummary.call(failureApp);
         assert.equal(editorButton.disabled, true);
         assert.equal(playButton.disabled, true);
+        assert.equal(hardPlayButton.disabled, true);
         assert.equal(playButton.title, 'The daily puzzle is not available right now.');
         assert.match(summaryEl.textContent, /has not been generated yet/);
     } finally {
@@ -2393,6 +2413,10 @@ test('handleLoadDailyPuzzle loads editor mode without forcing play navigation', 
             };
         },
         _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
+        _getDailyPuzzleMap: puzzleMethods._getDailyPuzzleMap,
+        _getDailyPuzzleForDifficulty: puzzleMethods._getDailyPuzzleForDifficulty,
+        _formatDailyDifficulty: puzzleMethods._formatDailyDifficulty,
+        _assertValidPuzzleGrid: puzzleMethods._assertValidPuzzleGrid,
         _formatPuzzleLoadError: puzzleMethods._formatPuzzleLoadError,
         syncPuzzleMetadataInputs() {}
     };
@@ -2450,6 +2474,10 @@ test('handleLoadDailyPuzzle play mode keeps solution and navigates to play', asy
         importPuzzleGrid() {},
         _extractPuzzleMetadata: puzzleMethods._extractPuzzleMetadata,
         _validateSolutionForCurrentGrid: puzzleMethods._validateSolutionForCurrentGrid,
+        _getDailyPuzzleMap: puzzleMethods._getDailyPuzzleMap,
+        _getDailyPuzzleForDifficulty: puzzleMethods._getDailyPuzzleForDifficulty,
+        _formatDailyDifficulty: puzzleMethods._formatDailyDifficulty,
+        _assertValidPuzzleGrid: puzzleMethods._assertValidPuzzleGrid,
         slots: {
             '1-across': {
                 id: '1-across',
