@@ -313,10 +313,16 @@ export class SolverEngine {
         const getHistoryScore = (word) => (
             Number(historyScores?.[word] || 0)
         );
+        const assignedValues = new Set(Object.values(assignment));
 
         return domain.sort((a, b) => {
             const themeDelta = getThemeBoost(b) - getThemeBoost(a);
             if (themeDelta !== 0) return themeDelta;
+
+            if (this.allowReuse) {
+                const reuseDelta = Number(assignedValues.has(a)) - Number(assignedValues.has(b));
+                if (reuseDelta !== 0) return reuseDelta;
+            }
 
             if (this.qualityFirst) {
                 const historyDelta = getHistoryScore(b) - getHistoryScore(a);

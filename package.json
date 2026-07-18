@@ -15,7 +15,8 @@
     "generate:clue-shards": "node scripts/generate-clue-lookup-shards.mjs",
     "generate:clue-data": "npm run generate:clue-index && npm run generate:clue-shards",
     "import:wordnet": "node scripts/import-wordnet-json.mjs",
-    "generate:potd": "node scripts/generate-puzzle-of-the-day.mjs --force"
+    "generate:potd": "node scripts/generate-puzzle-of-the-day.mjs --force",
+    "validate:potd": "node scripts/validate-puzzle-of-the-day.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1"

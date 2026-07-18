@@ -13,6 +13,8 @@ import {
     summarizeDailyQuality
 } from '../utils/DailyPuzzleQuality.js';
 import { getNewYorkDateParts } from '../utils/PuzzleOfDay.js';
+import { assertValidDailyPuzzlePack } from '../utils/DailyPuzzlePackValidator.js';
+import { addDailyClues } from './puzzle-of-the-day/clue-selector.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,9 +87,43 @@ const GENERATED_DIFFICULTIES = [
     {
         key: 'medium',
         label: 'Medium',
-        attempts: 24,
-        candidateTarget: 3,
-        solveRestarts: 2,
+        attempts: 4,
+        candidateTarget: 1,
+        solveRestarts: 1,
+        templates: [
+            {
+                name: 'offset-stair',
+                rows: [
+                    '#.....##...',
+                    '......##...',
+                    '......#....',
+                    '....##.....',
+                    '...##.....#',
+                    '##.......##',
+                    '#.....##...',
+                    '.....##....',
+                    '....#......',
+                    '...##......',
+                    '...##.....#'
+                ]
+            },
+            {
+                name: 'offset-stair-transposed',
+                rows: [
+                    '#....##....',
+                    '.....#.....',
+                    '...........',
+                    '....#....##',
+                    '...##...###',
+                    '...#...#...',
+                    '###...##...',
+                    '##....#....',
+                    '...........',
+                    '.....#.....',
+                    '....##....#'
+                ]
+            }
+        ],
         layout: {
             rows: 11,
             columns: 11,
@@ -102,8 +138,8 @@ const GENERATED_DIFFICULTIES = [
         solve: {
             domainSampleSize: 0,
             domainSamplePoolSize: 0,
-            allowReuse: false,
-            randomize: true,
+            allowReuse: true,
+            randomize: false,
             qualityFirst: true
         },
         quality: {
@@ -120,9 +156,51 @@ const GENERATED_DIFFICULTIES = [
     {
         key: 'hard',
         label: 'Hard',
-        attempts: 14,
-        candidateTarget: 2,
+        attempts: 4,
+        candidateTarget: 1,
         solveRestarts: 2,
+        templates: [
+            {
+                name: 'interlocking-stair',
+                rows: [
+                    '#...#...####...',
+                    '....#...##.....',
+                    '........#......',
+                    '...#...#.....##',
+                    '###....#...#...',
+                    '##....#...#....',
+                    '....##....#....',
+                    '....##...##....',
+                    '....#....##....',
+                    '....#...#....##',
+                    '...#...#....###',
+                    '##.....#...#...',
+                    '......#........',
+                    '.....##...#....',
+                    '...####...#...#'
+                ]
+            },
+            {
+                name: 'interlocking-stair-transposed',
+                rows: [
+                    '#...##.....#...',
+                    '....##.....#...',
+                    '....#..........',
+                    '...#......#...#',
+                    '##....####....#',
+                    '......##.....##',
+                    '.....#......###',
+                    '...##.....##...',
+                    '###......#.....',
+                    '##.....##......',
+                    '#....####....##',
+                    '#...#......#...',
+                    '..........#....',
+                    '...#.....##....',
+                    '...#.....##...#'
+                ]
+            }
+        ],
         layout: {
             rows: 15,
             columns: 15,
@@ -357,6 +435,7 @@ async function writePuzzleOfTheDayPack(dateKey, puzzles) {
         puzzles
     };
 
+    assertValidDailyPuzzlePack(payload, dateKey);
     const temporaryPath = `${outputPath}.tmp`;
     await fs.writeFile(temporaryPath, `${JSON.stringify(payload, null, 2)}\n`);
     await fs.rename(temporaryPath, outputPath);
@@ -376,6 +455,7 @@ async function main() {
     for (const difficulty of GENERATED_DIFFICULTIES) {
         puzzles[difficulty.key] = await generateDifficultyPuzzle(dateKey, difficulty);
     }
+    await addDailyClues(puzzles, dateKey);
     const payload = await writePuzzleOfTheDayPack(dateKey, puzzles);
     console.log(
         `Generated daily puzzle pack for ${payload.generatedFor}: ${Object.keys(payload.puzzles).join(', ')}.`

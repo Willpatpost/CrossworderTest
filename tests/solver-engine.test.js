@@ -199,3 +199,20 @@ test('SolverEngine can prefer quality scores before least-constraining order', (
 
     assert.deepEqual(ordered, ['CAT', 'CAR']);
 });
+
+test('SolverEngine ranks unused answers first when reuse is allowed', () => {
+    const solver = new SolverEngine();
+    solver.allowReuse = true;
+    solver.qualityFirst = true;
+
+    const ordered = solver.orderDomainValues(
+        '2-across',
+        { '2-across': ['CAT', 'CAR'] },
+        { '2-across': {} },
+        { '1-across': 'CAT' },
+        {},
+        { CAT: 200, CAR: 100 }
+    );
+
+    assert.deepEqual(ordered, ['CAR', 'CAT']);
+});

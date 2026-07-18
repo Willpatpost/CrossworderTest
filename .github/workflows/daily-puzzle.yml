@@ -12,6 +12,7 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Check out repository
@@ -34,6 +35,9 @@ jobs:
 
       - name: Generate puzzle of the day
         run: node scripts/generate-puzzle-of-the-day.mjs
+
+      - name: Validate generated daily pack
+        run: npm run validate:potd
 
       - name: Commit updated daily puzzle
         run: |
