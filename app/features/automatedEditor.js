@@ -97,12 +97,12 @@ export const automatedEditorMethods = {
         };
     },
 
-    _resolveAutomatedSeed(seed = '') {
+    _resolveAutomatedSeed(seed = '', { syncInput = true } = {}) {
         const resolved = String(seed || '').trim() || this._createAutomatedSeed();
         const input = typeof document === 'undefined'
             ? null
             : document.getElementById('automated-seed-input');
-        if (input) input.value = resolved;
+        if (input && syncInput && String(seed || '').trim()) input.value = resolved;
         return resolved;
     },
 
@@ -136,7 +136,7 @@ export const automatedEditorMethods = {
                 if (value !== '#') {
                     runLength++;
                 } else {
-                    if (runLength >= 2) lengths.push(runLength);
+                    if (runLength > 0) lengths.push(runLength);
                     runLength = 0;
                 }
             }
@@ -174,28 +174,226 @@ export const automatedEditorMethods = {
         return true;
     },
 
-    _selectRandomDividerIndexes(size, requestedCount, random = Math.random) {
-        if (requestedCount <= 0) return [];
-
-        const candidates = [];
-        for (let index = 3; index <= size - 4; index++) {
-            candidates.push(index);
-        }
-
-        for (let index = candidates.length - 1; index > 0; index--) {
+    _shuffleAutomatedValues(values, random = Math.random) {
+        const shuffled = [...values];
+        for (let index = shuffled.length - 1; index > 0; index--) {
             const swapIndex = Math.floor(random() * (index + 1));
-            [candidates[index], candidates[swapIndex]] = [candidates[swapIndex], candidates[index]];
+            [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
         }
+        return shuffled;
+    },
 
-        const selected = [];
-        for (const candidate of candidates) {
-            if (selected.every((index) => Math.abs(index - candidate) >= 4)) {
-                selected.push(candidate);
+    _getAutomatedTargetBlockCount(rows, columns, blockedRows, blockedColumns) {
+        const cells = rows * columns;
+        const density = Math.min(
+            0.23,
+            Math.max(0.14, 0.15 + ((blockedRows + blockedColumns) * 0.015))
+        );
+        return Math.max(0, Math.round(cells * density));
+    },
+
+    _createRotationalBlockPairs(rows, columns, random = Math.random) {
+        const seen = new Set();
+        const pairs = [];
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < columns; c++) {
+                const mirrorR = rows - 1 - r;
+                const mirrorC = columns - 1 - c;
+                const key = `${r},${c}`;
+                const mirrorKey = `${mirrorR},${mirrorC}`;
+                if (seen.has(key) || seen.has(mirrorKey)) continue;
+
+                seen.add(key);
+                seen.add(mirrorKey);
+
+                const pair = key === mirrorKey
+                    ? [[r, c]]
+                    : [[r, c], [mirrorR, mirrorC]];
+                pairs.push(pair);
             }
-            if (selected.length >= requestedCount) break;
         }
 
-        return selected.sort((left, right) => left - right);
+        return this._shuffleAutomatedValues(pairs, random);
+    },
+
+    _cloneAutomatedGrid(grid) {
+        return grid.map((row) => [...row]);
+    },
+
+    _countAutomatedBlocks(grid) {
+        return grid.reduce(
+            (count, row) => count + row.filter((cell) => cell === '#').length,
+            0
+        );
+    },
+
+    _hasAutomatedFullDivider(grid) {
+        if (!grid.length || !grid[0]?.length) return true;
+
+        if (grid.some((row) => row.every((cell) => cell === '#'))) {
+            return true;
+        }
+
+        for (let column = 0; column < grid[0].length; column++) {
+            if (grid.every((row) => row[column] === '#')) {
+                return true;
+            }
+        }
+
+        return false;
+    },
+
+    _countAutomatedOpenLines(grid) {
+        if (!grid.length || !grid[0]?.length) return 0;
+
+        let openLines = grid.filter((row) => row.every((cell) => cell !== '#')).length;
+        for (let column = 0; column < grid[0].length; column++) {
+            if (grid.every((row) => row[column] !== '#')) {
+                openLines++;
+            }
+        }
+
+        return openLines;
+    },
+
+    _getAutomatedOpenLineTargets(grid) {
+        const targets = [];
+        if (!grid.length || !grid[0]?.length) return targets;
+
+        grid.forEach((row, index) => {
+            if (row.every((cell) => cell !== '#')) {
+                targets.push({ axis: 'row', index });
+            }
+        });
+
+        for (let column = 0; column < grid[0].length; column++) {
+            if (grid.every((row) => row[column] !== '#')) {
+                targets.push({ axis: 'column', index: column });
+            }
+        }
+
+        return targets;
+    },
+
+    _hasConnectedAutomatedOpenCells(grid) {
+        const rows = grid.length;
+        const columns = grid[0]?.length || 0;
+        let firstOpen = null;
+        let openCount = 0;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < columns; c++) {
+                if (grid[r][c] === '#') continue;
+                openCount++;
+                if (!firstOpen) firstOpen = [r, c];
+            }
+        }
+
+        if (!firstOpen) return false;
+
+        const visited = new Set();
+        const queue = [firstOpen];
+        visited.add(firstOpen.join(','));
+
+        for (let index = 0; index < queue.length; index++) {
+            const [r, c] = queue[index];
+            [
+                [r - 1, c],
+                [r + 1, c],
+                [r, c - 1],
+                [r, c + 1]
+            ].forEach(([nextR, nextC]) => {
+                if (
+                    nextR < 0 ||
+                    nextR >= rows ||
+                    nextC < 0 ||
+                    nextC >= columns ||
+                    grid[nextR][nextC] === '#'
+                ) {
+                    return;
+                }
+
+                const key = `${nextR},${nextC}`;
+                if (visited.has(key)) return;
+                visited.add(key);
+                queue.push([nextR, nextC]);
+            });
+        }
+
+        return visited.size === openCount;
+    },
+
+    _isAutomatedBlockPlacementAcceptable(grid) {
+        if (this._hasAutomatedFullDivider(grid)) return false;
+        if (!this._hasConnectedAutomatedOpenCells(grid)) return false;
+        return this._analyzeAutomatedLayout(grid).valid;
+    },
+
+    _scoreAutomatedLayout(grid, targetBlockCount) {
+        const analysis = this._analyzeAutomatedLayout(grid);
+        if (!analysis.valid) return Number.NEGATIVE_INFINITY;
+        if (this._hasAutomatedFullDivider(grid)) return Number.NEGATIVE_INFINITY;
+        if (!this._hasConnectedAutomatedOpenCells(grid)) return Number.NEGATIVE_INFINITY;
+
+        const blockCount = this._countAutomatedBlocks(grid);
+        const lengths = analysis.slotLengths;
+        const longRunPenalty = lengths
+            .filter((length) => length > 10)
+            .reduce((sum, length) => sum + (((length - 10) ** 2) * 8), 0);
+        const openLinePenalty = this._countAutomatedOpenLines(grid) * 200;
+        const mediumRunScore = lengths.filter((length) => length >= 4 && length <= 8).length * 3;
+        const slotCountScore = lengths.length * 1.5;
+        const densityPenalty = Math.abs(targetBlockCount - blockCount) * 5;
+
+        return slotCountScore + mediumRunScore - longRunPenalty - openLinePenalty - densityPenalty;
+    },
+
+    _improveAutomatedOpenLineCoverage(grid, targetBlockCount, random = Math.random) {
+        const rows = grid.length;
+        const columns = grid[0]?.length || 0;
+        if (rows < 11 || columns < 11) return grid;
+
+        const maxBlockCount = targetBlockCount + 5;
+        let improved = grid;
+
+        for (let pass = 0; pass < 8; pass++) {
+            const targets = this._getAutomatedOpenLineTargets(improved);
+            if (!targets.length || this._countAutomatedBlocks(improved) >= maxBlockCount) {
+                break;
+            }
+
+            const target = targets[Math.floor(random() * targets.length)];
+            const pairs = this._shuffleAutomatedValues(
+                this._createRotationalBlockPairs(rows, columns, random)
+                    .filter((pair) => pair.some(([r, c]) =>
+                        target.axis === 'row' ? r === target.index : c === target.index
+                    )),
+                random
+            );
+
+            let placed = false;
+            for (const pair of pairs) {
+                const currentBlockCount = this._countAutomatedBlocks(improved);
+                if (currentBlockCount + pair.length > maxBlockCount) continue;
+                if (pair.some(([r, c]) => improved[r][c] === '#')) continue;
+
+                const candidate = this._cloneAutomatedGrid(improved);
+                pair.forEach(([r, c]) => {
+                    candidate[r][c] = '#';
+                });
+
+                if (this._isAutomatedBlockPlacementAcceptable(candidate)) {
+                    improved = candidate;
+                    placed = true;
+                    break;
+                }
+            }
+
+            if (!placed) break;
+        }
+
+        return improved;
     },
 
     createRandomAutomatedLayout({
@@ -207,32 +405,75 @@ export const automatedEditorMethods = {
     } = {}) {
         const safeRows = this._clampAutomatedInteger(rows, 7, 25, 15);
         const safeColumns = this._clampAutomatedInteger(columns, 7, 25, 15);
-        const rowDividers = this._selectRandomDividerIndexes(
+        const safeBlockedRows = this._clampAutomatedInteger(blockedRows, 0, 3, 1);
+        const safeBlockedColumns = this._clampAutomatedInteger(blockedColumns, 0, 3, 1);
+        const targetBlockCount = this._getAutomatedTargetBlockCount(
             safeRows,
-            this._clampAutomatedInteger(blockedRows, 0, 3, 1),
-            random
-        );
-        const columnDividers = this._selectRandomDividerIndexes(
             safeColumns,
-            this._clampAutomatedInteger(blockedColumns, 0, 3, 1),
-            random
+            safeBlockedRows,
+            safeBlockedColumns
         );
-        const rowDividerSet = new Set(rowDividers);
-        const columnDividerSet = new Set(columnDividers);
-        const grid = Array.from({ length: safeRows }, (_, row) =>
-            Array.from({ length: safeColumns }, (_value, column) =>
-                rowDividerSet.has(row) || columnDividerSet.has(column) ? '#' : ''
-            )
-        );
+        let bestLayout = null;
 
-        return { grid, rowDividers, columnDividers };
+        for (let attempt = 0; attempt < 36; attempt++) {
+            const grid = Array.from(
+                { length: safeRows },
+                () => Array(safeColumns).fill('')
+            );
+            const blockPairs = this._createRotationalBlockPairs(safeRows, safeColumns, random);
+
+            for (const pair of blockPairs) {
+                const currentBlockCount = this._countAutomatedBlocks(grid);
+                if (currentBlockCount >= targetBlockCount) break;
+                if (currentBlockCount + pair.length > targetBlockCount + 1) continue;
+
+                const candidate = this._cloneAutomatedGrid(grid);
+                pair.forEach(([r, c]) => {
+                    candidate[r][c] = '#';
+                });
+
+                if (this._isAutomatedBlockPlacementAcceptable(candidate)) {
+                    pair.forEach(([r, c]) => {
+                        grid[r][c] = '#';
+                    });
+                }
+            }
+
+            const improvedGrid = this._improveAutomatedOpenLineCoverage(
+                grid,
+                targetBlockCount,
+                random
+            );
+
+            const score = this._scoreAutomatedLayout(improvedGrid, targetBlockCount);
+            if (!bestLayout || score > bestLayout.score) {
+                bestLayout = { grid: improvedGrid, score };
+            }
+        }
+
+        const grid = bestLayout?.grid || Array.from(
+            { length: safeRows },
+            () => Array(safeColumns).fill('')
+        );
+        const blockCount = this._countAutomatedBlocks(grid);
+
+        return {
+            grid,
+            rowDividers: [],
+            columnDividers: [],
+            blockCount,
+            targetBlockCount
+        };
     },
 
     generateAutomatedLayout(settings = null, options = {}) {
         const resolvedSettings = settings || this._readAutomatedLayoutSettings();
-        const seed = this._resolveAutomatedSeed(resolvedSettings.seed);
+        const seed = this._resolveAutomatedSeed(resolvedSettings.seed, {
+            syncInput: options.syncSeedInput ?? true
+        });
         const layout = this.createRandomAutomatedLayout({
             ...resolvedSettings,
+            seed,
             random: resolvedSettings.random || this._createSeededRandom(seed)
         });
 
@@ -247,7 +488,7 @@ export const automatedEditorMethods = {
         };
         layout.seed = seed;
         if (options.announce ?? true) {
-            const message = `Generated an automated ${layout.grid.length}x${layout.grid[0].length} layout with seed ${seed}.`;
+            const message = `Generated an automated ${layout.grid.length}x${layout.grid[0].length} layout with ${layout.blockCount} blocks using seed ${seed}.`;
             this._updateAutomatedProgress(message, 'success');
             this.display.updateStatus(message, true);
         }
@@ -301,7 +542,9 @@ export const automatedEditorMethods = {
 
         const resolvedSettings = settings || this._readAutomatedLayoutSettings();
         const attempts = this._clampAutomatedInteger(resolvedSettings.attempts, 1, 8, 4);
-        const seed = this._resolveAutomatedSeed(resolvedSettings.seed);
+        const seed = this._resolveAutomatedSeed(resolvedSettings.seed, {
+            syncInput: Boolean(String(resolvedSettings.seed || '').trim())
+        });
         const originalState = this._captureEditorState?.() || null;
         const runId = ++this._automationRunId;
         let validLayoutAttempts = 0;
@@ -324,7 +567,8 @@ export const automatedEditorMethods = {
                 }, {
                     recordSnapshot: false,
                     persist: false,
-                    announce: false
+                    announce: false,
+                    syncSeedInput: false
                 });
                 const analysis = this._analyzeAutomatedLayout(layout.grid);
 
@@ -375,7 +619,7 @@ export const automatedEditorMethods = {
             const seedInput = typeof document === 'undefined'
                 ? null
                 : document.getElementById('automated-seed-input');
-            if (seedInput) seedInput.value = seed;
+            if (seedInput && String(resolvedSettings.seed || '').trim()) seedInput.value = seed;
 
             if (runId === this._automationRunId) {
                 this.isAutomating = false;

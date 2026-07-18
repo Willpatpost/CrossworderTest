@@ -47,7 +47,7 @@ The dev server is a small Node script, so it works consistently on Windows, macO
 ## Core features
 
 - Distinct Manual and Automated editor workflows over one editable grid workspace
-- Automated divider-row/column layout generation and CSP-backed random fill
+- Automated rotational block-pattern layout generation and CSP-backed random fill
 - Optional rotational symmetry while painting blocks
 - Fixed-letter entry for themed or constrained fills
 - Backtracking solver running in a web worker

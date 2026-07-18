@@ -17,36 +17,42 @@ function createAutomatedEditor(overrides = {}) {
     };
 }
 
-test('automated layouts use blocked rows and columns with three-cell minimum runs', () => {
+function countBlocks(grid) {
+    return grid.reduce(
+        (count, row) => count + row.filter((cell) => cell === '#').length,
+        0
+    );
+}
+
+test('automated layouts use rotational blocks without full dividers or short runs', () => {
     const editor = createAutomatedEditor();
     const layout = automatedEditorMethods.createRandomAutomatedLayout.call(editor, {
         rows: 11,
         columns: 13,
         blockedRows: 2,
         blockedColumns: 2,
-        random: () => 0.25
+        random: editor._createSeededRandom('layout-quality')
     });
 
     assert.equal(layout.grid.length, 11);
     assert.equal(layout.grid[0].length, 13);
-    assert.equal(layout.rowDividers.length > 0, true);
-    assert.equal(layout.columnDividers.length > 0, true);
+    assert.equal(layout.rowDividers.length, 0);
+    assert.equal(layout.columnDividers.length, 0);
+    assert.equal(countBlocks(layout.grid) > 0, true);
+    assert.equal(editor._hasAutomatedFullDivider(layout.grid), false);
+    assert.equal(editor._hasConnectedAutomatedOpenCells(layout.grid), true);
 
-    layout.rowDividers.forEach((row) => {
-        assert.equal(layout.grid[row].every((cell) => cell === '#'), true);
-    });
-    layout.columnDividers.forEach((column) => {
-        assert.equal(layout.grid.every((row) => row[column] === '#'), true);
-    });
-
-    const assertMinimumSpacing = (indexes, size) => {
-        const boundaries = [-1, ...indexes, size];
-        for (let index = 1; index < boundaries.length; index++) {
-            assert.equal(boundaries[index] - boundaries[index - 1] - 1 >= 3, true);
+    for (let r = 0; r < layout.grid.length; r++) {
+        for (let c = 0; c < layout.grid[0].length; c++) {
+            const mirrorR = layout.grid.length - 1 - r;
+            const mirrorC = layout.grid[0].length - 1 - c;
+            assert.equal(layout.grid[r][c], layout.grid[mirrorR][mirrorC]);
         }
-    };
-    assertMinimumSpacing(layout.rowDividers, 11);
-    assertMinimumSpacing(layout.columnDividers, 13);
+    }
+
+    const analysis = editor._analyzeAutomatedLayout(layout.grid);
+    assert.equal(analysis.valid, true);
+    assert.equal(analysis.slotLengths.every((length) => length >= 3 && length <= 21), true);
 });
 
 test('automated layout dimensions and divider counts are bounded', () => {
@@ -61,8 +67,52 @@ test('automated layout dimensions and divider counts are bounded', () => {
 
     assert.equal(layout.grid.length, 25);
     assert.equal(layout.grid[0].length, 7);
-    assert.equal(layout.rowDividers.length <= 3, true);
+    assert.equal(layout.blockCount <= layout.targetBlockCount + 1, true);
     assert.deepEqual(layout.columnDividers, []);
+});
+
+test('blank automated seeds produce fresh layout seeds without pinning the input', () => {
+    const originalDocument = globalThis.document;
+    const seedInput = { value: '' };
+    let seedCounter = 0;
+    const seeds = [];
+    const editor = createAutomatedEditor({
+        _createAutomatedSeed() {
+            seedCounter++;
+            return `generated-${seedCounter}`;
+        },
+        createRandomAutomatedLayout(settings) {
+            seeds.push(settings.seed);
+            return {
+                grid: Array.from({ length: 7 }, () => Array(7).fill('')),
+                rowDividers: [],
+                columnDividers: [],
+                blockCount: 0,
+                targetBlockCount: 0
+            };
+        },
+        importPuzzleGrid(grid) {
+            this.grid = grid.map((row) => [...row]);
+        }
+    });
+
+    globalThis.document = {
+        getElementById(id) {
+            return id === 'automated-seed-input' ? seedInput : null;
+        }
+    };
+
+    try {
+        const first = editor.generateAutomatedLayout({ rows: 7, columns: 7, seed: '' });
+        const second = editor.generateAutomatedLayout({ rows: 7, columns: 7, seed: '' });
+
+        assert.equal(first.seed, 'generated-1');
+        assert.equal(second.seed, 'generated-2');
+        assert.deepEqual(seeds, ['generated-1', 'generated-2']);
+        assert.equal(seedInput.value, '');
+    } finally {
+        globalThis.document = originalDocument;
+    }
 });
 
 test('seeded automated layouts are reproducible', () => {
@@ -102,9 +152,13 @@ test('automated layout validation rejects unsupported entry lengths', () => {
 test('automated fill preserves blocks and user letters while recording an editable result', async () => {
     let solveCalls = 0;
     const originalGrid = [
-        ['C', '', 'T'],
-        ['', '#', ''],
-        ['A', '', 'E']
+        ['C', '', 'T', '', '', '', ''],
+        ['', '', '', '', '', '', ''],
+        ['', '', '', '', '', '', ''],
+        ['', '', '', '#', '', '', ''],
+        ['', '', '', '', '', '', ''],
+        ['', '', '', '', '', '', ''],
+        ['A', '', 'E', '', '', '', '']
     ];
     const editor = createAutomatedEditor({
         grid: originalGrid.map((row) => [...row]),
@@ -131,7 +185,7 @@ test('automated fill preserves blocks and user letters while recording an editab
     assert.deepEqual(editor.editorHistory[0].grid, originalGrid);
     assert.equal(solveCalls, 1);
     assert.equal(editor.grid[0][0], 'C');
-    assert.equal(editor.grid[1][1], '#');
+    assert.equal(editor.grid[3][3], '#');
     assert.equal(editor.grid[1][0], 'A');
     assert.deepEqual(editor.activePuzzleSource, {
         kind: 'automated',
