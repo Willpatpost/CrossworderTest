@@ -5,10 +5,13 @@ import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { ConstraintManager } from '../solver/ConstraintManager.js';
 import {
-    analyzeCrosswordLayout,
     createRandomCrosswordLayout,
     createSeededRandom
 } from '../utils/CrosswordLayoutGenerator.js';
+import {
+    evaluateDailyPuzzle,
+    summarizeDailyQuality
+} from '../utils/DailyPuzzleQuality.js';
 import { getNewYorkDateParts } from '../utils/PuzzleOfDay.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,12 +19,14 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const outputPath = path.join(rootDir, 'data/puzzles/puzzle-of-the-day.json');
 const solverWorkerPath = path.join(__dirname, 'puzzle-of-the-day/solve-worker.mjs');
-const SOLVE_TIMEOUT_MS = 30000;
+const SOLVE_TIMEOUT_MS = 15000;
 const GENERATED_DIFFICULTIES = [
     {
         key: 'easy',
         label: 'Easy',
         attempts: 18,
+        candidateTarget: 3,
+        solveRestarts: 2,
         templates: [
             {
                 name: 'pinwheel',
@@ -69,13 +74,20 @@ const GENERATED_DIFFICULTIES = [
         quality: {
             minAverageLength: 3.6,
             maxThreeLetterShare: 0.85,
-            minUniqueRatio: 0.8
+            minUniqueRatio: 0.9,
+            minAverageFamiliarity: 112,
+            lowFamiliarityThreshold: 90,
+            maxLowFamiliarityShare: 0.12,
+            minClueCoverage: 0.95,
+            maxIneligibleShortShare: 0
         }
     },
     {
         key: 'medium',
         label: 'Medium',
         attempts: 24,
+        candidateTarget: 3,
+        solveRestarts: 2,
         layout: {
             rows: 11,
             columns: 11,
@@ -90,37 +102,27 @@ const GENERATED_DIFFICULTIES = [
         solve: {
             domainSampleSize: 0,
             domainSamplePoolSize: 0,
-            allowReuse: true,
+            allowReuse: false,
             randomize: true,
             qualityFirst: true
         },
         quality: {
             minAverageLength: 4.15,
             maxThreeLetterShare: 0.55,
-            minUniqueRatio: 0.7
+            minUniqueRatio: 0.95,
+            minAverageFamiliarity: 108,
+            lowFamiliarityThreshold: 86,
+            maxLowFamiliarityShare: 0.16,
+            minClueCoverage: 0.9,
+            maxIneligibleShortShare: 0
         }
     },
     {
         key: 'hard',
         label: 'Hard',
-        attempts: 8,
-        templates: [[
-            '...#...#...#...',
-            '...#...#...#...',
-            '...#...#...#...',
-            '###############',
-            '...#...#...#...',
-            '...#...#...#...',
-            '...#...#...#...',
-            '###############',
-            '...#...#...#...',
-            '...#...#...#...',
-            '...#...#...#...',
-            '###############',
-            '...#...#...#...',
-            '...#...#...#...',
-            '...#...#...#...'
-        ]],
+        attempts: 14,
+        candidateTarget: 2,
+        solveRestarts: 2,
         layout: {
             rows: 15,
             columns: 15,
@@ -141,9 +143,14 @@ const GENERATED_DIFFICULTIES = [
             qualityFirst: true
         },
         quality: {
-            minAverageLength: 3,
-            maxThreeLetterShare: 1,
-            minUniqueRatio: 0.95
+            minAverageLength: 4.1,
+            maxThreeLetterShare: 0.55,
+            minUniqueRatio: 0.98,
+            minAverageFamiliarity: 105,
+            lowFamiliarityThreshold: 82,
+            maxLowFamiliarityShare: 0.2,
+            minClueCoverage: 0.85,
+            maxIneligibleShortShare: 0
         }
     }
 ];
@@ -237,50 +244,7 @@ function createDailyLayout(difficulty, seed) {
     );
 }
 
-function evaluateSolvedPuzzle(grid, solution, quality = {}) {
-    const analysis = analyzeCrosswordLayout(grid, { maxLength: 15 });
-    if (!analysis.valid) return { valid: false, reason: analysis.reason };
-
-    const answers = Object.values(solution || {}).filter(Boolean);
-    if (!answers.length) return { valid: false, reason: 'The filled puzzle has no answers.' };
-
-    const uniqueAnswers = new Set(answers);
-    const averageLength = answers.reduce((sum, answer) => sum + answer.length, 0) / answers.length;
-    const threeLetterShare = answers.filter((answer) => answer.length === 3).length / answers.length;
-    const uniqueRatio = uniqueAnswers.size / answers.length;
-
-    if (averageLength < (quality.minAverageLength || 0)) {
-        return {
-            valid: false,
-            reason: `Average answer length ${averageLength.toFixed(2)} is below target.`
-        };
-    }
-
-    if (threeLetterShare > (quality.maxThreeLetterShare ?? 1)) {
-        return {
-            valid: false,
-            reason: `Three-letter answer share ${(threeLetterShare * 100).toFixed(0)}% is above target.`
-        };
-    }
-
-    if (uniqueRatio < (quality.minUniqueRatio || 0)) {
-        return {
-            valid: false,
-            reason: `Unique answer ratio ${(uniqueRatio * 100).toFixed(0)}% is below target.`
-        };
-    }
-
-    return {
-        valid: true,
-        averageLength,
-        threeLetterShare,
-        uniqueRatio,
-        slotCount: answers.length,
-        uniqueCount: uniqueAnswers.size
-    };
-}
-
-function buildDailyPuzzlePayload(dateKey, difficulty, solvedPayload, seed) {
+function buildDailyPuzzlePayload(dateKey, difficulty, solvedPayload, seed, generationReport) {
     const unsolvedGrid = createSolvedGrid(solvedPayload.grid, solvedPayload.solution);
     const constraintManager = new ConstraintManager();
     const { slots } = constraintManager.buildDataStructures(unsolvedGrid);
@@ -304,37 +268,78 @@ function buildDailyPuzzlePayload(dateKey, difficulty, solvedPayload, seed) {
         grid: unsolvedGrid,
         solvedGrid,
         solution: solvedPayload.solution,
-        clues: solvedPayload.clues || {}
+        clues: solvedPayload.clues || {},
+        generationReport
     };
 }
 
 async function generateDifficultyPuzzle(dateKey, difficulty) {
     let lastError = null;
+    const candidates = [];
+    const report = {
+        attemptedLayouts: 0,
+        attemptedFills: 0,
+        rejectedFills: 0,
+        rejectionReasons: {}
+    };
 
     for (let attempt = 1; attempt <= difficulty.attempts; attempt++) {
-        const seed = `${dateKey}:${difficulty.key}:${attempt}`;
+        const layoutSeed = `${dateKey}:${difficulty.key}:layout:${attempt}`;
+        report.attemptedLayouts++;
 
         try {
-            const grid = createDailyLayout(difficulty, seed);
-            const solved = await solveGeneratedPuzzle({
-                id: `daily-${dateKey}-${difficulty.key}`,
-                title: `${difficulty.label} Daily Crossword`,
-                difficulty: difficulty.key,
-                author: 'Crossworder',
-                date: dateKey,
-                grid,
-                clues: {}
-            }, seed, difficulty.solve);
-            const quality = evaluateSolvedPuzzle(grid, solved.solution, difficulty.quality);
-            if (!quality.valid) {
-                throw new Error(quality.reason);
-            }
+            const grid = createDailyLayout(difficulty, layoutSeed);
 
-            return buildDailyPuzzlePayload(dateKey, difficulty, solved, seed);
+            for (let restart = 1; restart <= (difficulty.solveRestarts || 1); restart++) {
+                const seed = `${layoutSeed}:fill:${restart}`;
+                report.attemptedFills++;
+
+                try {
+                    const solved = await solveGeneratedPuzzle({
+                        id: `daily-${dateKey}-${difficulty.key}`,
+                        title: `${difficulty.label} Daily Crossword`,
+                        difficulty: difficulty.key,
+                        author: 'Crossworder',
+                        date: dateKey,
+                        grid,
+                        clues: {}
+                    }, seed, difficulty.solve);
+                    const quality = evaluateDailyPuzzle(
+                        grid,
+                        solved.solution,
+                        solved.answerQuality,
+                        difficulty.quality
+                    );
+                    if (!quality.valid) throw new Error(quality.reason);
+
+                    candidates.push({ grid, solved, seed, quality });
+                    if (candidates.length >= difficulty.candidateTarget) break;
+                } catch (error) {
+                    lastError = error;
+                    report.rejectedFills++;
+                    report.rejectionReasons[error.message] = (report.rejectionReasons[error.message] || 0) + 1;
+                    console.warn(`Skipping ${difficulty.key} fill ${attempt}.${restart}: ${error.message}`);
+                }
+            }
         } catch (error) {
             lastError = error;
-            console.warn(`Skipping ${difficulty.key} attempt ${attempt}: ${error.message}`);
+            report.rejectedFills++;
+            report.rejectionReasons[error.message] = (report.rejectionReasons[error.message] || 0) + 1;
+            console.warn(`Skipping ${difficulty.key} layout ${attempt}: ${error.message}`);
         }
+
+        if (candidates.length >= difficulty.candidateTarget) break;
+    }
+
+    if (candidates.length) {
+        candidates.sort((left, right) => right.quality.score - left.quality.score);
+        const winner = candidates[0];
+        return buildDailyPuzzlePayload(dateKey, difficulty, winner.solved, winner.seed, {
+            ...report,
+            acceptedCandidates: candidates.length,
+            selectedQuality: summarizeDailyQuality(winner.quality),
+            solverStats: winner.solved.solverStats || null
+        });
     }
 
     throw new Error(
@@ -352,7 +357,9 @@ async function writePuzzleOfTheDayPack(dateKey, puzzles) {
         puzzles
     };
 
-    await fs.writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
+    const temporaryPath = `${outputPath}.tmp`;
+    await fs.writeFile(temporaryPath, `${JSON.stringify(payload, null, 2)}\n`);
+    await fs.rename(temporaryPath, outputPath);
     return payload;
 }
 

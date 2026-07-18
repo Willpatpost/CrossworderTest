@@ -14,8 +14,9 @@ async function loadWordsByLength(lengths) {
     return cache;
 }
 
-async function loadWordScoresByLength(lengths) {
+async function loadWordQualityByLength(lengths) {
     const scores = {};
+    const metadata = {};
 
     for (const length of lengths) {
         try {
@@ -25,14 +26,38 @@ async function loadWordScoresByLength(lengths) {
             );
             const entries = JSON.parse(text);
             Object.entries(entries || {}).forEach(([word, entry]) => {
-                scores[word.toUpperCase()] = Number(entry?.q) || 0;
+                const normalizedWord = word.toUpperCase();
+                const familiarity = Number(entry?.f) || 0;
+                const quality = Number(entry?.q) || 0;
+                const clueCount = Number(entry?.h?.[0]) || 0;
+                const allowlisted = entry?.allow === true;
+                const proper = entry?.proper === true;
+                const dailyEligible = allowlisted || (
+                    normalizedWord.length === 3
+                        ? quality >= 80 && clueCount >= 12 && familiarity >= 120 && !proper
+                        : normalizedWord.length <= 5
+                            ? quality >= 78 && clueCount >= 8 && familiarity >= 115 && (!proper || quality >= 88)
+                            : quality >= 78 && clueCount >= 4 && familiarity >= 112 && (!proper || quality >= 88)
+                );
+                scores[normalizedWord] = familiarity;
+                metadata[normalizedWord] = {
+                    familiarity,
+                    quality,
+                    clueCount,
+                    recentClueCount: Number(entry?.h?.[1]) || 0,
+                    sourceCount: Number(entry?.h?.[2]) || 0,
+                    allowlisted,
+                    proper,
+                    dailyEligible,
+                    shortEligible: dailyEligible
+                };
             });
         } catch {
             continue;
         }
     }
 
-    return scores;
+    return { scores, metadata };
 }
 
 async function loadWordListForLength(length) {
@@ -113,7 +138,12 @@ async function solvePuzzle() {
 
     const lengths = [...new Set(Object.values(slots).map((slot) => slot.length))];
     const wordLengthCache = await loadWordsByLength(lengths);
-    const wordHistoryScores = await loadWordScoresByLength(lengths);
+    const wordQuality = await loadWordQualityByLength(lengths);
+    if (workerData.useDailyWordList !== false && wordLengthCache[3]) {
+        wordLengthCache[3] = wordLengthCache[3].filter((word) => (
+            wordQuality.metadata[word]?.shortEligible === true
+        ));
+    }
     const sampleSize = Number(workerData.domainSampleSize) || 0;
     if (sampleSize > 0) {
         const samplePoolSize = Math.max(
@@ -140,7 +170,7 @@ async function solvePuzzle() {
         {
             allowReuse: workerData.allowReuse ?? true,
             randomize: workerData.randomize ?? true,
-            wordHistoryScores,
+            wordHistoryScores: wordQuality.scores,
             qualityFirst: workerData.qualityFirst ?? false
         }
     );
@@ -149,11 +179,28 @@ async function solvePuzzle() {
         throw new Error(`Solver could not fill ${workerData.slug}`);
     }
 
+    const answerQuality = {};
+    Object.values(result.solution).forEach((word) => {
+        answerQuality[word] = wordQuality.metadata[word] || {
+            familiarity: 0,
+            quality: 0,
+            clueCount: 0,
+            recentClueCount: 0,
+            sourceCount: 0,
+            allowlisted: false,
+            proper: false,
+            dailyEligible: false,
+            shortEligible: false
+        };
+    });
+
     parentPort.postMessage({
         slug: workerData.slug,
         title: puzzleData.title || workerData.slug,
         grid: puzzleData.grid,
         solution: result.solution,
+        answerQuality,
+        solverStats: result.stats,
         clues: puzzleData.clues || {},
         metadata: {
             difficulty: puzzleData.difficulty || '',
