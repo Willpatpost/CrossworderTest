@@ -11,7 +11,7 @@ export function isPathInside(rootDir, targetPath) {
 export function resolveStaticPath(rootDir, url = '/', baseUrl = 'http://localhost') {
     try {
         const requestUrl = new URL(url, baseUrl);
-        const pathname = decodeURIComponent(requestUrl.pathname);
+        const pathname = decodeURIComponent(requestUrl.pathname).replace(/\\/g, '/');
         const relativePath = pathname === '/'
             ? 'index.html'
             : pathname.replace(/^[/\\]+/, '');
