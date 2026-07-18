@@ -8,9 +8,9 @@ import {
 
 const openGrid = Array.from({ length: 3 }, () => Array(3).fill(''));
 const strongQuality = {
-    CAT: { familiarity: 140, clueCount: 8, shortEligible: true },
-    ARE: { familiarity: 130, clueCount: 6, shortEligible: true },
-    TEN: { familiarity: 135, clueCount: 5, shortEligible: true }
+    CAT: { familiarity: 140, quality: 90, clueCount: 8, shortEligible: true },
+    ARE: { familiarity: 130, quality: 90, clueCount: 6, shortEligible: true },
+    TEN: { familiarity: 135, quality: 90, clueCount: 5, shortEligible: true }
 };
 
 test('hasRotationalSymmetry compares block placement through the center', () => {
@@ -61,6 +61,11 @@ test('evaluateDailyPuzzle enforces familiarity and produces a stable report', ()
         averageFamiliarity: 135,
         lowFamiliarityShare: 0,
         clueCoverage: 1,
+        averageLexicalQuality: 90,
+        lowLexicalQualityShare: 0,
+        properNounShare: 0,
+        recentAnswerCount: 0,
+        recentAnswerShare: 0,
         ineligibleShortShare: 0,
         slotCount: 3,
         uniqueCount: 3
@@ -83,4 +88,13 @@ test('evaluateDailyPuzzle enforces familiarity and produces a stable report', ()
     );
     assert.equal(weakShortAnswer.valid, false);
     assert.match(weakShortAnswer.reason, /short answers/i);
+
+    const repeated = evaluateDailyPuzzle(
+        openGrid,
+        { a: 'CAT', b: 'ARE', c: 'TEN' },
+        strongQuality,
+        { recentAnswers: new Set(['CAT']), maxRecentAnswerShare: 0 }
+    );
+    assert.equal(repeated.valid, false);
+    assert.match(repeated.reason, /recent answer share/i);
 });

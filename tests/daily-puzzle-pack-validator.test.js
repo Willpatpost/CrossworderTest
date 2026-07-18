@@ -23,7 +23,12 @@ function createPuzzle(size, difficulty) {
         clues,
         generationReport: {
             selectedQuality: { slotCount: Object.keys(slots).length },
-            clues: { clueCount: Object.keys(slots).length }
+            clues: {
+                clueCount: Object.keys(slots).length,
+                averageConfidence: 0.8,
+                reviewFlagShare: 0,
+                repeatedClueShare: 0
+            }
         }
     };
 }

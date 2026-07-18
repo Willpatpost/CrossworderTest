@@ -43,6 +43,17 @@ export function evaluateDailyPuzzle(grid, solution, answerQuality = {}, quality 
     const lowFamiliarityShare = lowFamiliarityCount / answers.length;
     const answersWithClues = answers.filter((answer) => Number(answerQuality[answer]?.clueCount) > 0).length;
     const clueCoverage = answersWithClues / answers.length;
+    const lexicalQualityScores = answers.map((answer) => Number(answerQuality[answer]?.quality) || 0);
+    const averageLexicalQuality = lexicalQualityScores.reduce((sum, score) => sum + score, 0) / answers.length;
+    const lowLexicalQualityThreshold = quality.lowLexicalQualityThreshold ?? 78;
+    const lowLexicalQualityCount = lexicalQualityScores.filter((score) => score < lowLexicalQualityThreshold).length;
+    const lowLexicalQualityShare = lowLexicalQualityCount / answers.length;
+    const properNounShare = answers.filter((answer) => answerQuality[answer]?.proper === true).length / answers.length;
+    const recentAnswers = quality.recentAnswers instanceof Set
+        ? quality.recentAnswers
+        : new Set(quality.recentAnswers || []);
+    const repeatedRecentAnswers = answers.filter((answer) => recentAnswers.has(answer));
+    const recentAnswerShare = repeatedRecentAnswers.length / answers.length;
     const shortAnswers = answers.filter((answer) => answer.length === 3);
     const ineligibleShortAnswers = shortAnswers.filter((answer) => (
         answerQuality[answer]?.shortEligible !== true
@@ -58,7 +69,11 @@ export function evaluateDailyPuzzle(grid, solution, answerQuality = {}, quality 
         [averageFamiliarity >= (quality.minAverageFamiliarity || 0), `Average familiarity ${averageFamiliarity.toFixed(1)} is below target.`],
         [lowFamiliarityShare <= (quality.maxLowFamiliarityShare ?? 1), `Low-familiarity answer share ${(lowFamiliarityShare * 100).toFixed(0)}% is above target.`],
         [clueCoverage >= (quality.minClueCoverage || 0), `Clue-history coverage ${(clueCoverage * 100).toFixed(0)}% is below target.`],
-        [ineligibleShortShare <= (quality.maxIneligibleShortShare ?? 1), `${ineligibleShortAnswers.length} short answers failed the daily short-answer gate.`]
+        [ineligibleShortShare <= (quality.maxIneligibleShortShare ?? 1), `${ineligibleShortAnswers.length} short answers failed the daily short-answer gate.`],
+        [averageLexicalQuality >= (quality.minAverageLexicalQuality || 0), `Average lexical quality ${averageLexicalQuality.toFixed(1)} is below target.`],
+        [lowLexicalQualityShare <= (quality.maxLowLexicalQualityShare ?? 1), `Low-quality answer share ${(lowLexicalQualityShare * 100).toFixed(0)}% is above target.`],
+        [properNounShare <= (quality.maxProperNounShare ?? 1), `Proper-noun answer share ${(properNounShare * 100).toFixed(0)}% is above target.`],
+        [recentAnswerShare <= (quality.maxRecentAnswerShare ?? 1), `Recent answer share ${(recentAnswerShare * 100).toFixed(0)}% is above target.`]
     ];
     const failedCheck = checks.find(([passes]) => !passes);
     if (failedCheck) return { valid: false, reason: failedCheck[1] };
@@ -70,6 +85,8 @@ export function evaluateDailyPuzzle(grid, solution, answerQuality = {}, quality 
         + (clueCoverage * 30)
         - (threeLetterShare * 35)
         - (lowFamiliarityShare * 80)
+        - (lowLexicalQualityShare * 90)
+        - (recentAnswerShare * 160)
     );
 
     return {
@@ -83,6 +100,13 @@ export function evaluateDailyPuzzle(grid, solution, answerQuality = {}, quality 
         lowFamiliarityCount,
         lowFamiliarityShare,
         clueCoverage,
+        averageLexicalQuality,
+        lowLexicalQualityThreshold,
+        lowLexicalQualityCount,
+        lowLexicalQualityShare,
+        properNounShare,
+        recentAnswerCount: repeatedRecentAnswers.length,
+        recentAnswerShare,
         ineligibleShortShare,
         slotCount: answers.length,
         uniqueCount: uniqueAnswers.size
@@ -98,6 +122,11 @@ export function summarizeDailyQuality(result) {
         averageFamiliarity: Number(result.averageFamiliarity.toFixed(2)),
         lowFamiliarityShare: Number(result.lowFamiliarityShare.toFixed(3)),
         clueCoverage: Number(result.clueCoverage.toFixed(3)),
+        averageLexicalQuality: Number(result.averageLexicalQuality.toFixed(2)),
+        lowLexicalQualityShare: Number(result.lowLexicalQualityShare.toFixed(3)),
+        properNounShare: Number(result.properNounShare.toFixed(3)),
+        recentAnswerCount: result.recentAnswerCount,
+        recentAnswerShare: Number(result.recentAnswerShare.toFixed(3)),
         ineligibleShortShare: Number(result.ineligibleShortShare.toFixed(3)),
         slotCount: result.slotCount,
         uniqueCount: result.uniqueCount

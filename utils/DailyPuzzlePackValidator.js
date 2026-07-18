@@ -64,6 +64,15 @@ export function validateDailyPuzzlePack(payload, expectedDate = '') {
         if (puzzle.generationReport?.clues?.clueCount !== Object.keys(slots).length) {
             errors.push(`${difficulty} puzzle is missing a complete clue report.`);
         }
+        if (!Number.isFinite(puzzle.generationReport?.clues?.averageConfidence)) {
+            errors.push(`${difficulty} puzzle is missing clue-confidence diagnostics.`);
+        }
+        if ((puzzle.generationReport?.clues?.reviewFlagShare ?? 1) > 0.65) {
+            errors.push(`${difficulty} puzzle has too many low-confidence clues.`);
+        }
+        if ((puzzle.generationReport?.clues?.repeatedClueShare ?? 1) > 0.15) {
+            errors.push(`${difficulty} puzzle repeats too many recent clues.`);
+        }
     }
 
     return { valid: errors.length === 0, errors };

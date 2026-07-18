@@ -4,6 +4,22 @@ import { ConstraintManager } from '../../solver/ConstraintManager.js';
 import { SolverEngine } from '../../solver/SolverEngine.js';
 import { GridUtils } from '../../utils/GridUtils.js';
 
+let dailyBlocklistPromise = null;
+
+async function loadDailyBlocklist() {
+    if (!dailyBlocklistPromise) {
+        dailyBlocklistPromise = fs.readFile(
+            new URL('../../data/daily_blocklist.txt', import.meta.url),
+            'utf8'
+        ).then((text) => new Set(text
+            .split(/\r?\n/)
+            .map((word) => word.trim().toUpperCase())
+            .filter((word) => word && !word.startsWith('#'))))
+            .catch(() => new Set());
+    }
+    return dailyBlocklistPromise;
+}
+
 async function loadWordsByLength(lengths) {
     const cache = {};
 
@@ -78,7 +94,10 @@ async function loadWordListForLength(length) {
                 .map((word) => word.trim().toUpperCase())
                 .filter(Boolean);
 
-            if (words.length) return words;
+            if (words.length) {
+                const blocked = await loadDailyBlocklist();
+                return words.filter((word) => !blocked.has(word));
+            }
         } catch {
             continue;
         }
@@ -139,6 +158,18 @@ async function solvePuzzle() {
     const lengths = [...new Set(Object.values(slots).map((slot) => slot.length))];
     const wordLengthCache = await loadWordsByLength(lengths);
     const wordQuality = await loadWordQualityByLength(lengths);
+    const excludedAnswers = new Set(
+        (workerData.excludedAnswers || []).map((word) => String(word).toUpperCase())
+    );
+    lengths.forEach((length) => {
+        wordLengthCache[length] = wordLengthCache[length].filter((word) => !excludedAnswers.has(word));
+    });
+    const recentAnswers = new Set(
+        (workerData.recentAnswers || []).map((word) => String(word).toUpperCase())
+    );
+    Object.keys(wordQuality.scores).forEach((word) => {
+        if (recentAnswers.has(word)) wordQuality.scores[word] -= 180;
+    });
     if (workerData.useDailyWordList !== false && wordLengthCache[3]) {
         wordLengthCache[3] = wordLengthCache[3].filter((word) => (
             wordQuality.metadata[word]?.shortEligible === true
