@@ -9,6 +9,9 @@ const rootDir = path.resolve(path.dirname(__filename), '..');
 const inputZipPath = path.join(rootDir, 'data', 'english-wordnet-2025-plus-json.zip');
 const wordnetOutputDir = path.join(rootDir, 'data', 'wordnet');
 const playableOutputDir = path.join(rootDir, 'data', 'playable_words_by_length');
+const dailyOutputDir = path.join(rootDir, 'data', 'daily_words_by_length');
+const defsInputDir = path.join(rootDir, 'data', 'defs_by_length');
+const dailyBlocklistPath = path.join(rootDir, 'data', 'daily_blocklist.txt');
 const MIN_WORD_LENGTH = 3;
 const MAX_WORD_LENGTH = 15;
 
@@ -121,9 +124,97 @@ function isSensitiveDefinition(definition) {
 }
 
 function isWeakDailyDefinition(definition) {
-    return /\b(genus|genera|disease|syndrome|archaic|obsolete|17th century|18th century|of or relating to)\b/i.test(
+    return /\b(genus|genera|disease|syndrome|inflammation|basic unit of money|vertebra|middle ear|spore-producing|sperm|tropical|cassava|hemp obtained|archaic|obsolete|sixteenth century|17th century|18th century|of or relating to|worn in)\b/i.test(
         String(definition || '')
     );
+}
+
+async function loadDailyBlocklist() {
+    try {
+        const text = await fs.readFile(dailyBlocklistPath, 'utf8');
+        return new Set(
+            text.split(/\r?\n/)
+                .map((line) => line.replace(/#.*/, '').trim().toUpperCase())
+                .filter(Boolean)
+        );
+    } catch {
+        return new Set();
+    }
+}
+
+function scoreClueEntry(entry) {
+    const source = String(entry?.s || entry?.source || '').toUpperCase();
+    const clue = String(entry?.c || entry?.clue || '');
+    const dateValue = Date.parse(entry?.d || entry?.date || '') || 0;
+    let score = 0;
+
+    if (source.includes('NYT')) score += 40;
+    else if (source.includes('LAT')) score += 35;
+    else if (source.includes('WSJ')) score += 32;
+    else if (source.includes('WEB')) score += 12;
+    else if (source) score += 24;
+
+    score += Math.min(dateValue / 1_000_000_000_000, 10);
+    score += Math.max(0, 36 - clue.length) / 4;
+
+    if (/^\w[\w\s'",&-]*$/.test(clue)) score += 3;
+    if (/[?!";]/.test(clue)) score -= 2;
+
+    return score;
+}
+
+async function loadClueHistoryByAnswer() {
+    const history = new Map();
+    let files = [];
+
+    try {
+        files = (await fs.readdir(defsInputDir))
+            .filter((file) => /^defs-\d+\.json$/.test(file))
+            .sort((left, right) => {
+                const leftLen = Number(left.match(/\d+/)?.[0] || 0);
+                const rightLen = Number(right.match(/\d+/)?.[0] || 0);
+                return leftLen - rightLen;
+            });
+    } catch {
+        return history;
+    }
+
+    for (const file of files) {
+        const defsMap = JSON.parse(await fs.readFile(path.join(defsInputDir, file), 'utf8'));
+        Object.entries(defsMap || {}).forEach(([rawWord, rawEntries]) => {
+            const answer = normalizeAnswer(rawWord);
+            if (!answer) return;
+
+            const existing = history.get(answer) || {
+                count: 0,
+                recentCount: 0,
+                sources: new Set(),
+                bestScore: 0
+            };
+
+            (rawEntries || []).forEach((entry) => {
+                existing.count++;
+                if (entry?.s) existing.sources.add(String(entry.s).toUpperCase());
+                if (Date.parse(entry?.d || '') >= Date.parse('2015-01-01')) {
+                    existing.recentCount++;
+                }
+                existing.bestScore = Math.max(existing.bestScore, scoreClueEntry(entry));
+            });
+
+            history.set(answer, existing);
+        });
+    }
+
+    history.forEach((entry, answer) => {
+        history.set(answer, {
+            count: entry.count,
+            recentCount: entry.recentCount,
+            sourceCount: entry.sources.size,
+            bestScore: Number(entry.bestScore.toFixed(3))
+        });
+    });
+
+    return history;
 }
 
 function scoreEntry(answer, records) {
@@ -154,7 +245,7 @@ function scoreEntry(answer, records) {
     return Math.max(0, Math.round(score));
 }
 
-function compactEntry(answer, records) {
+function compactEntry(answer, records, clueHistory = null) {
     const definitions = [];
     const definitionKeys = new Set();
     const terms = [];
@@ -184,14 +275,49 @@ function compactEntry(answer, records) {
         }
     }
 
+    const history = clueHistory || { count: 0, recentCount: 0, sourceCount: 0, bestScore: 0 };
+    const wordnetScore = scoreEntry(answer, records);
+    const familiarityScore = scoreFamiliarity(answer, wordnetScore, definitions, history, hasProper);
+
     return {
         t: terms.slice(0, 8),
         p: [...partsOfSpeech].sort(),
         d: definitions.slice(0, 8),
         s: [...synonyms].sort().slice(0, 24),
-        q: scoreEntry(answer, records),
+        q: wordnetScore,
+        f: familiarityScore,
+        h: [
+            history.count || 0,
+            history.recentCount || 0,
+            history.sourceCount || 0,
+            history.bestScore || 0
+        ],
         proper: hasProper
     };
+}
+
+function scoreFamiliarity(answer, wordnetScore, definitions, history, isProper) {
+    const count = history?.count || 0;
+    const recentCount = history?.recentCount || 0;
+    const sourceCount = history?.sourceCount || 0;
+    const bestClueScore = history?.bestScore || 0;
+    const allDefinitionsWeak = definitions.length > 0
+        && definitions.every(([definition]) => isWeakDailyDefinition(definition));
+
+    let score = wordnetScore;
+    score += Math.min(count, 24) * 1.7;
+    score += Math.min(recentCount, 8) * 2.5;
+    score += Math.min(sourceCount, 8) * 2;
+    score += Math.min(bestClueScore, 55) * 0.6;
+
+    if (!count) score -= answer.length <= 3 ? 8 : 24;
+    if (count > 0 && count < 3 && answer.length >= 5) score -= 8;
+    if (allDefinitionsWeak) score -= 45;
+    if (isProper) score -= 10;
+    if (/[^A-Z]/.test(answer)) score -= 20;
+    if (/^[A-Z]{3}$/.test(answer) && count < 3 && wordnetScore < 82) score -= 10;
+
+    return Number(Math.max(0, score).toFixed(3));
 }
 
 function shouldUseAsPlayable(answer, entry) {
@@ -204,6 +330,25 @@ function shouldUseAsPlayable(answer, entry) {
     return entry.d.length > 0;
 }
 
+function shouldUseAsDaily(answer, entry, dailyBlocklist = new Set()) {
+    if (dailyBlocklist.has(answer)) return false;
+    if (!shouldUseAsPlayable(answer, entry)) return false;
+    if (entry.d.every(([definition]) => isWeakDailyDefinition(definition))) return false;
+    if (entry.proper && entry.f < 120) return false;
+
+    const [clueCount = 0, recentCount = 0, sourceCount = 0] = entry.h || [];
+    if (answer.length >= 5 && entry.q < 78 && recentCount < 1) return false;
+    if (answer.length <= 3) {
+        return entry.f >= 92 && (clueCount >= 2 || entry.q >= 84);
+    }
+
+    if (answer.length <= 5) {
+        return entry.f >= 105 && (clueCount >= 3 || sourceCount >= 2 || entry.q >= 88);
+    }
+
+    return entry.f >= 112 && (clueCount >= 4 || recentCount >= 2 || sourceCount >= 2);
+}
+
 function assertSafeOutputDirectory(outputDir, expectedName) {
     if (path.dirname(outputDir) !== path.join(rootDir, 'data') || path.basename(outputDir) !== expectedName) {
         throw new Error(`Refusing to replace unexpected output directory: ${outputDir}`);
@@ -213,6 +358,8 @@ function assertSafeOutputDirectory(outputDir, expectedName) {
 async function main() {
     const buffer = await fs.readFile(inputZipPath);
     const zipEntries = readZipEntries(buffer);
+    const clueHistoryByAnswer = await loadClueHistoryByAnswer();
+    const dailyBlocklist = await loadDailyBlocklist();
     const synsets = new Map();
 
     for (const name of [...zipEntries.keys()].sort()) {
@@ -257,7 +404,7 @@ async function main() {
 
     const byLength = new Map();
     for (const [answer, records] of recordsByAnswer.entries()) {
-        const entry = compactEntry(answer, records);
+        const entry = compactEntry(answer, records, clueHistoryByAnswer.get(answer));
         const lengthEntries = byLength.get(answer.length) || {};
         lengthEntries[answer] = entry;
         byLength.set(answer.length, lengthEntries);
@@ -265,10 +412,13 @@ async function main() {
 
     assertSafeOutputDirectory(wordnetOutputDir, 'wordnet');
     assertSafeOutputDirectory(playableOutputDir, 'playable_words_by_length');
+    assertSafeOutputDirectory(dailyOutputDir, 'daily_words_by_length');
     await fs.rm(wordnetOutputDir, { recursive: true, force: true });
     await fs.rm(playableOutputDir, { recursive: true, force: true });
+    await fs.rm(dailyOutputDir, { recursive: true, force: true });
     await fs.mkdir(path.join(wordnetOutputDir, 'entries_by_length'), { recursive: true });
     await fs.mkdir(playableOutputDir, { recursive: true });
+    await fs.mkdir(dailyOutputDir, { recursive: true });
 
     const lengths = [...byLength.keys()].sort((a, b) => a - b);
     const manifestLengths = {};
@@ -280,13 +430,17 @@ async function main() {
         const words = Object.keys(entries).sort();
         const playableWords = words
             .filter((word) => shouldUseAsPlayable(word, entries[word]))
-            .sort((a, b) => entries[b].q - entries[a].q || a.localeCompare(b));
+            .sort((a, b) => entries[b].f - entries[a].f || entries[b].q - entries[a].q || a.localeCompare(b));
+        const dailyWords = playableWords
+            .filter((word) => shouldUseAsDaily(word, entries[word], dailyBlocklist))
+            .sort((a, b) => entries[b].f - entries[a].f || entries[b].q - entries[a].q || a.localeCompare(b));
 
         entryCount += words.length;
         playableCount += playableWords.length;
         manifestLengths[length] = {
             entryCount: words.length,
             playableCount: playableWords.length,
+            dailyCount: dailyWords.length,
             file: `entries_by_length/words-${length}.json`
         };
 
@@ -299,6 +453,10 @@ async function main() {
             await fs.writeFile(
                 path.join(playableOutputDir, `words-${length}.txt`),
                 `${playableWords.join('\n')}\n`
+            );
+            await fs.writeFile(
+                path.join(dailyOutputDir, `words-${length}.txt`),
+                `${dailyWords.join('\n')}\n`
             );
         }
     }
@@ -316,6 +474,8 @@ async function main() {
             d: ['definition', 'partOfSpeech', 'sourceTerm', 'synsetId'],
             s: 'normalized synonyms',
             q: 'quality score',
+            f: 'daily familiarity score',
+            h: ['clueCount', 'recentClueCount', 'sourceCount', 'bestClueScore'],
             proper: 'contains proper-noun signal'
         },
         lengths: manifestLengths

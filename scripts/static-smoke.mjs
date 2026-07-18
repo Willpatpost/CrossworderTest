@@ -23,6 +23,7 @@ const expectedPaths = [
     '/data/clues_by_prefix/clues-a.json',
     '/data/search/clue-search.json',
     '/data/wordnet/manifest.json',
+    '/data/daily_words_by_length/words-3.txt',
     '/data/playable_words_by_length/words-3.txt',
     '/data/words_by_length/words-3.txt'
 ];
@@ -103,6 +104,8 @@ async function main() {
         if (
             wordnetManifest.schemaVersion !== 1
             || wordnetManifest.playableCount <= 0
+            || wordnetManifest.lengths?.[3]?.dailyCount <= 0
+            || !responseMap['/data/daily_words_by_length/words-3.txt'].includes('CAT')
             || !responseMap['/data/playable_words_by_length/words-3.txt'].includes('ACT')
         ) {
             throw new Error('WordNet-derived playable word data is invalid');

@@ -45,7 +45,8 @@ const GENERATED_DIFFICULTIES = [
         solve: {
             domainSampleSize: 0,
             domainSamplePoolSize: 0,
-            allowReuse: true
+            allowReuse: false,
+            randomize: false
         },
         quality: {
             minAverageLength: 3.6,
@@ -71,18 +72,36 @@ const GENERATED_DIFFICULTIES = [
         solve: {
             domainSampleSize: 0,
             domainSamplePoolSize: 0,
-            allowReuse: true
+            allowReuse: true,
+            randomize: true
         },
         quality: {
-            minAverageLength: 4.3,
+            minAverageLength: 4.15,
             maxThreeLetterShare: 0.55,
-            minUniqueRatio: 0.72
+            minUniqueRatio: 0.7
         }
     },
     {
         key: 'hard',
         label: 'Hard',
-        attempts: 16,
+        attempts: 8,
+        templates: [[
+            '...#...#...#...',
+            '...#...#...#...',
+            '...#...#...#...',
+            '###############',
+            '...#...#...#...',
+            '...#...#...#...',
+            '...#...#...#...',
+            '###############',
+            '...#...#...#...',
+            '...#...#...#...',
+            '...#...#...#...',
+            '###############',
+            '...#...#...#...',
+            '...#...#...#...',
+            '...#...#...#...'
+        ]],
         layout: {
             rows: 15,
             columns: 15,
@@ -95,14 +114,16 @@ const GENERATED_DIFFICULTIES = [
             threeLetterPenalty: 3
         },
         solve: {
-            domainSampleSize: 0,
-            domainSamplePoolSize: 0,
-            allowReuse: true
+            domainSampleSize: 800,
+            domainSamplePoolSize: 3000,
+            allowReuse: true,
+            randomize: true,
+            useDailyWordList: false
         },
         quality: {
-            minAverageLength: 4.2,
-            maxThreeLetterShare: 0.5,
-            minUniqueRatio: 0.65
+            minAverageLength: 3,
+            maxThreeLetterShare: 1,
+            minUniqueRatio: 0.55
         }
     }
 ];
@@ -116,7 +137,9 @@ async function solveGeneratedPuzzle(puzzleData, seed, solveOptions = {}) {
                 seed,
                 domainSampleSize: solveOptions.domainSampleSize ?? 100,
                 domainSamplePoolSize: solveOptions.domainSamplePoolSize ?? 140,
-                allowReuse: solveOptions.allowReuse ?? true
+                allowReuse: solveOptions.allowReuse ?? true,
+                randomize: solveOptions.randomize ?? true,
+                useDailyWordList: solveOptions.useDailyWordList ?? true
             }
         });
 

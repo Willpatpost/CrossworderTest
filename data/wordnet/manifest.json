@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "source": "english-wordnet-2025-plus-json.zip",
-  "generatedAt": "2026-07-18T02:23:24.334Z",
+  "generatedAt": "2026-07-18T03:01:16.388Z",
   "entryCount": 127136,
-  "playableCount": 75000,
+  "playableCount": 74242,
   "answerLengthRange": [
     3,
     15
@@ -19,72 +19,92 @@
     ],
     "s": "normalized synonyms",
     "q": "quality score",
+    "f": "daily familiarity score",
+    "h": [
+      "clueCount",
+      "recentClueCount",
+      "sourceCount",
+      "bestClueScore"
+    ],
     "proper": "contains proper-noun signal"
   },
   "lengths": {
     "3": {
       "entryCount": 1277,
-      "playableCount": 596,
+      "playableCount": 591,
+      "dailyCount": 586,
       "file": "entries_by_length/words-3.json"
     },
     "4": {
       "entryCount": 3207,
-      "playableCount": 2175,
+      "playableCount": 2150,
+      "dailyCount": 2113,
       "file": "entries_by_length/words-4.json"
     },
     "5": {
       "entryCount": 5673,
-      "playableCount": 3795,
+      "playableCount": 3742,
+      "dailyCount": 2942,
       "file": "entries_by_length/words-5.json"
     },
     "6": {
       "entryCount": 9330,
-      "playableCount": 6412,
+      "playableCount": 6355,
+      "dailyCount": 4813,
       "file": "entries_by_length/words-6.json"
     },
     "7": {
       "entryCount": 12232,
-      "playableCount": 8609,
+      "playableCount": 8546,
+      "dailyCount": 5703,
       "file": "entries_by_length/words-7.json"
     },
     "8": {
       "entryCount": 14830,
-      "playableCount": 10915,
+      "playableCount": 10823,
+      "dailyCount": 5648,
       "file": "entries_by_length/words-8.json"
     },
     "9": {
       "entryCount": 16099,
-      "playableCount": 11953,
+      "playableCount": 11824,
+      "dailyCount": 4314,
       "file": "entries_by_length/words-9.json"
     },
     "10": {
       "entryCount": 15402,
-      "playableCount": 11210,
+      "playableCount": 11091,
+      "dailyCount": 3270,
       "file": "entries_by_length/words-10.json"
     },
     "11": {
       "entryCount": 13729,
-      "playableCount": 9721,
+      "playableCount": 9628,
+      "dailyCount": 1716,
       "file": "entries_by_length/words-11.json"
     },
     "12": {
       "entryCount": 11464,
-      "playableCount": 4965,
+      "playableCount": 4907,
+      "dailyCount": 529,
       "file": "entries_by_length/words-12.json"
     },
     "13": {
       "entryCount": 9536,
-      "playableCount": 4188,
+      "playableCount": 4128,
+      "dailyCount": 343,
       "file": "entries_by_length/words-13.json"
     },
     "14": {
       "entryCount": 7860,
-      "playableCount": 348,
+      "playableCount": 345,
+      "dailyCount": 50,
       "file": "entries_by_length/words-14.json"
     },
     "15": {
       "entryCount": 6497,
-      "playableCount": 113,
+      "playableCount": 112,
+      "dailyCount": 34,
       "file": "entries_by_length/words-15.json"
     }
   }

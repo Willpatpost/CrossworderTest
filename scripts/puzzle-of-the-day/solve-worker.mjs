@@ -36,10 +36,14 @@ async function loadWordScoresByLength(lengths) {
 }
 
 async function loadWordListForLength(length) {
-    const candidatePaths = [
+    const candidatePaths = [];
+    if (workerData.useDailyWordList !== false) {
+        candidatePaths.push(`../../data/daily_words_by_length/words-${length}.txt`);
+    }
+    candidatePaths.push(
         `../../data/playable_words_by_length/words-${length}.txt`,
         `../../data/words_by_length/words-${length}.txt`
-    ];
+    );
 
     for (const candidatePath of candidatePaths) {
         try {
