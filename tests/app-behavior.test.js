@@ -1222,6 +1222,198 @@ test('loadRecentPuzzle restores the saved workspace into the editor', () => {
     }
 });
 
+test('loadRecentPuzzle stages saved play progress for play mode', () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalDocument = globalThis.document;
+    const storage = new Map([
+        ['crossworder.recentPuzzle', JSON.stringify({
+            editorGrid: [['C', 'A', 'T']],
+            playGrid: [['C', '', 'T']],
+            playState: { elapsedMs: 65000, hasCompleted: false },
+            currentPuzzleClues: { '1-across': 'Saved clue' },
+            currentPuzzleMetadata: { title: 'Saved Puzzle', author: 'Maker' },
+            currentSolution: { '1-across': 'CAT' },
+            source: { kind: 'bundled', id: 'easy.json', label: 'Easy puzzle' },
+            slotBlacklist: { '1-across': ['CAR'] }
+        })],
+        ['crossworder.completedPuzzles', JSON.stringify([])]
+    ]);
+    let navPlayClicks = 0;
+
+    globalThis.localStorage = {
+        getItem(key) {
+            return storage.has(key) ? storage.get(key) : null;
+        },
+        setItem(key, value) {
+            storage.set(key, value);
+        },
+        removeItem(key) {
+            storage.delete(key);
+        }
+    };
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'nav-play') {
+                return { click() { navPlayClicks++; } };
+            }
+
+            return null;
+        },
+        querySelector() {
+            return null;
+        }
+    };
+
+    const app = {
+        display: {
+            updateStatus() {}
+        },
+        importPuzzleGrid(grid) {
+            this.grid = grid.map((row) => [...row]);
+        },
+        render() {},
+        refreshWordList() {},
+        renderSolverBlacklist() {},
+        syncPuzzleMetadataInputs() {},
+        _scheduleEditorAutosave() {},
+        _assertValidPuzzleGrid: puzzleMethods._assertValidPuzzleGrid,
+        _validateSolutionForCurrentGrid(solution) {
+            return solution;
+        },
+        _getRecentPuzzleStorageKey: puzzleMethods._getRecentPuzzleStorageKey,
+        _getCompletedPuzzleStorageKey: puzzleMethods._getCompletedPuzzleStorageKey,
+        _readRecentPuzzleRecord: puzzleMethods._readRecentPuzzleRecord,
+        _readCompletedPuzzleHistory: puzzleMethods._readCompletedPuzzleHistory,
+        _updateRecentPuzzleUI: puzzleMethods._updateRecentPuzzleUI
+    };
+
+    try {
+        const loaded = puzzleMethods.loadRecentPuzzle.call(app, 'play');
+
+        assert.equal(loaded, true);
+        assert.equal(navPlayClicks, 1);
+        assert.deepEqual(app._pendingPlayResume, {
+            playGrid: [['C', '', 'T']],
+            elapsedMs: 65000,
+            hasCompleted: false
+        });
+    } finally {
+        globalThis.localStorage = originalLocalStorage;
+        globalThis.document = originalDocument;
+    }
+});
+
+test('enterPlayMode restores staged recent play grid and elapsed time', () => {
+    const originalDocument = globalThis.document;
+    const originalWindow = globalThis.window;
+    let intervalStarted = false;
+    let timerText = '';
+
+    globalThis.document = {
+        getElementById(id) {
+            if (id === 'timer') {
+                return {
+                    set textContent(value) {
+                        timerText = value;
+                    },
+                    get textContent() {
+                        return timerText;
+                    }
+                };
+            }
+
+            return null;
+        },
+        querySelector() {
+            return null;
+        }
+    };
+    globalThis.window = {
+        setInterval() {
+            intervalStarted = true;
+            return 1;
+        },
+        clearInterval() {}
+    };
+
+    const app = {
+        isSolving: false,
+        currentSolution: { '1-across': 'CAT' },
+        grid: [['C', 'A', 'T']],
+        slots: {
+            '1-across': {
+                id: '1-across',
+                direction: 'across',
+                number: 1,
+                length: 3,
+                positions: [[0, 0], [0, 1], [0, 2]]
+            }
+        },
+        _pendingPlayResume: {
+            playGrid: [['C', '', 'T']],
+            elapsedMs: 65000,
+            hasCompleted: false
+        },
+        modes: {
+            isPlayMode: false,
+            setPlayMode(enabled) {
+                this.isPlayMode = enabled;
+            }
+        },
+        gridManager: {
+            selectedCell: null,
+            selectedDirection: 'across',
+            _updateHighlights() {}
+        },
+        display: {
+            updateStatus(message) {
+                this.lastMessage = message;
+            }
+        },
+        popups: {
+            showMessage() {}
+        },
+        render() {},
+        refreshWordList() {},
+        _updateInstantMistakeUI() {},
+        _updatePauseUI() {},
+        _saveRecentPuzzleRecord() {},
+        _validateSolutionForCurrentGrid: puzzleMethods._validateSolutionForCurrentGrid,
+        extractSolutionFromGrid: playMethods.extractSolutionFromGrid,
+        blankGridForPlayMode: playMethods.blankGridForPlayMode,
+        _consumePendingPlayResume: playMethods._consumePendingPlayResume,
+        _resetPlayTimer: playSessionMethods._resetPlayTimer,
+        _resumePlayTimer: playSessionMethods._resumePlayTimer,
+        _updateTimerDisplay: playSessionMethods._updateTimerDisplay,
+        _updatePlayStatusCopy: playSessionMethods._updatePlayStatusCopy,
+        _formatPlayTimeLabel: playMethods._formatPlayTimeLabel,
+        _getFirstSlot() {
+            return this.slots['1-across'];
+        },
+        playElapsedMs: 0,
+        playTimerStartedAt: null,
+        playTimerInterval: null,
+        isPlayPaused: false,
+        hasCompletedPlayPuzzle: false
+    };
+
+    try {
+        const entered = playMethods.enterPlayMode.call(app);
+
+        assert.equal(entered, true);
+        assert.deepEqual(app.grid, [['C', '', 'T']]);
+        assert.equal(app.playElapsedMs, 65000);
+        assert.equal(timerText, '01:05');
+        assert.equal(intervalStarted, true);
+        assert.equal(app.display.lastMessage, 'Resumed your recent puzzle.');
+        assert.equal(app._pendingPlayResume, null);
+    } finally {
+        globalThis.document = originalDocument;
+        globalThis.window = originalWindow;
+    }
+});
+
 test('recordCompletedPuzzle appends a completion entry to local history', () => {
     const originalLocalStorage = globalThis.localStorage;
     const originalDocument = globalThis.document;

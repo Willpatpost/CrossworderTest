@@ -30,10 +30,18 @@ export const playMethods = {
 
         this.modes.setPlayMode(true);
         this.blankGridForPlayMode();
+        const resumedPlay = this._consumePendingPlayResume?.() || null;
         this.render();
         this.refreshWordList();
         this._resetPlayTimer();
-        this._resumePlayTimer();
+        if (resumedPlay) {
+            this.playElapsedMs = resumedPlay.elapsedMs;
+            this.hasCompletedPlayPuzzle = resumedPlay.hasCompleted;
+            this._updateTimerDisplay();
+        }
+        if (!this.hasCompletedPlayPuzzle) {
+            this._resumePlayTimer();
+        }
         this._updateInstantMistakeUI();
         this._updatePauseUI();
         this._saveRecentPuzzleRecord?.({ silent: true });
@@ -46,8 +54,14 @@ export const playMethods = {
             this.gridManager._updateHighlights(this);
         }
 
-        this.display.updateStatus('Entered play mode. Good luck!', true);
-        this._updatePlayStatusCopy('active');
+        if (this.hasCompletedPlayPuzzle) {
+            const timeLabel = this._formatPlayTimeLabel?.(this.playElapsedMs) || '';
+            this.display.updateStatus('Restored the completed recent puzzle.', true);
+            this._updatePlayStatusCopy('completed', timeLabel);
+        } else {
+            this.display.updateStatus(resumedPlay ? 'Resumed your recent puzzle.' : 'Entered play mode. Good luck!', true);
+            this._updatePlayStatusCopy('active');
+        }
         return true;
     },
 
@@ -113,6 +127,48 @@ export const playMethods = {
                 }
             }
         }
+    },
+
+    _consumePendingPlayResume() {
+        const pending = this._pendingPlayResume;
+        this._pendingPlayResume = null;
+
+        if (!pending?.playGrid || !Array.isArray(pending.playGrid)) return null;
+        if (!Array.isArray(this.grid) || !this.grid.length) return null;
+
+        const expectedRows = this.grid.length;
+        const expectedCols = this.grid[0]?.length || 0;
+        if (pending.playGrid.length !== expectedRows || !expectedCols) return null;
+
+        const restoredGrid = [];
+
+        for (let r = 0; r < expectedRows; r++) {
+            const row = pending.playGrid[r];
+            if (!Array.isArray(row) || row.length !== expectedCols) return null;
+
+            const restoredRow = [];
+            for (let c = 0; c < expectedCols; c++) {
+                const currentCell = this.grid[r][c];
+                const savedCell = row[c];
+
+                if (currentCell === '#') {
+                    if (savedCell !== '#') return null;
+                    restoredRow.push('#');
+                    continue;
+                }
+
+                if (savedCell === '#') return null;
+                restoredRow.push(/^[A-Z]$/i.test(savedCell) ? savedCell.toUpperCase() : '');
+            }
+
+            restoredGrid.push(restoredRow);
+        }
+
+        this.grid = restoredGrid;
+        return {
+            elapsedMs: Math.max(0, Number(pending.elapsedMs) || 0),
+            hasCompleted: Boolean(pending.hasCompleted)
+        };
     },
 
     handleCheckSquare() {
@@ -394,6 +450,17 @@ export const playMethods = {
 
     _canUsePlayTools() {
         return this.modes.isPlayMode && this.currentSolution && !this.isPlayPaused;
+    },
+
+    _formatPlayTimeLabel(elapsedMs) {
+        const totalSeconds = Math.max(0, Math.floor((Number(elapsedMs) || 0) / 1000));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        return hours > 0
+            ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+            : `${minutes}:${String(seconds).padStart(2, '0')}`;
     },
     ...playSessionMethods
 };

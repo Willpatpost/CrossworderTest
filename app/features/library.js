@@ -277,6 +277,7 @@ export const libraryMethods = {
             this.refreshWordList?.();
             this._updateRecentPuzzleUI?.();
             this._scheduleEditorAutosave?.();
+            this._pendingPlayResume = null;
 
             if (mode === 'play') {
                 if (!this.currentSolution) {
@@ -284,6 +285,13 @@ export const libraryMethods = {
                     return false;
                 }
 
+                this._pendingPlayResume = {
+                    playGrid: Array.isArray(record.playGrid)
+                        ? record.playGrid.map((row) => [...row])
+                        : null,
+                    elapsedMs: Number(record.playState?.elapsedMs) || 0,
+                    hasCompleted: Boolean(record.playState?.hasCompleted)
+                };
                 document.getElementById('nav-play')?.click();
                 return true;
             }
