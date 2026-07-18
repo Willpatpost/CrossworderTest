@@ -23,6 +23,8 @@ function initializeTheme() {
     } else {
         document.body.classList.remove('dark-mode');
     }
+
+    updateThemeToggle();
 }
 
 /* ===============================
@@ -121,12 +123,25 @@ function setupThemeToggle() {
 
     themeBtn.addEventListener('click', () => {
         const isDarkMode = document.body.classList.toggle('dark-mode');
+        updateThemeToggle();
         try {
             localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
         } catch (error) {
             console.warn('Theme preference could not be saved.', error);
         }
     });
+}
+
+function updateThemeToggle() {
+    const themeBtn = document.getElementById('theme-toggle-button');
+    const themeLabel = document.getElementById('theme-toggle-label');
+    if (!themeBtn || !themeLabel) return;
+
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const nextTheme = isDarkMode ? 'light' : 'dark';
+    themeLabel.textContent = isDarkMode ? 'Light' : 'Dark';
+    themeBtn.setAttribute('aria-label', `Switch to ${nextTheme} theme`);
+    themeBtn.setAttribute('title', `Switch to ${nextTheme} theme`);
 }
 
 function safelyReadThemePreference() {

@@ -39,8 +39,9 @@
             </div>
 
             <div class="nav-right">
-                <button id="theme-toggle-button" class="btn secondary-btn" type="button" aria-label="Toggle dark mode">
-                    🌓 Theme
+                <button id="theme-toggle-button" class="theme-toggle" type="button" aria-label="Switch to dark theme">
+                    <span class="theme-toggle-icon" aria-hidden="true"></span>
+                    <span id="theme-toggle-label">Dark</span>
                 </button>
             </div>
         </nav>
@@ -52,23 +53,22 @@
             <section id="home-screen" class="view-section" aria-labelledby="home-heading">
                 <section class="home-hero">
                     <div class="hero-copy">
-                        <p class="hero-kicker">Construct. Solve. Play.</p>
-                        <h1 id="home-heading">A crossword workshop with a live solving engine.</h1>
+                        <p class="hero-kicker">Your crossword workspace</p>
+                        <h1 id="home-heading">Crossworder</h1>
                         <p class="hero-subcopy">
-                            Build grids, lock in theme letters, search candidate fills, and jump into play mode
-                            without leaving the same workspace.
+                            Play today's puzzles, continue where you left off, or open the editor to make your own.
                         </p>
                         <div class="hero-actions">
                             <button class="btn primary-btn home-action-btn" type="button" data-home-target="editor-screen">
                                 Open Editor
                             </button>
                             <button class="btn secondary-btn home-action-btn" type="button" data-home-target="play-screen">
-                                Try Play Mode
+                                Open Play Mode
                             </button>
                         </div>
                     </div>
 
-                    <div class="hero-spotlight" aria-hidden="true">
+                    <div class="hero-spotlight hidden" aria-hidden="true">
                         <div class="spotlight-card spotlight-primary">
                             <span class="spotlight-label">Live Workspace</span>
                             <strong>Design symmetrical layouts and test fills fast.</strong>
@@ -80,7 +80,7 @@
                     </div>
                 </section>
 
-                <section class="home-stats" aria-label="Project highlights">
+                <section class="home-stats hidden" aria-label="Project highlights">
                     <article class="stat-card">
                         <span id="home-stat-bundled" class="stat-value">3</span>
                         <span class="stat-label">Bundled puzzles</span>
@@ -103,7 +103,7 @@
                     </article>
                 </section>
 
-                <section class="section home-onboarding" aria-labelledby="home-onboarding-heading">
+                <section class="section home-onboarding hidden" aria-labelledby="home-onboarding-heading">
                     <div class="home-library-header">
                         <div>
                             <p class="card-eyebrow">Start Here</p>
@@ -224,7 +224,7 @@
                     <div id="home-puzzle-library" class="home-library-grid" aria-live="polite"></div>
                 </section>
 
-                <section class="home-grid home-dashboard-grid" aria-label="Featured puzzle recommendations">
+                <section class="home-grid home-dashboard-grid hidden" aria-label="Featured puzzle recommendations">
                     <article class="info-card home-dashboard-card">
                         <p class="card-eyebrow">Featured</p>
                         <h2 id="home-featured-title">Loading featured puzzle...</h2>
@@ -258,7 +258,7 @@
                     </article>
                 </section>
 
-                <section class="home-grid home-grid-featured">
+                <section class="home-grid home-grid-featured hidden">
                     <article class="info-card feature-card">
                         <p class="card-eyebrow">Editor</p>
                         <h2>Shape a puzzle instead of fighting a blank page.</h2>
@@ -287,7 +287,7 @@
                     </article>
                 </section>
 
-                <section class="home-flow section" aria-labelledby="workflow-heading">
+                <section class="home-flow section hidden" aria-labelledby="workflow-heading">
                     <h2 id="workflow-heading">How It Flows</h2>
                     <div class="workflow-grid">
                         <article class="workflow-step">
@@ -308,7 +308,7 @@
                     </div>
                 </section>
 
-                <section class="home-grid">
+                <section class="home-grid hidden">
                     <article class="info-card">
                         <h2>Why This Exists</h2>
                         <p>
